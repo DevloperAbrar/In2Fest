@@ -1,0 +1,293 @@
+backend/
+│
+├── src/
+│   ├── config/
+│   │   ├── database.js
+│   │   ├── env.js
+│   │   ├── razorpay.js
+│   │   ├── whatsapp.js
+│   │   └── redis.js                          [NEW] Redis client configuration
+│   │
+│   ├── database/
+│   │   ├── models/
+│   │   │   ├── index.js                      [UPDATED] Register all new V2 models and associations
+│   │   │   ├── user.model.js
+│   │   │   ├── venue.model.js                [UPDATED] Add all V2 new columns (business_category, starting_price, long_description, locality, badges, etc.)
+│   │   │   ├── plan.model.js
+│   │   │   ├── subscription.model.js
+│   │   │   ├── payment.model.js
+│   │   │   ├── slot.model.js
+│   │   │   ├── inquiry.model.js              [UPDATED] Add source field (subdomain / marketplace)
+│   │   │   ├── booking.model.js
+│   │   │   ├── client.model.js
+│   │   │   ├── paymentLedger.model.js
+│   │   │   ├── invoice.model.js
+│   │   │   ├── serviceItem.model.js
+│   │   │   ├── whatsappTemplate.model.js
+│   │   │   ├── whatsappMessage.model.js
+│   │   │   ├── teamMember.model.js
+│   │   │   ├── city.model.js                 [NEW] id, name, slug, state, state_slug, coordinates, vendor_count cache, active
+│   │   │   ├── category.model.js             [NEW] id, name, slug, icon, display_order, active
+│   │   │   ├── venueServiceArea.model.js     [NEW] id, venue_id, city_id
+│   │   │   ├── vendorListing.model.js        [NEW] Free tier listing model (see Section 6.2 for all fields)
+│   │   │   ├── review.model.js               [NEW] Full review model (see Section 7.4)
+│   │   │   └── reviewRequest.model.js        [NEW] Review request tracking model (see Section 7.4)
+│   │   │
+│   │   └── seeders/
+│   │       ├── index.js                      [UPDATED] Register new seeders
+│   │       ├── superAdmin.seeder.js
+│   │       ├── plans.seeder.js
+│   │       ├── whatsappTemplates.seeder.js   [UPDATED] Add 5 new V2 WhatsApp templates
+│   │       ├── cities.seeder.js              [NEW] Seed initial cities  - Indore, Bhopal, Ujjain, etc. with slugs and state
+│   │       └── categories.seeder.js          [NEW] Seed all 18 fixed categories with slugs and display order
+│   │
+│   ├── modules/
+│   │   ├── auth/
+│   │   │   ├── auth.controller.js
+│   │   │   ├── auth.routes.js
+│   │   │   ├── google.strategy.js
+│   │   │   └── jwt.service.js
+│   │   │
+│   │   ├── venues/
+│   │   │   ├── venue.controller.js           [UPDATED] Add marketplace profile update endpoints
+│   │   │   ├── venue.routes.js               [UPDATED] Add new marketplace profile routes
+│   │   │   └── venue.service.js              [UPDATED] Add marketplace profile completion calculation logic
+│   │   │
+│   │   ├── plans/
+│   │   │   ├── plan.controller.js
+│   │   │   ├── plan.routes.js
+│   │   │   └── plan.service.js
+│   │   │
+│   │   ├── subscriptions/
+│   │   │   ├── subscription.controller.js
+│   │   │   ├── subscription.routes.js
+│   │   │   └── subscription.service.js
+│   │   │
+│   │   ├── payments/
+│   │   │   ├── payment.controller.js
+│   │   │   ├── payment.routes.js
+│   │   │   └── razorpay.webhook.js
+│   │   │
+│   │   ├── slots/
+│   │   │   ├── slot.controller.js
+│   │   │   ├── slot.routes.js
+│   │   │   └── slot.service.js
+│   │   │
+│   │   ├── inquiries/
+│   │   │   ├── inquiry.controller.js         [UPDATED] Handle source field  - distinguish marketplace vs subdomain inquiries
+│   │   │   ├── inquiry.routes.js
+│   │   │   └── inquiry.service.js            [UPDATED] Add OTP verification flow for marketplace inquiries
+│   │   │
+│   │   ├── bookings/
+│   │   │   ├── booking.controller.js
+│   │   │   ├── booking.routes.js
+│   │   │   └── booking.service.js
+│   │   │
+│   │   ├── clients/
+│   │   │   ├── client.controller.js
+│   │   │   ├── client.routes.js
+│   │   │   └── paymentLedger.controller.js
+│   │   │
+│   │   ├── billing/
+│   │   │   ├── invoice.controller.js
+│   │   │   ├── quotation.controller.js
+│   │   │   ├── billing.routes.js
+│   │   │   ├── pdf.generator.js
+│   │   │   ├── verify.controller.js
+│   │   │   ├── verify.routes.js
+│   │   │   └── qr.generator.js
+│   │   │
+│   │   ├── whatsapp/
+│   │   │   ├── whatsapp.service.js           [UPDATED] Add 5 new V2 message trigger functions
+│   │   │   ├── whatsapp.controller.js
+│   │   │   ├── whatsapp.routes.js
+│   │   │   ├── template.manager.js
+│   │   │   └── message.scheduler.js          [UPDATED] Add weekly stats and monthly nudge schedule
+│   │   │
+│   │   ├── analytics/
+│   │   │   ├── analytics.controller.js
+│   │   │   └── analytics.routes.js
+│   │   │
+│   │   ├── discovery/                        [NEW MODULE  - core of V2]
+│   │   │   ├── search.controller.js          [NEW] Full-text search with filters, sorting, pagination
+│   │   │   ├── search.service.js             [NEW] Query builder for vendor search with all filters
+│   │   │   ├── city.controller.js            [NEW] City page data, city+category page data
+│   │   │   ├── city.routes.js                [NEW]
+│   │   │   ├── category.controller.js        [NEW] Category data, category+city combinations
+│   │   │   ├── category.routes.js            [NEW]
+│   │   │   ├── vendorPublic.controller.js    [NEW] Individual vendor profile page data for marketplace
+│   │   │   ├── vendorPublic.routes.js        [NEW]
+│   │   │   ├── listing.controller.js         [NEW] Free listing registration, profile management
+│   │   │   ├── listing.routes.js             [NEW]
+│   │   │   ├── homepage.controller.js        [NEW] Homepage data  - featured vendors, trust stats, cities
+│   │   │   └── discovery.routes.js           [NEW] Master router for all discovery module routes
+│   │   │
+│   │   ├── reviews/                          [NEW MODULE]
+│   │   │   ├── review.controller.js          [NEW] Submit review, fetch reviews, owner reply
+│   │   │   ├── review.routes.js              [NEW]
+│   │   │   └── review.service.js             [NEW] OTP verification, approval logic, rating calculation
+│   │   │
+│   │   ├── marketplace-profile/              [NEW MODULE]
+│   │   │   ├── marketplaceProfile.controller.js  [NEW] CRUD for vendor's marketplace profile data
+│   │   │   ├── marketplaceProfile.routes.js  [NEW]
+│   │   │   └── marketplaceProfile.service.js [NEW] Profile completion percentage calculation
+│   │   │
+│   │   └── seo/                             [NEW MODULE]
+│   │       ├── sitemap.service.js            [NEW] Generates sitemap.xml from database
+│   │       ├── seo.service.js                [NEW] Meta tag generation, schema markup generation
+│   │       └── sitemap.routes.js             [NEW] Serves /sitemap.xml
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js
+│   │   ├── role.middleware.js
+│   │   ├── error.middleware.js
+│   │   ├── upload.middleware.js              [UPDATED] Push uploads to Cloudflare R2 instead of local disk
+│   │   ├── rateLimiter.middleware.js
+│   │   └── subdomain.middleware.js           [UPDATED] Moved from /subdomain/ folder into /middleware/  - no logic change, only location
+│   │
+│   ├── utils/
+│   │   ├── imageCompress.js
+│   │   ├── dateHelpers.js
+│   │   ├── invoiceNumberGenerator.js
+│   │   ├── slugGenerator.js                  [NEW] Generates URL-safe slugs from venue names, handles duplicates
+│   │   └── otpService.js                     [NEW] OTP generation and verification for marketplace inquiry and review forms
+│   │
+│   ├── jobs/
+│   │   ├── index.js                          [UPDATED] Register new V2 cron jobs
+│   │   ├── trialExpiryChecker.js
+│   │   ├── paymentReminder.js
+│   │   ├── reviewRequestSender.js            [UPDATED] Was a placeholder in V1  - now fully implemented to send post-event review WhatsApp
+│   │   └── sitemapRebuilder.js               [NEW] Daily cron job that regenerates sitemap.xml from database
+│   │
+│   ├── subdomain/                            [FOLDER REMOVED  - file moved to /middleware/]
+│   │
+│   ├── routes/
+│   │   └── index.js                          [UPDATED] Register all new V2 module routes
+│   │
+│   ├── app.js                                [UPDATED] Mount new discovery, reviews, marketplace-profile, seo modules
+│   └── server.js
+│
+├── uploads/                                  [TO BE DEPRECATED] Local upload folders phased out as R2 migration completes
+│   ├── venues/
+│   ├── gallery/
+│   └── invoices/
+│
+├── .env                                      [UPDATED] Add R2 credentials, Redis URL, OTP service key
+├── .gitignore
+├── ecosystem.config.js                       [UPDATED] Add Next.js discovery app as a separate PM2 process
+└── package.json                              [UPDATED] Add redis, aws-sdk (for R2), node-cron if not already present
+
+
+
+discovery-frontend/                           [NEW  - entire folder is new]
+│
+├── app/
+│   ├── layout.jsx                            Root layout  - Navbar, Footer, Meta defaults
+│   ├── page.jsx                              Homepage (campussafar.com)
+│   ├── [state]/
+│   │   └── page.jsx                          State landing page
+│   ├── [state]/[city]/
+│   │   └── page.jsx                          City landing page
+│   ├── [state]/[city]/[category]/
+│   │   └── page.jsx                          City + Category landing page
+│   ├── [state]/[city]/[category]/[locality]/
+│   │   └── page.jsx                          City + Category + Locality page
+│   ├── [state]/[city]/[category]/[vendor]/
+│   │   └── page.jsx                          Individual vendor profile page
+│   ├── search/
+│   │   └── page.jsx                          Search results page (CSR  - not indexed)
+│   └── register-free/
+│       └── page.jsx                          Free listing registration form
+│
+├── components/
+│   ├── layout/
+│   │   ├── Header.jsx                        Navbar with search bar, city selector
+│   │   ├── Footer.jsx
+│   │   └── MobileNav.jsx
+│   │
+│   ├── search/
+│   │   ├── SearchBar.jsx                     Main search bar with live suggestions
+│   │   ├── FilterSidebar.jsx                 All filters  - category, city, budget, capacity, etc.
+│   │   ├── VendorCard.jsx                    Individual vendor card shown in results
+│   │   ├── ResultsGrid.jsx                   Grid of VendorCards with pagination
+│   │   └── MapView.jsx                       Map view toggle with vendor pins
+│   │
+│   ├── vendor-profile/
+│   │   ├── HeroSection.jsx                   Cover photo, name, rating, badges, action buttons
+│   │   ├── PhotoGallery.jsx                  Grid gallery with lightbox
+│   │   ├── ServicesGrid.jsx                  Services checklist display
+│   │   ├── ReviewsSection.jsx                Reviews list, average rating, owner reply
+│   │   ├── AvailabilityCalendar.jsx          Live calendar (read-only, same data as subdomain site)
+│   │   ├── ContactButtons.jsx                Call, WhatsApp, Send Inquiry buttons
+│   │   ├── SimilarVendors.jsx                4 similar vendor cards at bottom of page
+│   │   └── InquiryModal.jsx                  Inquiry form modal with OTP verification
+│   │
+│   ├── homepage/
+│   │   ├── HeroSearch.jsx                    Big search bar with city and category chips
+│   │   ├── FeaturedVendors.jsx               Featured vendor cards section
+│   │   ├── HowItWorks.jsx                    3-step static section
+│   │   ├── TrustSignals.jsx                  Live counts  - venues, cities, events
+│   │   └── CityCoverage.jsx                  City grid with vendor counts
+│   │
+│   ├── seo/
+│   │   ├── SchemaMarkup.jsx                  Renders JSON-LD schema in page head
+│   │   └── BreadcrumbNav.jsx                 Breadcrumb with schema markup
+│   │
+│   └── common/
+│       ├── StarRating.jsx
+│       ├── CategoryIcon.jsx
+│       ├── PriceRange.jsx
+│       ├── Badge.jsx                          Verified, Premium Partner, etc.
+│       └── OtpInput.jsx                       OTP input component for phone verification
+│
+├── lib/
+│   ├── api.js                                Axios instance pointing to api.campussafar.com
+│   ├── constants.js                          Category slugs, city list, filter options
+│   └── seoHelpers.js                         Meta tag and schema generation helpers
+│
+├── public/
+│   ├── sitemap.xml                           Served from backend  - Nginx redirect to API
+│   └── robots.txt
+│
+├── next.config.js
+├── tailwind.config.js
+├── .env.local
+└── package.json
+
+frontend/src/features/
+
+├── venue-owner/
+│   │
+│   ├── marketplace-profile/                  [NEW FOLDER]
+│   │   ├── MarketplaceProfilePage.jsx        Main page with tab navigation and completion ring
+│   │   ├── tabs/
+│   │   │   ├── BusinessDetailsTab.jsx        Category, description, tagline, years, team, languages
+│   │   │   ├── ServiceAreasTab.jsx           Primary city/locality, additional cities, travel note
+│   │   │   ├── ServicesChecklistTab.jsx      Dynamic checklist based on selected category
+│   │   │   ├── PricingPoliciesTab.jsx        Starting price, max price, advance %, cancellation policy
+│   │   │   ├── SocialMediaTab.jsx            WhatsApp, Instagram, YouTube, video intro
+│   │   │   └── SubdomainTab.jsx              Shows subdomain URL, slug edit, QR code download
+│   │   └── MarketplaceProfileChecklist.jsx   Completion checklist shown on owner dashboard home
+│   │
+│   ├── dashboard/
+│   │   └── OwnerDashboard.jsx                [UPDATED] Add MarketplaceProfileChecklist widget if profile < 100%
+│   │
+│   ├── website-builder/
+│   │   └── WebsiteBuilderHome.jsx            [UPDATED] Display subdomain URL correctly for both dev and production
+│   │
+│   └── settings/
+│       └── VenueProfileSettings.jsx          [UPDATED] Display subdomain URL with copy button
+│
+└── superadmin/
+    │
+    └── discovery/                            [NEW FOLDER]
+        ├── FeaturedVendors.jsx               Select up to 10 vendors to feature on homepage
+        ├── ReviewModeration.jsx              Approve or reject pending marketplace reviews
+        ├── FreeListings.jsx                  View free-tier vendors, see stats, send upgrade payment link
+        ├── VerificationBadges.jsx            Assign Verified Business, Documents Verified, Premium Partner
+        ├── CityManager.jsx                   Add/edit cities with name, state, coordinates, slug
+        └── MarketplaceAnalytics.jsx          Top cities, categories, search terms, inquiry stats, conversion rate
+
+
+
+        node backend/src/scripts/migrateImagesToR2.js 

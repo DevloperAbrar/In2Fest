@@ -1,0 +1,322 @@
+backend/
+│
+├── src/
+│   ├── config/
+│   │   ├── database.js
+│   │   ├── env.js
+│   │   ├── razorpay.js
+│   │   └── whatsapp.js
+│   │
+│   ├── database/
+│   │   ├── models/
+│   │   │   ├── index.js
+│   │   │   ├── user.model.js
+│   │   │   ├── venue.model.js
+│   │   │   ├── plan.model.js
+│   │   │   ├── subscription.model.js
+│   │   │   ├── payment.model.js
+│   │   │   ├── slot.model.js
+│   │   │   ├── inquiry.model.js
+│   │   │   ├── booking.model.js
+│   │   │   ├── client.model.js
+│   │   │   ├── paymentLedger.model.js
+│   │   │   ├── invoice.model.js
+│   │   │   ├── serviceItem.model.js
+│   │   │   ├── whatsappTemplate.model.js
+│   │   │   ├── whatsappMessage.model.js
+│   │   │   └── teamMember.model.js
+│   │   └── seeders/
+│   │       ├── index.js
+│   │       ├── superAdmin.seeder.js
+│   │       ├── plans.seeder.js
+│   │       └── whatsappTemplates.seeder.js
+│   │
+│   ├── modules/
+│   │   ├── auth/
+│   │   │   ├── auth.controller.js
+│   │   │   ├── auth.routes.js
+│   │   │   ├── google.strategy.js
+│   │   │   └── jwt.service.js
+│   │   ├── venues/
+│   │   │   ├── venue.controller.js
+│   │   │   ├── venue.routes.js
+│   │   │   └── venue.service.js
+│   │   ├── plans/
+│   │   │   ├── plan.controller.js
+│   │   │   ├── plan.routes.js
+│   │   │   └── plan.service.js
+│   │   ├── subscriptions/
+│   │   │   ├── subscription.controller.js
+│   │   │   ├── subscription.routes.js
+│   │   │   └── subscription.service.js
+│   │   ├── payments/
+│   │   │   ├── payment.controller.js
+│   │   │   ├── payment.routes.js
+│   │   │   └── razorpay.webhook.js
+│   │   ├── slots/
+│   │   │   ├── slot.controller.js
+│   │   │   ├── slot.routes.js
+│   │   │   └── slot.service.js
+│   │   ├── inquiries/
+│   │   │   ├── inquiry.controller.js
+│   │   │   ├── inquiry.routes.js
+│   │   │   └── inquiry.service.js
+│   │   ├── bookings/
+│   │   │   ├── booking.controller.js
+│   │   │   ├── booking.routes.js
+│   │   │   └── booking.service.js
+│   │   ├── clients/
+│   │   │   ├── client.controller.js
+│   │   │   ├── client.routes.js
+│   │   │   └── paymentLedger.controller.js
+│   │   ├── billing/
+│   │   │   ├── invoice.controller.js
+│   │   │   ├── quotation.controller.js
+│   │   │   ├── billing.routes.js
+│   │   │   ├── pdf.generator.js
+│   │   │   ├── verify.controller.js
+│   │   │   ├── verify.routes.js
+│   │   │   └── qr.generator.js
+│   │   ├── whatsapp/
+│   │   │   ├── whatsapp.service.js
+│   │   │   ├── whatsapp.controller.js
+│   │   │   ├── whatsapp.routes.js
+│   │   │   ├── template.manager.js
+│   │   │   └── message.scheduler.js
+│   │   └── analytics/
+│   │       ├── analytics.controller.js
+│   │       └── analytics.routes.js
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js
+│   │   ├── role.middleware.js
+│   │   ├── error.middleware.js
+│   │   ├── upload.middleware.js
+│   │   └── rateLimiter.middleware.js
+│   │
+│   ├── utils/
+│   │   ├── imageCompress.js
+│   │   ├── dateHelpers.js
+│   │   └── invoiceNumberGenerator.js
+│   │
+│   ├── jobs/
+│   │   ├── index.js
+│   │   ├── trialExpiryChecker.js
+│   │   ├── paymentReminder.js
+│   │   └── reviewRequestSender.js
+│   │
+│   ├── subdomain/
+│   │   └── subdomain.middleware.js
+│   │
+│   ├── routes/
+│   │   └── index.js
+│   │
+│   ├── app.js
+│   └── server.js
+│
+├── uploads/
+│   ├── venues/
+│   ├── gallery/
+│   └── invoices/
+│
+├── .env
+├── .gitignore
+├── ecosystem.config.js
+└── package.json
+
+frontend/
+│
+├── public/
+│   ├── favicon.ico
+│   ├── robots.txt
+│   └── sitemap.xml
+│
+├── src/
+│   ├── assets/
+│   │   ├── images/
+│   │   └── icons/
+│   │
+│   ├── components/
+│   │   ├── common/
+│   │   │   ├── Button.jsx
+│   │   │   ├── Input.jsx
+│   │   │   ├── Select.jsx
+│   │   │   ├── Modal.jsx
+│   │   │   ├── Loader.jsx
+│   │   │   ├── Toast.jsx
+│   │   │   ├── ConfirmDialog.jsx
+│   │   │   ├── Badge.jsx
+│   │   │   ├── Card.jsx
+│   │   │   ├── MultiSelect.jsx
+│   │   │   └── EmptyState.jsx
+│   │   ├── layout/
+│   │   │   ├── DashboardLayout.jsx
+│   │   │   ├── PublicLayout.jsx
+│   │   │   ├── Sidebar.jsx
+│   │   │   ├── Navbar.jsx
+│   │   │   ├── Footer.jsx
+│   │   │   └── ProtectedRoute.jsx
+│   │   └── forms/
+│   │       ├── FormField.jsx
+│   │       ├── FormWrapper.jsx
+│   │       └── validationSchemas.js
+│   │
+│   ├── features/
+│   │   ├── auth/
+│   │   │   ├── LoginPage.jsx
+│   │   │   ├── GoogleLoginButton.jsx
+│   │   │   ├── AdminLoginForm.jsx
+│   │   │   ├── AuthCallback.jsx
+│   │   │   └── authSlice.js
+│   │   │
+│   │   ├── superadmin/
+│   │   │   ├── adminSidebarItems.js
+│   │   │   ├── dashboard/
+│   │   │   │   ├── SuperAdminDashboard.jsx
+│   │   │   │   ├── RevenueGraph.jsx
+│   │   │   │   ├── ActivityFeed.jsx
+│   │   │   │   └── StatsCards.jsx
+│   │   │   ├── venues/
+│   │   │   │   ├── VenueList.jsx
+│   │   │   │   ├── VenueDetail.jsx
+│   │   │   │   ├── VenueActions.jsx
+│   │   │   │   └── ImpersonateButton.jsx
+│   │   │   ├── plans/
+│   │   │   │   ├── PlanList.jsx
+│   │   │   │   ├── PlanForm.jsx
+│   │   │   │   └── PlanCard.jsx
+│   │   │   ├── payments/
+│   │   │   │   ├── PaymentList.jsx
+│   │   │   │   ├── ManualPaymentForm.jsx
+│   │   │   │   └── SubscriptionStatusBadge.jsx
+│   │   │   ├── whatsapp-center/
+│   │   │   │   ├── MessageComposer.jsx
+│   │   │   │   ├── TemplateManager.jsx
+│   │   │   │   ├── MessageScheduler.jsx
+│   │   │   │   └── MessageHistoryLog.jsx
+│   │   │   ├── analytics/
+│   │   │   │   ├── AdminAnalytics.jsx
+│   │   │   │   └── ChurnChart.jsx
+│   │   │   └── settings/
+│   │   │       ├── PlatformSettings.jsx
+│   │   │       └── ApiKeysForm.jsx
+│   │   │
+│   │   ├── venue-owner/
+│   │   │   ├── ownerSidebarItems.js
+│   │   │   ├── onboarding/
+│   │   │   │   ├── WelcomeScreen.jsx 
+│   │   │   │   ├── PlanSelection.jsx
+│   │   │   │   └── VenueDetailsForm.jsx
+│   │   │   ├── dashboard/
+│   │   │   │   ├── OwnerDashboard.jsx
+│   │   │   │   └── SetupChecklist.jsx
+│   │   │   ├── website-builder/
+│   │   │   │   ├── TemplatePicker.jsx
+│   │   │   │   ├── HeroEditor.jsx
+│   │   │   │   ├── AboutEditor.jsx
+│   │   │   │   ├── ServicesEditor.jsx
+│   │   │   │   ├── GalleryEditor.jsx
+│   │   │   │   ├── TestimonialsEditor.jsx
+│   │   │   │   ├── ContactEditor.jsx
+│   │   │   │   ├── WebsiteBuilderHome.jsx
+│   │   │   │   └── LivePreviewPanel.jsx
+│   │   │   ├── slots/
+│   │   │   │   ├── SlotList.jsx
+│   │   │   │   └── SlotForm.jsx
+│   │   │   ├── inquiries/
+│   │   │   │   ├── InquiryList.jsx
+│   │   │   │   ├── InquiryDetail.jsx
+│   │   │   │   └── InquiryStatusFlow.jsx
+│   │   │   ├── bookings/
+│   │   │   │   ├── BookingCalendarView.jsx
+│   │   │   │   ├── BookingListView.jsx
+│   │   │   │   ├── QuickBookingModal.jsx
+│   │   │   │   └── BookingDetail.jsx
+│   │   │   ├── clients/
+│   │   │   │   ├── ClientList.jsx
+│   │   │   │   ├── ClientDetail.jsx
+│   │   │   │   └── PaymentLedger.jsx
+│   │   │   ├── billing/
+│   │   │   │   ├── QuotationForm.jsx
+│   │   │   │   ├── InvoiceForm.jsx
+│   │   │   │   ├── ServiceCatalog.jsx
+│   │   │   │   └── InvoicePreview.jsx
+│   │   │   ├── analytics/
+│   │   │   │   ├── OwnerAnalytics.jsx
+│   │   │   │   └── SlotPopularityChart.jsx
+│   │   │   └── settings/
+│   │   │       ├── VenueProfileSettings.jsx
+│   │   │       ├── PaymentSettings.jsx
+│   │   │       ├── GstSettings.jsx
+│   │   │       ├── GstSettings.jsx
+│   │   │       ├── TeamMembers.jsx
+│   │   │       └── SubscriptionDetails.jsx
+│   │   │
+│   │   └── public-site/
+│   │       ├── VenueHomePage.jsx
+│   │       ├── VerifyInvoicePage.jsx
+│   │       ├── venue-home/
+│   │       │   ├── HeroSection.jsx
+│   │       │   ├── AboutSection.jsx
+│   │       │   ├── ServicesSection.jsx
+│   │       │   ├── GallerySection.jsx
+│   │       │   ├── TestimonialsSection.jsx
+│   │       │   └── ContactSection.jsx
+│   │       ├── availability-calendar/
+│   │       │   └── AvailabilityCalendar.jsx
+│   │       └── inquiry-form/
+│   │           └── InquiryForm.jsx
+│   │
+│   ├── hooks/
+│   │   ├── useAuth.js
+│   │   ├── useFetch.js
+│   │   ├── useDebounce.js
+│   │   └── usePagination.js
+│   │
+│   ├── context/
+│   │   ├── AuthContext.jsx
+│   │   ├── ThemeContext.jsx
+│   │   └── VenueContext.jsx
+│   │
+│   ├── services/
+│   │   ├── api.js
+│   │   ├── authService.js
+│   │   ├── venueService.js
+│   │   ├── planService.js
+│   │   ├── subscriptionService.js
+│   │   ├── bookingService.js
+│   │   ├── inquiryService.js
+│   │   ├── clientService.js
+│   │   ├── publicService.js
+│   │   ├── billingService.js
+│   │   ├── paymentService.js
+│   │   └── whatsappService.js
+│   │
+│   ├── lib/
+│   │   ├── axiosInstance.js
+│   │   ├── constants.js
+│   │   ├── venueTypes.js
+│   │   └── formatters.js
+│   │
+│   ├── routes/
+│   │   ├── AppRoutes.jsx
+│   │   ├── SuperAdminRoutes.jsx
+│   │   ├── VenueOwnerRoutes.jsx
+│   │   └── PublicRoutes.jsx
+│   │
+│   ├── store/
+│   │   ├── authStore.js
+│   │   └── venueStore.js
+│   │
+│   ├── styles/
+│   │   └── tailwind.css
+│   │
+│   ├── App.jsx
+│   └── main.jsx
+│
+├── index.html
+├── .env
+├── tailwind.config.js
+├── postcss.config.js
+├── vite.config.js
+└── package.json

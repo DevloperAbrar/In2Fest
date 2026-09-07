@@ -1,0 +1,49 @@
+{
+    "announcement": "India's first wedding vendor platform with a dedicated website builder + booking calendar",
+    "nav": {
+      "browse": "Browse Vendors",
+      "categories": "Categories",
+      "forVendors": "For Vendors",
+      "listBusiness": "List Your Business",
+      "getWebsite": "Get Your Website",
+      "myReviews": "My Reviews",
+      "signOut": "Sign out",
+      "menu": "Menu"
+    },
+    "mobileNav": {
+      "home": "Home",
+      "search": "Search",
+      "listFree": "List Free",
+      "more": "More",
+      "searchVendors": "🔍 Search Vendors",
+      "allCategories": "📋 All Categories",
+      "allCities": "📍 All Cities",
+      "forVendors": "🏢 For Vendors",
+      "listBusinessFree": "➕ List Your Business Free",
+      "homeLink": "🏠 Home",
+      "tagline": "In2Fest, India's wedding and event platform"
+    },
+    "footer": {
+      "tagline": "Search, compare and contact verified wedding and event vendors near you.",
+      "popularCategories": "Popular Categories",
+      "viewAllCategories": "View all categories",
+      "company": "Company",
+      "browseVendors": "Browse Vendors",
+      "allCities": "All Cities",
+      "forVendors": "For Vendors",
+      "listBusiness": "List Your Business",
+      "aboutUs": "About Us",
+      "contactUs": "Contact Us",
+      "legal": "Legal",
+      "privacyPolicy": "Privacy Policy",
+      "termsOfService": "Terms of Service",
+      "alsoSearched": "Also searched as",
+      "alsoSearchedValues": "I2F, IntoFest, In to Fest, In Two Fest, In 2 Fest",
+      "rights": "All rights reserved.",
+      "trademark": "is a trademark of Campussafar Technologies Private Limited®."
+    },
+    "common": {
+      "loading": "Loading...",
+      "switchLang": "हिंदी"
+    }
+  }

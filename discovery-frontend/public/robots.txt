@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /register-free
+Disallow: /review/
+
+Sitemap: https://www.in2fest.com/sitemap.xml

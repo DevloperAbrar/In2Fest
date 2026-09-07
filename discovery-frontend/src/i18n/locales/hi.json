@@ -1,0 +1,49 @@
+{
+    "announcement": "भारत का पहला वेडिंग वेंडर प्लेटफ़ॉर्म — वेबसाइट बिल्डर और बुकिंग कैलेंडर के साथ",
+    "nav": {
+      "browse": "वेंडर खोजें",
+      "categories": "श्रेणियाँ",
+      "forVendors": "वेंडर के लिए",
+      "listBusiness": "अपना व्यवसाय जोड़ें",
+      "getWebsite": "अपनी वेबसाइट पाएं",
+      "myReviews": "मेरी समीक्षाएं",
+      "signOut": "साइन आउट",
+      "menu": "मेनू"
+    },
+    "mobileNav": {
+      "home": "होम",
+      "search": "खोजें",
+      "listFree": "मुफ़्त जोड़ें",
+      "more": "और",
+      "searchVendors": "🔍 वेंडर खोजें",
+      "allCategories": "📋 सभी श्रेणियाँ",
+      "allCities": "📍 सभी शहर",
+      "forVendors": "🏢 वेंडर के लिए",
+      "listBusinessFree": "➕ अपना व्यवसाय मुफ़्त जोड़ें",
+      "homeLink": "🏠 होम",
+      "tagline": "In2Fest, भारत का वेडिंग और इवेंट प्लेटफ़ॉर्म"
+    },
+    "footer": {
+      "tagline": "अपने पास के सत्यापित शादी और इवेंट वेंडर खोजें, तुलना करें और संपर्क करें।",
+      "popularCategories": "लोकप्रिय श्रेणियाँ",
+      "viewAllCategories": "सभी श्रेणियाँ देखें",
+      "company": "कंपनी",
+      "browseVendors": "वेंडर देखें",
+      "allCities": "सभी शहर",
+      "forVendors": "वेंडर के लिए",
+      "listBusiness": "अपना व्यवसाय जोड़ें",
+      "aboutUs": "हमारे बारे में",
+      "contactUs": "संपर्क करें",
+      "legal": "कानूनी",
+      "privacyPolicy": "गोपनीयता नीति",
+      "termsOfService": "सेवा की शर्तें",
+      "alsoSearched": "इस नाम से भी खोजा जाता है",
+      "alsoSearchedValues": "I2F, IntoFest, In to Fest, In Two Fest, In 2 Fest",
+      "rights": "All rights reserved.",
+      "trademark": "is a trademark of Campussafar Technologies Private Limited®."
+    },
+    "common": {
+      "loading": "लोड हो रहा है...",
+      "switchLang": "English"
+    }
+  }
