@@ -84,12 +84,26 @@ async function verifyPayment(req, res, next) {
 async function handleWebhook(req, res, next) {
   try {
     const signature = req.headers["x-razorpay-signature"];
+
+    if (!signature || !env.razorpay.webhookSecret) {
+      return res.status(400).json({ success: false, message: "Invalid webhook signature" });
+    }
+
     const expectedSignature = crypto
       .createHmac("sha256", env.razorpay.webhookSecret)
       .update(req.body) // raw Buffer from express.raw()
       .digest("hex");
 
-    if (signature !== expectedSignature) {
+    const signatureBuffer = Buffer.from(signature, "utf8");
+    const expectedBuffer = Buffer.from(expectedSignature, "utf8");
+
+    // Constant-time comparison — a plain `!==` string compare leaks timing
+    // information that could theoretically help brute-force the signature.
+    const isValid =
+      signatureBuffer.length === expectedBuffer.length &&
+      crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
+
+    if (!isValid) {
       return res.status(400).json({ success: false, message: "Invalid webhook signature" });
     }
 

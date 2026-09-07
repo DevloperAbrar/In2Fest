@@ -16,7 +16,7 @@ const routes = require("./routes/index");
 const sitemapRoutes = require("./modules/seo/sitemap.routes");
 
 const app = express();
-
+app.set("trust proxy", 1);
 // Security & performance
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(compression());
