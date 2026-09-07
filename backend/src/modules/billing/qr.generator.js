@@ -1,11 +1,8 @@
 const QRCode = require("qrcode");
-const path = require("path");
-const fs = require("fs");
-const env = require("../../config/env");
 
 /**
- * Generates a scannable UPI payment QR code image and saves it to disk.
- * No payment gateway integration needed  - this is a static UPI deep link QR.
+ * Generates a UPI payment QR code as a PNG buffer (in-memory only, nothing saved to disk).
+ * Returns the buffer, or null if upiId is not set.
  */
 async function generateUpiQr(upiId, payeeName, amount, invoiceNumber) {
   if (!upiId) return null;
@@ -14,15 +11,12 @@ async function generateUpiQr(upiId, payeeName, amount, invoiceNumber) {
     payeeName
   )}&am=${amount}&cu=INR&tn=${encodeURIComponent("Invoice " + invoiceNumber)}`;
 
-  const dir = path.join(process.cwd(), env.upload.dir, "invoices");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  const fileName = `qr-${invoiceNumber.replace(/[^a-zA-Z0-9]/g, "")}.png`;
-  const filePath = path.join(dir, fileName);
-
-  await QRCode.toFile(filePath, upiUrl, { width: 300, margin: 1 });
-
-  return `/uploads/invoices/${fileName}`;
+  try {
+    const buffer = await QRCode.toBuffer(upiUrl, { width: 300, margin: 1 });
+    return buffer;
+  } catch {
+    return null;
+  }
 }
 
 module.exports = { generateUpiQr };

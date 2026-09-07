@@ -116,7 +116,9 @@ async function handleWebhook(req, res, next) {
 
     const payload = JSON.parse(req.body.toString("utf8"));
     const event = payload.event;
-    console.log(`[RAZORPAY WEBHOOK] Event received: ${event}`);
+    if (process.env.NODE_ENV !== "production") {
+  console.log(`[RAZORPAY WEBHOOK] Event received: ${event}`);
+}
 
     res.json({ success: true });
   } catch (error) {

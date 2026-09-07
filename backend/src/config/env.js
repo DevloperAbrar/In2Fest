@@ -26,7 +26,7 @@ if (missing.length > 0) {
 module.exports = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: parseInt(process.env.PORT, 10) || 5000,
-  baseDomain: process.env.BASE_DOMAIN || "venuesafar.com",
+  baseDomain: process.env.BASE_DOMAIN || "in2fest.com",
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
 
   db: {

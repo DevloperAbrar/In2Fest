@@ -1,8 +1,5 @@
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
-const fs = require("fs");
-const path = require("path");
-const env = require("../../config/env");
 
 const BRAND = "#6d28d9";
 const BRAND_LIGHT = "#f5f3ff";
@@ -23,14 +20,17 @@ function statusColor(status) {
   return { bg: "#f3f4f6", fg: "#4b5563" };
 }
 
-async function generateInvoicePdf(invoice, venue, client) {
-  const dir = path.join(process.cwd(), env.upload.dir, "invoices");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  const fileName = `${invoice.type}-${invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, "")}.pdf`;
-  const filePath = path.join(dir, fileName);
-
-  // Verification QR  - encodes a link to the public verify page, using invoice.id (UUID) as the token
+/**
+ * Generates an invoice/quotation PDF entirely in memory.
+ * Returns a Promise<Buffer> - nothing is written to disk.
+ *
+ * @param {object} invoice  - Invoice record
+ * @param {object} venue    - Venue record
+ * @param {object} client   - Client record
+ * @param {Buffer|null} upiQrBuffer - UPI QR code as PNG buffer (from qr.generator)
+ */
+async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null) {
+  // Verification QR - encodes a link to the public verify page, using invoice.id (UUID) as the token
   const verifyUrl = `${FRONTEND_URL}/verify/${invoice.id}`;
   let verifyQrBuffer = null;
   try {
@@ -41,8 +41,11 @@ async function generateInvoicePdf(invoice, venue, client) {
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 0, size: "A4" });
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
+    const chunks = [];
+
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
 
     const pageWidth = doc.page.width;
     const marginX = 50;
@@ -205,12 +208,10 @@ async function generateInvoicePdf(invoice, venue, client) {
 
     const totalsBottom = totalsY + 10;
 
-    // ---------- Payment section: QR box + Bank details box side by side ----------
-    const hasQr = !!invoice.qr_code_url && fs.existsSync(
-      path.join(process.cwd(), (invoice.qr_code_url || "").replace("/uploads", "uploads"))
-    );
+    // ---------- Payment section: QR buffer + Bank details side by side ----------
     const bank = venue.bank_details || {};
     const hasBankDetails = !!(bank.account_number || bank.beneficiary_name || bank.bank_name || bank.ifsc_code);
+    const hasQr = !!upiQrBuffer;
 
     let paymentBottom = y;
 
@@ -223,11 +224,11 @@ async function generateInvoicePdf(invoice, venue, client) {
       const qrBoxH = 190;
 
       if (hasQr) {
-        const qrPath = path.join(process.cwd(), invoice.qr_code_url.replace("/uploads", "uploads"));
         doc.roundedRect(marginX, paymentBoxTop, qrBoxW, qrBoxH, 6).stroke(BORDER);
         doc.fillColor(TEXT_DARK).fontSize(8.5).font("Helvetica-Bold")
           .text("Scan & Pay via UPI", marginX, paymentBoxTop + 12, { width: qrBoxW, align: "center" });
-        doc.image(qrPath, marginX + (qrBoxW - 115) / 2, paymentBoxTop + 30, { width: 115 });
+        // Embed QR directly from buffer - no disk path needed
+        doc.image(upiQrBuffer, marginX + (qrBoxW - 115) / 2, paymentBoxTop + 30, { width: 115 });
         doc.fillColor(TEXT_MUTED).fontSize(8).font("Helvetica")
           .text(`Amount: ${money(invoice.total)}`, marginX, paymentBoxTop + 158, { width: qrBoxW, align: "center" });
       }
@@ -306,9 +307,6 @@ async function generateInvoicePdf(invoice, venue, client) {
     doc.text("Generated via In2Fest", marginX, footerY + 22, { width: contentWidth, align: "center" });
 
     doc.end();
-
-    stream.on("finish", () => resolve(`/uploads/invoices/${fileName}`));
-    stream.on("error", reject);
   });
 }
 

@@ -1,9 +1,10 @@
-const { Invoice, Venue, Client, ServiceItem } = require("../../database/models");
+const { Invoice, Venue, Client } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { generateInvoiceNumber } = require("../../utils/invoiceNumberGenerator");
 const { generateUpiQr } = require("./qr.generator");
 const { generateInvoicePdf } = require("./pdf.generator");
 const { sendWhatsApp } = require("../whatsapp/whatsapp.service");
+const { uploadToR2 } = require("../../middleware/upload.middleware");
 
 const DEFAULT_GST_RATE = 18;
 
@@ -73,6 +74,31 @@ function calculateTotals(rawLineItems, { gstEnabled, gstRate, discountType, disc
   };
 }
 
+/**
+ * Generate QR buffer + PDF buffer, upload PDF to R2, return the public URL.
+ * qr_code_url on the invoice record now holds the UPI deep-link string (not a file path),
+ * because the QR is embedded in the PDF and never stored separately.
+ */
+async function buildAndStorePdf(invoice, venue, client) {
+  // Generate UPI QR as buffer (no disk write)
+  const upiQrBuffer = venue.upi_id
+    ? await generateUpiQr(venue.upi_id, venue.hall_name, invoice.total, invoice.invoice_number)
+    : null;
+
+  // Generate PDF in memory
+  const pdfBuffer = await generateInvoicePdf(invoice, venue, client, upiQrBuffer);
+
+  // Upload PDF to R2
+  const fileName = `${invoice.type}-${invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, "")}.pdf`;
+  const pdfUrl = await uploadToR2(pdfBuffer, fileName, "invoices", "application/pdf");
+
+  if (!pdfUrl) {
+    throw new AppError("Storage not configured. Please set R2 credentials to store PDFs.", 500);
+  }
+
+  return pdfUrl;
+}
+
 async function createInvoice(req, res, next) {
   try {
     const venue = await Venue.findByPk(req.params.venueId);
@@ -99,11 +125,6 @@ async function createInvoice(req, res, next) {
 
     const invoiceNumber = await generateInvoiceNumber(venue.id, venue.hall_name, type);
 
-    let qrCodeUrl = null;
-    if (venue.upi_id) {
-      qrCodeUrl = await generateUpiQr(venue.upi_id, venue.hall_name, total, invoiceNumber);
-    }
-
     const invoice = await Invoice.create({
       venue_id: venue.id,
       booking_id: req.body.booking_id || null,
@@ -123,11 +144,11 @@ async function createInvoice(req, res, next) {
       total,
       validity_date: req.body.validity_date,
       terms: req.body.terms,
-      qr_code_url: qrCodeUrl,
+      qr_code_url: null, // QR is now embedded in PDF, not stored separately
       status: "draft"
     });
 
-    const pdfUrl = await generateInvoicePdf(invoice, venue, client);
+    const pdfUrl = await buildAndStorePdf(invoice, venue, client);
     invoice.pdf_url = pdfUrl;
     await invoice.save();
 
@@ -184,13 +205,9 @@ async function updateInvoice(req, res, next) {
     invoice.sgst_amount = sgst;
     invoice.total = total;
 
-    if (venue.upi_id) {
-      invoice.qr_code_url = await generateUpiQr(venue.upi_id, venue.hall_name, total, invoice.invoice_number);
-    }
-
     const client = await Client.findByPk(clientId);
 
-    const pdfUrl = await generateInvoicePdf(invoice, venue, client);
+    const pdfUrl = await buildAndStorePdf(invoice, venue, client);
     invoice.pdf_url = pdfUrl;
 
     await invoice.save();
@@ -233,7 +250,7 @@ async function shareViaWhatsapp(req, res, next) {
       variables: {
         customerName: invoice.client.name,
         invoiceNumber: invoice.invoice_number,
-        pdfLink: invoice.pdf_url
+        pdfLink: invoice.pdf_url   // now a public R2 URL — WhatsApp can link directly
       }
     });
 

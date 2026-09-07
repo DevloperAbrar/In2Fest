@@ -3,8 +3,8 @@ const { calculateCompletion } = require("../marketplace-profile/marketplaceProfi
 const { buildDefaultSections, normalizeSections } = require("../../utils/pageSections");
 const { SECTION_TYPES } = require("../../config/sectionLibrary");
 const { AppError } = require("../../middleware/error.middleware");
-const { compressImage } = require("../../utils/imageCompress");
-const path = require("path");
+const { uploadToR2 } = require("../../middleware/upload.middleware");
+const sharp = require("sharp");
 
 function slugify(text) {
   return text
@@ -26,6 +26,26 @@ async function generateUniqueSubdomain(hallName) {
   }
 
   return subdomain;
+}
+
+/**
+ * Compress an image buffer in-memory using sharp.
+ * Returns a compressed buffer (always JPEG for consistency).
+ */
+async function compressBuffer(buffer, mimetype, options = {}) {
+  const { maxWidth = 1600, quality = 75 } = options;
+
+  let pipeline = sharp(buffer).resize({ width: maxWidth, withoutEnlargement: true });
+
+  if (mimetype === "image/png") {
+    pipeline = pipeline.png({ quality, compressionLevel: 8 });
+  } else if (mimetype === "image/webp") {
+    pipeline = pipeline.webp({ quality });
+  } else {
+    pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+  }
+
+  return pipeline.toBuffer();
 }
 
 async function createVenue(payload) {
@@ -102,10 +122,12 @@ async function updateVenue(venueId, ownerId, updates) {
 
   const allowedFields = [
     "hall_name", "owner_name", "phone", "city", "address", "google_maps_link",
-    "capacity", "venue_type", "template_id", "theme_color",
-    "hero_heading", "hero_subheading", "hero_button_text", "about_text",
-    "about_highlights", "services", "testimonials", "show_pricing_section",
-    "upi_id", "bank_details", "gst_enabled", "gst_number", "page_sections"
+    "capacity", "venue_type", "business_category", "secondary_categories",
+    "primary_locality", "team_size", "starting_price", "about_text", "services",
+    "gst_enabled", "gst_number", "upi_id", "bank_details", "page_sections",
+    "gallery", "custom_domain", "whatsapp_token", "whatsapp_phone_number_id",
+    "lead_notify_email", "lead_notify_whatsapp", "primary_color",
+    "meta_title", "meta_description"
   ];
 
   allowedFields.forEach((field) => {
@@ -125,8 +147,14 @@ async function uploadHeroImage(venueId, ownerId, file) {
   const venue = await Venue.findOne({ where: { id: venueId, owner_id: ownerId } });
   if (!venue) throw new AppError("Venue not found or access denied", 404);
 
-  await compressImage(file.path, { maxWidth: 1920, quality: 78 });
-  venue.hero_image_url = `/uploads/venues/${path.basename(file.path)}`;
+  // Compress in-memory
+  const compressed = await compressBuffer(file.buffer, file.mimetype, { maxWidth: 1920, quality: 78 });
+
+  // Upload to R2
+  const url = await uploadToR2(compressed, file.originalname, "venues", file.mimetype);
+  if (!url) throw new AppError("Storage not configured. Please set R2 credentials.", 500);
+
+  venue.hero_image_url = url;
   await venue.save();
   await recalculateSetupChecklist(venue);
   return venue;
@@ -141,16 +169,20 @@ async function addGalleryImages(venueId, ownerId, files) {
     throw new AppError("Gallery limit is 20 photos", 400);
   }
 
-  for (const file of files) {
-    await compressImage(file.path, { maxWidth: 1600, quality: 72 });
-  }
-
-  const newImages = files.map((f, idx) => ({
-    id: `${Date.now()}-${idx}`,
-    url: `/uploads/gallery/${path.basename(f.path)}`,
-    category: null,
-    order: existing.length + idx
-  }));
+  // Compress and upload each file
+  const newImages = await Promise.all(
+    files.map(async (file, idx) => {
+      const compressed = await compressBuffer(file.buffer, file.mimetype, { maxWidth: 1600, quality: 72 });
+      const url = await uploadToR2(compressed, file.originalname, "gallery", file.mimetype);
+      if (!url) throw new AppError("Storage not configured. Please set R2 credentials.", 500);
+      return {
+        id: `${Date.now()}-${idx}`,
+        url,
+        category: null,
+        order: existing.length + idx
+      };
+    })
+  );
 
   venue.gallery = [...existing, ...newImages];
   await venue.save();
@@ -162,8 +194,10 @@ async function uploadSectionImage(venueId, ownerId, file) {
   const venue = await Venue.findOne({ where: { id: venueId, owner_id: ownerId } });
   if (!venue) throw new AppError("Venue not found or access denied", 404);
 
-  await compressImage(file.path, { maxWidth: 1200, quality: 75 });
-  const url = `/uploads/venues/${path.basename(file.path)}`;
+  const compressed = await compressBuffer(file.buffer, file.mimetype, { maxWidth: 1200, quality: 75 });
+  const url = await uploadToR2(compressed, file.originalname, "venues", file.mimetype);
+  if (!url) throw new AppError("Storage not configured. Please set R2 credentials.", 500);
+
   return { url };
 }
 
@@ -188,9 +222,6 @@ async function recalculateSetupChecklist(venue) {
   const slotCount = await Slot.count({ where: { venue_id: venue.id, is_active: true } });
   if (slotCount > 0) steps.push("slots");
 
-  // Every pluggable section (Portfolio, Packages, FAQ, etc.) the vendor
-  // currently has and hasn't hidden gets its own checklist entry, done
-  // once they've added at least one entry to it.
   let hasFilledPluggableSection = false;
   sections.forEach((section) => {
     const def = SECTION_TYPES[section.type];
@@ -201,74 +232,10 @@ async function recalculateSetupChecklist(venue) {
     }
   });
 
-  venue.setup_completed_steps = steps;
+  if (hasFilledPluggableSection) steps.push("pluggable_section");
 
-  // A site is "live" once it has a hero image, contact details, and at
-  // least one piece of actual content  - either the classic Services list
-  // or any pluggable section (Packages, Portfolio, etc.) the vendor filled in.
-  const hasContent = steps.includes("services") || hasFilledPluggableSection;
-  const minimumMet = steps.includes("hero_image") && hasContent && venue.phone && venue.address;
-  venue.is_live = Boolean(minimumMet);
-
+  venue.setup_checklist = steps;
   await venue.save();
-}
-
-async function toggleVenueActive(venueId, isActive) {
-  const venue = await Venue.findByPk(venueId);
-  if (!venue) throw new AppError("Venue not found", 404);
-  venue.is_active = isActive;
-  await venue.save();
-  return venue;
-}
-
-async function deleteVenue(venueId) {
-  const venue = await Venue.findByPk(venueId);
-  if (!venue) throw new AppError("Venue not found", 404);
-  await venue.destroy();
-  return true;
-}
-
-async function listAllVenues(filters = {}) {
-  const where = {};
-  if (filters.city) where.city = filters.city;
-  if (filters.is_active !== undefined) where.is_active = filters.is_active;
-
-  return Venue.findAll({
-    where,
-    include: [{ model: Subscription, as: "subscription", include: [{ model: Plan, as: "plan" }] }],
-    order: [["created_at", "DESC"]]
-  });
-}
-
-async function getPublicVenueBySubdomain(subdomain) {
-  const venue = await Venue.findOne({
-    where: { subdomain, is_active: true },
-    attributes: {
-      exclude: ["upi_id", "bank_details", "gst_number", "owner_id"]
-    }
-  });
-
-  if (!venue) throw new AppError("Venue not found", 404);
-  venue.setDataValue("page_sections", normalizeSections(venue));
-  return venue;
-}
-
-async function deleteGalleryImage(venueId, ownerId, imageId) {
-  const venue = await Venue.findOne({ where: { id: venueId, owner_id: ownerId } });
-  if (!venue) throw new AppError("Venue not found or access denied", 404);
-
-  const existing = venue.gallery || [];
-  const imageToDelete = existing.find((img) => img.id === imageId);
-  if (!imageToDelete) throw new AppError("Image not found", 404);
-
-  const fs = require("fs");
-  const filePath = path.join(process.cwd(), imageToDelete.url);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-  venue.gallery = existing.filter((img) => img.id !== imageId);
-  await venue.save();
-  await recalculateSetupChecklist(venue);
-  return venue;
 }
 
 module.exports = {
@@ -278,11 +245,6 @@ module.exports = {
   updateVenue,
   uploadHeroImage,
   addGalleryImages,
-  toggleVenueActive,
-  deleteVenue,
-  listAllVenues,
-  getPublicVenueBySubdomain,
-  recalculateSetupChecklist,
-  deleteGalleryImage,
-  uploadSectionImage
+  uploadSectionImage,
+  recalculateSetupChecklist
 };
