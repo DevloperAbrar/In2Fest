@@ -6,9 +6,14 @@ async function requestOtp(req, res, next) {
     const { phone } = req.body;
     if (!phone) throw new AppError("Phone number is required", 400);
 
-    const otp = await generateOtp(phone);   // ← add await
+    await generateOtp(phone);
 
-    console.log(`[OTP] Generated OTP for ${phone}: ${otp}`);
+    // Never log the OTP value itself — even in dev it can end up in
+    // aggregated log files or monitoring dashboards.
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[OTP] Generated OTP for ${phone}`);
+    }
+
     res.json({ success: true, message: "OTP sent" });
   } catch (error) {
     next(error);
@@ -20,7 +25,7 @@ async function verifyOtpHandler(req, res, next) {
     const { phone, otp } = req.body;
     if (!phone || !otp) throw new AppError("Phone and OTP are required", 400);
 
-    const isValid = await verifyOtp(phone, otp);   // ← add await
+    const isValid = await verifyOtp(phone, otp);
     if (!isValid) throw new AppError("Invalid or expired OTP", 400);
 
     const token = issueVerificationToken(phone);

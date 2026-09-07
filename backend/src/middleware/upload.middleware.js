@@ -47,7 +47,14 @@ async function uploadToR2(fileBuffer, originalName, folder = "gallery") {
   const client = getR2Client();
   if (!client) return null;
 
-  const key = `${folder}/${uuidv4()}-${originalName.replace(/\s+/g, "-")}`;
+  // Strip any directory traversal and non-safe characters from the
+  // caller-supplied name before embedding it in the object key.
+  const safeName = (originalName || "file")
+    .replace(/[^a-zA-Z0-9._-]/g, "-") // keep only safe chars
+    .replace(/\.{2,}/g, ".")           // collapse .. sequences
+    .slice(0, 80);                     // cap length
+
+  const key = `${folder}/${uuidv4()}-${safeName}`;
 
   await client.send(new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,

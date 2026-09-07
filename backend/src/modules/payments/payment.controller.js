@@ -43,8 +43,15 @@ async function verifyPayment(req, res, next) {
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest("hex");
 
-    if (expectedSignature !== razorpay_signature) {
-      throw new AppError("Payment verification failed  - invalid signature", 400);
+    // Use constant-time comparison — same reason as the webhook handler.
+    const sigBuffer = Buffer.from(razorpay_signature || "", "utf8");
+    const expBuffer = Buffer.from(expectedSignature, "utf8");
+    const isValid =
+      sigBuffer.length === expBuffer.length &&
+      crypto.timingSafeEqual(sigBuffer, expBuffer);
+
+    if (!isValid) {
+      throw new AppError("Payment verification failed — invalid signature", 400);
     }
 
     const plan = await Plan.findByPk(planId);
