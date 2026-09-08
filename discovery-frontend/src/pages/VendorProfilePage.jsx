@@ -87,10 +87,20 @@ export default function VendorProfilePage() {
 
   return (
     <>
+// VendorProfilePage.jsx mein Helmet update karo
       <Helmet>
         <title>{seo.title}</title>
         <meta name="description" content={seo.description} />
         <link rel="canonical" href={seo.canonical || window.location.href} />
+
+        {/* ✅ Yeh add karo */}
+        <meta property="og:title" content={seo.title} />
+        <meta property="og:description" content={seo.description} />
+        <meta property="og:image" content={venue.hero_image_url || `https://www.in2fest.com/og-default.jpg`} />
+        <meta property="og:url" content={seo.canonical} />
+        <meta property="og:type" content="business.business" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={venue.hero_image_url} />
       </Helmet>
 
       {/* JSON-LD Schema for Google */}
@@ -146,7 +156,7 @@ export default function VendorProfilePage() {
             {venue.youtube_channel_link && (
               <a href={venue.youtube_channel_link} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 text-sm px-4 py-2 rounded-xl transition-colors">
-               <YoutubeIcon /> YouTube
+                <YoutubeIcon /> YouTube
               </a>
             )}
             {brandedWebsiteUrl && (

@@ -14,12 +14,15 @@ const { errorHandler, notFoundHandler } = require("./middleware/error.middleware
 const { resolveSubdomain } = require("./subdomain/subdomain.middleware");
 const routes = require("./routes/index");
 const sitemapRoutes = require("./modules/seo/sitemap.routes");
+const sitemapRouter = require("./routes/sitemap.route");
 
 const app = express();
 app.set("trust proxy", 1);
 // Security & performance
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(compression());
+
+app.use("/", sitemapRouter);
 
 // CORS  - allow the main app plus any *.{baseDomain} subdomain
 const allowedOrigin = new RegExp(`^https?://([a-zA-Z0-9-]+\\.)?${env.baseDomain.replace(".", "\\.")}$`);

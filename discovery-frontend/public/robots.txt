@@ -1,6 +1,11 @@
 User-agent: *
 Allow: /
-Disallow: /register-free
-Disallow: /review/
+
+# Block private routes
+Disallow: /dashboard/
+Disallow: /api/
+
+# Crawl rate for heavy bots
+Crawl-delay: 2
 
 Sitemap: https://www.in2fest.com/sitemap.xml
