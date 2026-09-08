@@ -45,17 +45,18 @@ export default function PlanSelection() {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const navigate = useNavigate();
 
+  const planList = plans || [];
+
   const handleContinue = () => {
     if (!selectedPlanId) {
       showError("Please select a plan to continue");
       return;
     }
-    navigate("/dashboard/onboarding/details", { state: { planId: selectedPlanId } });
+    const selectedPlan = planList.find((p) => p.id === selectedPlanId);
+    navigate("/dashboard/onboarding/details", { state: { plan: selectedPlan } });
   };
 
   if (loading) return <Loader fullScreen />;
-
-  const planList = plans || [];
 
   return (
     <div className="min-h-screen bg-[#FBF7F1]">

@@ -9,6 +9,8 @@ import { useFetch } from "../../../hooks/useFetch";
 import Loader from "../../../components/common/Loader";
 import Button from "../../../components/common/Button";
 import { venueService } from "../../../services/venueService";
+import { paymentService } from "../../../services/paymentService";
+import { openRazorpayCheckout } from "../../../lib/razorpay";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import {
@@ -82,12 +84,15 @@ function StepProgress({ step }) {
 export default function VenueDetailsForm() {
   const navigate = useNavigate();
   const location = useLocation();
-  const planId = location.state?.planId;
+  const plan = location.state?.plan;
+  const planId = plan?.id;
+  const needsPayment = !!plan && Number(plan.monthly_price) > 0 && Number(plan.trial_days) === 0;
   const { refetchVenue } = useVenue();
 
   const [step, setStep] = useState(1);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [search, setSearch] = useState("");
+  const [payingNow, setPayingNow] = useState(false);
 
   // Live category list  - pulled from Category Manager via the DB, not
   // hardcoded. Any category an admin adds/edits/deletes shows up here
@@ -139,20 +144,70 @@ export default function VenueDetailsForm() {
     setStep(2);
   }
 
+  function startRazorpayPayment(venue) {
+    setPayingNow(true);
+
+    paymentService
+      .createOrder(venue.id, planId)
+      .then(({ data }) => {
+        const { order, keyId } = data.data;
+
+        openRazorpayCheckout({
+          order,
+          keyId,
+          description: `${plan.name} Plan Subscription`,
+          onSuccess: async (paymentPayload) => {
+            try {
+              await paymentService.verifyPayment({
+                ...paymentPayload,
+                venueId: venue.id,
+                planId
+              });
+              showSuccess("Payment successful! Your page is live.");
+              await refetchVenue();
+              navigate("/dashboard");
+            } catch (err) {
+              showError("Payment succeeded but verification failed. Please contact support.");
+            } finally {
+              setPayingNow(false);
+            }
+          },
+          onFailure: (err) => {
+            showError(err.message || "Payment failed. Please try again.");
+            setPayingNow(false);
+          },
+          onDismiss: () => {
+            showError("Payment cancelled. Your page won't go live until payment is completed.");
+            setPayingNow(false);
+          }
+        });
+      })
+      .catch((err) => {
+        setPayingNow(false);
+        showError(err.response?.data?.message || "Could not start payment");
+      });
+  }
+
   const onSubmit = async (values) => {
     try {
       const primaryCategory = getPrimaryCategory(selectedCategories, categories || []);
       const secondaryCategories = selectedCategories.filter((slug) => slug !== primaryCategory);
 
-      await venueService.create({
+      const { data } = await venueService.create({
         ...values,
         business_category: primaryCategory,
         secondary_categories: secondaryCategories,
         plan_id: planId
       });
-      showSuccess("You're live! Let's finish setting up your page.");
-      await refetchVenue();
-      navigate("/dashboard");
+      const venue = data.data;
+
+      if (needsPayment) {
+        startRazorpayPayment(venue);
+      } else {
+        showSuccess("You're live! Let's finish setting up your page.");
+        await refetchVenue();
+        navigate("/dashboard");
+      }
     } catch (err) {
       showError(err.response?.data?.message || "Failed to create your business profile");
     }
@@ -368,9 +423,9 @@ export default function VenueDetailsForm() {
             <Button
               type="submit"
               className="w-full !bg-[#C1352B] hover:!bg-[#A82E25] !rounded-full !py-3"
-              loading={isSubmitting}
+              loading={isSubmitting || payingNow}
             >
-              Create My Page
+              {needsPayment ? "Continue to Payment" : "Create My Page"}
             </Button>
           </form>
         </div>

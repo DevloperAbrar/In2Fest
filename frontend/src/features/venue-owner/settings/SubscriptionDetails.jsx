@@ -11,6 +11,8 @@ import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatCurrency, formatDate } from "../../../lib/formatters";
 import { translatePlanName } from "../../../lib/i18nLabels";
+import { paymentService } from "../../../services/paymentService";
+import { openRazorpayCheckout } from "../../../lib/razorpay";
 import api from "../../../services/api";
 import {
   Check,
@@ -52,7 +54,7 @@ export default function SubscriptionDetails() {
     { skip: !venue }
   );
   const { data: plans, loading: plansLoading } = useFetch("/plans");
-  const { data: payments, loading: paymentsLoading } = useFetch(
+  const { data: payments, loading: paymentsLoading, refetch: refetchPayments } = useFetch(
     venue ? `/payments?venueId=${venue.id}` : null,
     { skip: !venue }
   );
@@ -66,23 +68,70 @@ export default function SubscriptionDetails() {
   const trialDays = daysLeft(subscription?.trial_ends_at);
   const isTrial = subscription?.status === "trial";
 
+  const isFreeTarget = (plan) => Number(plan?.monthly_price) === 0;
+  const isDowngrade = (plan) => plan.monthly_price < (subscription?.plan?.monthly_price ?? 0);
+
+  const finishSwitch = (planName) => {
+    showSuccess(t("settings.subscription.switchedTo", { name: translatePlanName(planName, i18n.language) }));
+    setUpgradeTarget(null);
+    refetchSub();
+    refetchPayments?.();
+    refetchVenue?.();
+    setSwitching(false);
+  };
+
   const handleChangePlan = async () => {
-    if (!upgradeTarget) return;
+    if (!upgradeTarget || !venue) return;
     setSwitching(true);
+
+    // ── Free plan: no payment needed, switch immediately ──
+    if (isFreeTarget(upgradeTarget)) {
+      try {
+        await api.patch(`/subscriptions/${venue.id}/change-plan`, { planId: upgradeTarget.id });
+        finishSwitch(upgradeTarget.name);
+      } catch (err) {
+        showError(err.response?.data?.message || t("settings.subscription.changeError"));
+        setSwitching(false);
+      }
+      return;
+    }
+
+    // ── Paid plan: must complete Razorpay payment before the switch applies ──
     try {
-      await api.patch(`/subscriptions/${venue.id}/change-plan`, { planId: upgradeTarget.id });
-      showSuccess(t("settings.subscription.switchedTo", { name: translatePlanName(upgradeTarget.name, i18n.language) }));
-      setUpgradeTarget(null);
-      refetchSub();
-      refetchVenue?.();
+      const { data } = await paymentService.createOrder(venue.id, upgradeTarget.id);
+      const { order, keyId } = data.data;
+
+      openRazorpayCheckout({
+        order,
+        keyId,
+        description: `Switch to ${upgradeTarget.name} Plan`,
+        onSuccess: async (paymentPayload) => {
+          try {
+            await paymentService.verifyPayment({
+              ...paymentPayload,
+              venueId: venue.id,
+              planId: upgradeTarget.id
+            });
+            finishSwitch(upgradeTarget.name);
+          } catch (err) {
+            showError(t("settings.subscription.changeError"));
+            setSwitching(false);
+          }
+        },
+        onFailure: (err) => {
+          showError(err.message || t("settings.subscription.changeError"));
+          setSwitching(false);
+        },
+        onDismiss: () => {
+          showError(t("settings.subscription.changeError"));
+          setSwitching(false);
+        }
+      });
     } catch (err) {
       showError(err.response?.data?.message || t("settings.subscription.changeError"));
-    } finally {
       setSwitching(false);
     }
   };
-
-  const isDowngrade = (plan) => plan.monthly_price < (subscription?.plan?.monthly_price ?? 0);
 
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={t("settings.subscription.pageTitle")}>
@@ -103,6 +152,7 @@ export default function SubscriptionDetails() {
             const Icon = style.icon;
             const isCurrent = plan.id === currentPlanId;
             const down = isDowngrade(plan);
+            const paidSwitch = !isFreeTarget(plan);
 
             return (
               <div
@@ -152,6 +202,11 @@ export default function SubscriptionDetails() {
                     onClick={() => setUpgradeTarget(plan)}
                   >
                     {down ? t("settings.subscription.switch") : t("settings.subscription.upgrade")} <ArrowRight size={13} className="ml-1" />
+                    {paidSwitch && (
+                      <span className="ml-1 text-[10px] opacity-80">
+                        · {t("settings.subscription.payNow", "Pay")} {formatCurrency(plan.monthly_price)}
+                      </span>
+                    )}
                   </Button>
                 )}
               </div>
@@ -217,21 +272,25 @@ export default function SubscriptionDetails() {
         title={t("settings.subscription.confirmSwitchTitle", { name: upgradeTarget ? translatePlanName(upgradeTarget.name, i18n.language) : "" })}
         message={
           upgradeTarget
-            ? isDowngrade(upgradeTarget)
-              ? t("settings.subscription.confirmDowngradeMsg", {
+            ? !isFreeTarget(upgradeTarget)
+              ? t("settings.subscription.confirmPayMsg", {
+                  defaultValue: "You'll be charged {{price}} now to switch to the {{name}} plan.",
+                  price: formatCurrency(upgradeTarget.monthly_price),
+                  name: translatePlanName(upgradeTarget.name, i18n.language)
+                })
+              : t("settings.subscription.confirmDowngradeMsg", {
                   fromName: translatePlanName(subscription?.plan?.name, i18n.language),
                   fromPrice: formatCurrency(subscription?.plan?.monthly_price),
                   toName: translatePlanName(upgradeTarget.name, i18n.language),
                   toPrice: formatCurrency(upgradeTarget.monthly_price),
                 })
-              : t("settings.subscription.confirmUpgradeMsg", {
-                  fromName: translatePlanName(subscription?.plan?.name, i18n.language),
-                  toName: translatePlanName(upgradeTarget?.name, i18n.language),
-                  toPrice: formatCurrency(upgradeTarget?.monthly_price),
-                })
             : ""
         }
-        confirmText={upgradeTarget && isDowngrade(upgradeTarget) ? t("settings.subscription.confirmSwitchBtn") : t("settings.subscription.confirmUpgradeBtn")}
+        confirmText={
+          upgradeTarget && !isFreeTarget(upgradeTarget)
+            ? t("settings.subscription.confirmPayBtn", "Pay & Switch")
+            : t("settings.subscription.confirmSwitchBtn")
+        }
       />
     </DashboardLayout>
   );

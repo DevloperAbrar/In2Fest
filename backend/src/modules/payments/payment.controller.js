@@ -7,6 +7,8 @@ const env = require("../../config/env");
 
 /**
  * Creates a Razorpay order for a venue's subscription payment.
+ * Used for BOTH first-time onboarding payment and plan-switch payment —
+ * the amount always comes from the Plan table server-side, never from the client.
  */
 async function createOrder(req, res, next) {
   try {
@@ -16,6 +18,7 @@ async function createOrder(req, res, next) {
 
     const plan = await Plan.findByPk(planId);
     if (!plan) throw new AppError("Plan not found", 404);
+    if (!plan.is_active) throw new AppError("This plan is no longer available", 400);
 
     const order = await razorpay.orders.create({
       amount: Math.round(Number(plan.monthly_price) * 100), // paise
@@ -32,7 +35,10 @@ async function createOrder(req, res, next) {
 
 /**
  * Verifies Razorpay signature after checkout success on the frontend,
- * then activates/renews the subscription and records the payment.
+ * then either:
+ *  - activates a brand-new subscription (first-time onboarding payment), or
+ *  - renews the CURRENT plan (same planId as existing subscription), or
+ *  - switches to a DIFFERENT plan (plan-change payment from Settings page).
  */
 async function verifyPayment(req, res, next) {
   try {
@@ -55,11 +61,16 @@ async function verifyPayment(req, res, next) {
     }
 
     const plan = await Plan.findByPk(planId);
+    if (!plan) throw new AppError("Plan not found", 404);
 
     const existingSub = await Subscription.findOne({ where: { venue_id: venueId } });
     let subscription;
+
     if (existingSub) {
-      subscription = await subscriptionService.renewSubscription(venueId);
+      subscription =
+        existingSub.plan_id === planId
+          ? await subscriptionService.renewSubscription(venueId)
+          : await subscriptionService.switchPlanAfterPayment(venueId, planId);
     } else {
       subscription = await subscriptionService.createSubscription(venueId, planId);
       subscription.status = "active";

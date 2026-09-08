@@ -78,8 +78,20 @@ async function createVenue(payload) {
   await venue.save();
 
   const { createSubscription, createFreeSubscription } = require("../subscriptions/subscription.service");
+
   if (payload.plan_id) {
-    await createSubscription(venue.id, payload.plan_id);
+    const plan = await Plan.findByPk(payload.plan_id);
+    if (!plan) throw new AppError("Plan not found", 404);
+
+    // Paid plan with NO free trial -> don't activate a subscription yet.
+    // The frontend will open Razorpay checkout right after this, and
+    // payment.controller.verifyPayment() creates the subscription once
+    // the payment is confirmed.
+    if (Number(plan.monthly_price) > 0 && Number(plan.trial_days) === 0) {
+      // intentionally skipped — awaiting payment
+    } else {
+      await createSubscription(venue.id, payload.plan_id);
+    }
   } else {
     await createFreeSubscription(venue.id);
   }

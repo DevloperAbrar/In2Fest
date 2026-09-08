@@ -85,16 +85,55 @@ async function renewSubscription(venueId) {
 }
 
 /**
- * If the owner explicitly upgrades/switches to a different plan,
- * THEN the new plan's current price is locked in (only on explicit change).
+ * FREE-PLAN SWITCH ONLY. Downgrading to a ₹0 plan needs no payment, so this
+ * applies immediately. Any plan with monthly_price > 0 is rejected here —
+ * the frontend must go through the Razorpay flow and hit
+ * switchPlanAfterPayment() instead, via payment.controller.verifyPayment.
  */
 async function changePlan(venueId, newPlanId) {
   const plan = await Plan.findByPk(newPlanId);
   if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
 
+  if (Number(plan.monthly_price) > 0) {
+    throw new AppError(
+      "This plan requires payment. Please complete checkout to switch plans.",
+      402
+    );
+  }
+
   const subscription = await getSubscriptionByVenue(venueId);
+  const now = dayjs();
+
+  subscription.plan_id = plan.id;
+  subscription.locked_price = 0;
+  subscription.status = "active";
+  subscription.trial_ends_at = null;
+  subscription.current_period_start = now.toDate();
+  subscription.current_period_end = now.add(100, "year").toDate();
+  await subscription.save();
+
+  return subscription;
+}
+
+/**
+ * PAID-PLAN SWITCH. Only ever called from payment.controller.verifyPayment,
+ * AFTER the Razorpay signature has been verified — never reachable directly
+ * from a client request. Locks in the new plan's price, clears any trial,
+ * and starts a fresh billing period from the moment of payment.
+ */
+async function switchPlanAfterPayment(venueId, newPlanId) {
+  const plan = await Plan.findByPk(newPlanId);
+  if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
+
+  const subscription = await getSubscriptionByVenue(venueId);
+  const now = dayjs();
+
   subscription.plan_id = plan.id;
   subscription.locked_price = plan.monthly_price;
+  subscription.status = "active";
+  subscription.trial_ends_at = null;
+  subscription.current_period_start = now.toDate();
+  subscription.current_period_end = now.add(1, "month").toDate();
   await subscription.save();
 
   return subscription;
@@ -172,6 +211,7 @@ module.exports = {
   getSubscriptionByVenue,
   renewSubscription,
   changePlan,
+  switchPlanAfterPayment,
   extendTrial,
   suspendSubscription,
   reactivateSubscription,
