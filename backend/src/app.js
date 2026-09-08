@@ -18,7 +18,12 @@ const sitemapRoutes = require("./modules/seo/sitemap.routes");
 const app = express();
 app.set("trust proxy", 1);
 // Security & performance
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/auth/google")) {
+    return next(); // Google OAuth routes pe helmet skip
+  }
+  helmet({ crossOriginResourcePolicy: false })(req, res, next);
+});
 app.use(compression());
 
 

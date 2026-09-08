@@ -39,7 +39,7 @@ export function VendorProfileSchema({ venue, city, category }) {
           "@type": "PostalAddress",
           streetAddress: venue.address || undefined,
           addressLocality: venue.primary_locality || venue.city,
-          addressRegion: "Madhya Pradesh",
+          addressRegion: venue.state || venue.city_state || "Madhya Pradesh",
           postalCode: venue.full_pincode || undefined,
           addressCountry: "IN",
         },

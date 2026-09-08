@@ -74,36 +74,30 @@ async function googleCallback(req, res, next) {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
+    const env = require("../../config/env");
+    const clientUrl = env.clientUrl || "http://localhost:5173";
+
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000
     });
 
-    const env = require("../../config/env");
+    const token = encodeURIComponent(accessToken);
+    const redirectUrl = `${clientUrl}/auth/callback?token=${token}`;
 
-    // Use a relay page that posts the token via postMessage instead of
-    // putting it in the URL. This keeps the token out of:
-    //   - browser history
-    //   - server access logs
-    //   - any CDN/analytics request logs
     res.send(`<!DOCTYPE html>
 <html>
 <head><title>Signing in...</title></head>
 <body>
 <script>
-  (function() {
-    var token = ${JSON.stringify(accessToken)};
-    var target = ${JSON.stringify(env.clientUrl)};
-    if (window.opener) {
-      window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS', token: token }, target);
-      window.close();
-    } else {
-      // Fallback: no opener (user navigated directly) — redirect with token.
-      window.location.replace(target + '/auth/callback?token=' + encodeURIComponent(token));
-    }
-  })();
+  if (window.opener && !window.opener.closed) {
+    window.opener.location.href = "${redirectUrl}";
+    window.close();
+  } else {
+    window.location.href = "${redirectUrl}";
+  }
 </script>
 <p>Signing in, please wait...</p>
 </body>

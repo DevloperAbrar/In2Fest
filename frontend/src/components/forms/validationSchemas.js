@@ -48,7 +48,7 @@ export const teamLoginSchema = yup.object({
 
 export const planSchema = yup.object({
   name: yup.string().required("Plan name is required"),
-  monthly_price: yup.number().positive().required("Price is required"),
+  monthly_price: yup.number().min(0, "Price cannot be negative").required("monthly_price must be a positive number"),
   trial_days: yup.number().min(0).required()
 });
 
