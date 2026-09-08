@@ -16,10 +16,11 @@ export default defineConfig(({ mode }) => ({
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": ["framer-motion", "lucide-react"],
-          "vendor-misc": ["axios", "dayjs", "embla-carousel-react"]
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("react-router-dom") || id.includes("/react-dom/") || id.includes("/react/")) return "vendor-react";
+          if (id.includes("framer-motion") || id.includes("lucide-react")) return "vendor-ui";
+          if (id.includes("/axios/") || id.includes("/dayjs/") || id.includes("embla-carousel-react")) return "vendor-misc";
         }
       }
     }

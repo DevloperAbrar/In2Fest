@@ -87,7 +87,6 @@ export default function VendorProfilePage() {
 
   return (
     <>
-// VendorProfilePage.jsx mein Helmet update karo
       <Helmet>
         <title>{seo.title}</title>
         <meta name="description" content={seo.description} />

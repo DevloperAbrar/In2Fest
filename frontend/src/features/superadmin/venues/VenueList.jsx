@@ -16,7 +16,8 @@ import { Search } from "lucide-react";
 
 export default function VenueList() {
   const navigate = useNavigate();
-  const { data: venues, loading, refetch } = useFetch("/venues");
+  const { data: venueData, loading, refetch } = useFetch("/venues");
+  const venues = venueData?.venues ?? venueData ?? [];
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);

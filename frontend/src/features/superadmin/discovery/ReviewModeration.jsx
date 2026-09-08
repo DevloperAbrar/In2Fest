@@ -17,7 +17,10 @@ export default function ReviewModeration() {
     try { await adminDiscoveryService.approveReview(id); showSuccess("Review approved"); refetch(); }
     catch { showError("Could not approve"); }
   };
-  const reject = async (id) => {
+  
+const reject = async (id) => {
+    if (!window.confirm("Are you sure you want to reject this review? This cannot be undone.")) return;
+    if (!window.confirm("Are you sure you want to reject this review? This cannot be undone.")) return;
     try { await adminDiscoveryService.rejectReview(id); showSuccess("Review rejected"); refetch(); }
     catch { showError("Could not reject"); }
   };

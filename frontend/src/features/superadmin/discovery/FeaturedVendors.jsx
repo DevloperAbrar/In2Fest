@@ -8,7 +8,8 @@ import { adminDiscoveryService } from "../../../services/adminDiscoveryService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 
 export default function FeaturedVendors() {
-  const { data: venues, loading } = useFetch("/venues");
+  const { data: venueData, loading } = useFetch("/venues");
+  const venues = venueData?.venues ?? venueData ?? [];
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
 

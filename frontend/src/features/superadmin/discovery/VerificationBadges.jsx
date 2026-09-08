@@ -9,7 +9,8 @@ import { showSuccess, showError } from "../../../components/common/Toast";
 import { Search } from "lucide-react";
 
 export default function VerificationBadges() {
-  const { data: venues, loading, refetch } = useFetch("/venues");
+  const { data: venueData, loading, refetch } = useFetch("/venues");
+  const venues = venueData?.venues ?? venueData ?? [];
   const [search, setSearch] = useState("");
 
   const filtered = (venues || []).filter((v) => v.hall_name.toLowerCase().includes(search.toLowerCase()));

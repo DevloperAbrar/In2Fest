@@ -23,21 +23,18 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",
     sourcemap: false,
     chunkSizeWarningLimit: 1000,
-    // Drop console.* and debugger statements from the production bundle.
-    // They add noise, can leak internal state, and add bundle size.
     esbuild: {
       drop: mode === "production" ? ["console", "debugger"] : []
     },
     rollupOptions: {
       output: {
-        // Split heavy vendor libraries into separate chunks so returning
-        // visitors only re-download chunks that actually changed.
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": ["framer-motion", "lucide-react"],
-          "vendor-forms": ["react-hook-form", "@hookform/resolvers", "yup"],
-          "vendor-charts": ["recharts"],
-          "vendor-misc": ["axios", "dayjs", "zustand"]
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("react-router-dom") || id.includes("/react-dom/") || id.includes("/react/")) return "vendor-react";
+          if (id.includes("framer-motion") || id.includes("lucide-react")) return "vendor-ui";
+          if (id.includes("react-hook-form") || id.includes("@hookform/resolvers") || id.includes("/yup/")) return "vendor-forms";
+          if (id.includes("recharts")) return "vendor-charts";
+          if (id.includes("/axios/") || id.includes("/dayjs/") || id.includes("/zustand/")) return "vendor-misc";
         }
       }
     }
