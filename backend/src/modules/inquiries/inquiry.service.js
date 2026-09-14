@@ -1,7 +1,7 @@
 const { Inquiry, Venue } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { sendWhatsApp } = require("../whatsapp/whatsapp.service");
-const { verifyVerificationToken } = require("../../utils/otpService");
+const { verifyGoogleIdToken } = require("../../utils/googleIdToken");
 
 const VALID_TRANSITIONS = {
   new: ["contacted", "lost"],
@@ -86,8 +86,15 @@ async function createMarketplaceInquiry(venueId, payload) {
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
 
-  const isVerified = verifyVerificationToken(payload.otp_token, payload.phone);
-  if (!isVerified) throw new AppError("Phone verification required or expired. Please verify OTP again.", 401);
+  let googleUser;
+  try {
+    googleUser = await verifyGoogleIdToken(payload.google_credential);
+  } catch {
+    throw new AppError("Google verification failed. Please sign in with Google again.", 401);
+  }
+  if (!googleUser || !googleUser.email) {
+    throw new AppError("Google verification required.", 401);
+  }
 
   const inquiry = await Inquiry.create({
     venue_id: venueId,

@@ -1,3 +1,5 @@
+// backend/src/modules/discovery/discovery.routes.js
+
 const express = require("express");
 const searchController = require("./search.controller");
 const homepageController = require("./homepage.controller");
@@ -19,5 +21,8 @@ router.get("/city/:citySlug/category/:categorySlug/locality/:localitySlug", city
 
 router.get("/resolve/:citySlug/:categorySlug/:slug", vendorPublicController.resolveThirdSegment);
 router.get("/vendor/:citySlug/:categorySlug/:vendorSlug", vendorPublicController.getVendorProfile);
+
+// Public availability calendar endpoint
+router.get("/vendor-availability/:venueId", vendorPublicController.getVendorAvailability);
 
 module.exports = router;
