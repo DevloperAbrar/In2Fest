@@ -1,5 +1,6 @@
 const express = require("express");
 const controller = require("./publicAuth.controller");
+const savedCtrl = require("./savedVendors.controller");
 const { authenticatePublicUser } = require("../../middleware/publicAuth.middleware");
 const { authLimiter } = require("../../middleware/rateLimiter.middleware");
 
@@ -9,5 +10,10 @@ router.post("/google", authLimiter, controller.googleLogin);
 router.post("/refresh", controller.refresh);
 router.post("/logout", controller.logout);
 router.get("/me", authenticatePublicUser, controller.me);
+
+// Saved vendors (requires public user login)
+router.get("/saved", authenticatePublicUser, savedCtrl.getSaved);
+router.post("/saved/:venueId", authenticatePublicUser, savedCtrl.toggleSave);
+router.get("/saved/:venueId/status", authenticatePublicUser, savedCtrl.getSaveStatus);
 
 module.exports = router;
