@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, Calendar } from "lucide-react";
 import { otpApi, inquiryApi } from "../../lib/api";
 
 export default function InquiryModal({ venue, onClose }) {
@@ -52,8 +52,29 @@ export default function InquiryModal({ venue, onClose }) {
               value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
             <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Email (optional)"
               value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+            <div className="relative">
+              <input
+                type="date"
+                className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-lg text-sm text-gray-800 bg-white [color-scheme:light]"
+                value={form.event_date}
+                onChange={(e) => setForm({ ...form, event_date: e.target.value })}
+              />
+              {!form.event_date && (
+                <span className="absolute inset-y-0 left-3 flex items-center gap-1.5 text-gray-400 text-sm pointer-events-none">
+                  <Calendar size={14} /> Event date
+                </span>
+              )}
+              {form.event_date && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, event_date: "" })}
+                  className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600"
+                  aria-label="Clear date"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
             <input className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Event type (e.g. Wedding)"
               value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} />
             <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Guest count"
