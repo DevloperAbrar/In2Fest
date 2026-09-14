@@ -12,7 +12,7 @@ async function getSaved(req, res, next) {
       include: [{
         model: Venue,
         as: "venue",
-        attributes: ["id", "hall_name", "slug", "city", "hero_image_url", "category_slug", "city_slug"]
+        attributes: ["id", "hall_name", "subdomain", "city", "business_category", "hero_image_url"]
       }]
     });
 

@@ -27,6 +27,7 @@ const Review = require("./review.model")(sequelize, DataTypes);
 const ReviewRequest = require("./reviewRequest.model")(sequelize, DataTypes);
 
 const PublicUser = require("./publicUser.model")(sequelize, DataTypes);
+const SavedVendor = require("./savedVendor.model")(sequelize, DataTypes);
 
 // ---- Associations ----
 
@@ -127,6 +128,9 @@ ReviewRequest.belongsTo(Booking, { foreignKey: "booking_id" });
 PublicUser.hasMany(Review, { foreignKey: "reviewer_user_id", constraints: false, as: "reviewsGiven" });
 Review.belongsTo(PublicUser, { foreignKey: "reviewer_user_id", constraints: false, as: "reviewerAccount" });
 
+Venue.hasMany(SavedVendor, { foreignKey: "venue_id", as: "savedByUsers" });
+SavedVendor.belongsTo(Venue, { foreignKey: "venue_id", as: "venue" });
+
 module.exports = {
   sequelize,
   User,
@@ -151,4 +155,5 @@ module.exports = {
   Review,
   ReviewRequest,
   PublicUser,
+  SavedVendor,
 };

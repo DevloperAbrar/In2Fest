@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { X, Bookmark, Loader2, ExternalLink } from "lucide-react";
 import { usePublicAuth } from "../../context/PublicAuthContext.jsx";
 import publicAuthApi from "../../services/publicAuthApi.js";
+import { getImageUrl } from "../../lib/constants";
+import { slugify } from "../../lib/seoHelpers";
 
 export default function SavedVendorsModal({ onClose }) {
   const { user } = usePublicAuth();
@@ -55,9 +57,9 @@ export default function SavedVendorsModal({ onClose }) {
           )}
 
           {vendors?.map((v) => (
-            
+
             <a  key={v.id}
-              href={`/${v.city_slug}/${v.category_slug}/${v.slug}`}
+              href={`/${slugify(v.city)}/${v.business_category}/${v.subdomain}`}
               onClick={onClose}
               className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors group"
             >
@@ -65,7 +67,7 @@ export default function SavedVendorsModal({ onClose }) {
               <div className="w-14 h-14 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
                 {v.hero_image_url ? (
                   <img
-                    src={v.hero_image_url}
+                    src={getImageUrl(v.hero_image_url)}
                     alt={v.hall_name}
                     className="w-full h-full object-cover"
                   />
@@ -80,7 +82,7 @@ export default function SavedVendorsModal({ onClose }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-800 truncate">{v.hall_name}</p>
                 <p className="text-xs text-gray-400 mt-0.5 truncate capitalize">
-                  {v.category_slug?.replace(/-/g, " ")} · {v.city}
+                  {v.business_category?.replace(/-/g, " ")} · {v.city}
                 </p>
               </div>
 
