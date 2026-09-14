@@ -27,6 +27,20 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     fetchCurrentUser();
+
+    // If the browser restores this page from its back/forward cache (bfcache) --
+    // e.g. the user closed the tab without logging out and reopened it later --
+    // React never re-runs its startup code, so the UI would otherwise keep
+    // showing the last-known user (name in navbar, etc.) even though the
+    // session may have expired since then. Re-validate whenever that happens.
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        setLoading(true);
+        fetchCurrentUser();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
   }, []);
 
   const loginAdmin = async (email, password) => {

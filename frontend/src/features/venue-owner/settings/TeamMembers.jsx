@@ -13,7 +13,7 @@ import { showSuccess, showError } from "../../../components/common/Toast";
 import { useFetch } from "../../../hooks/useFetch";
 import EmptyState from "../../../components/common/EmptyState";
 import { PLAN_FEATURES } from "../../../lib/planFeatures";
-import { Pencil, Trash2, X, Check } from "lucide-react";
+import { Pencil, Trash2, X, Check, Link2, Copy } from "lucide-react";
 
 const emptyPermissions = PLAN_FEATURES.reduce((acc, f) => {
   acc[f.key] = false;
@@ -53,6 +53,17 @@ export default function TeamMembers() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm();
+
+  const teamLoginUrl = `${window.location.origin}/team-login`;
+
+  const copyToClipboard = async (text, successMsg) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showSuccess(successMsg);
+    } catch {
+      showError(t("settings.team.copyError"));
+    }
+  };
 
   const onSubmit = async (values) => {
     try {
@@ -118,6 +129,23 @@ export default function TeamMembers() {
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={t("settings.team.pageTitle")}>
       <div className="max-w-3xl space-y-6">
+        <div className="bg-white p-4 rounded-xl border border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <Link2 size={16} className="text-primary-600 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-800">{t("settings.team.loginLinkTitle")}</p>
+              <p className="text-xs text-gray-500 truncate">{teamLoginUrl}</p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => copyToClipboard(teamLoginUrl, t("settings.team.linkCopied"))}
+          >
+            <Copy size={14} className="mr-1.5" /> {t("settings.team.copyLink")}
+          </Button>
+        </div>
+
         <div className="bg-white p-6 rounded-xl border border-gray-100 space-y-4">
           <h3 className="text-sm font-semibold text-gray-800">{t("settings.team.addTitle")}</h3>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -181,6 +209,16 @@ export default function TeamMembers() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => copyToClipboard(
+                        t("settings.team.copyMessage", { url: teamLoginUrl, email: member.email }),
+                        t("settings.team.linkCopied")
+                      )}
+                      className="text-gray-400 hover:text-gray-700"
+                      title={t("settings.team.copyLink")}
+                    >
+                      <Copy size={16} />
+                    </button>
                     <button onClick={() => startEdit(member)} className="text-gray-400 hover:text-gray-700" title={t("settings.team.editTitle")}>
                       <Pencil size={16} />
                     </button>

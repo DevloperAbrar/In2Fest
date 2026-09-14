@@ -10,10 +10,6 @@ function hashPhone(phone) {
   return crypto.createHash("sha256").update(phone).digest("hex");
 }
 
-function wordCount(text) {
-  return (text || "").trim().split(/\s+/).filter(Boolean).length;
-}
-
 async function recalculateRating(venueId) {
   const approved = await Review.findAll({ where: { venue_id: venueId, status: "approved" } });
   const count = approved.length;
@@ -54,8 +50,8 @@ async function submitBookingReview(venueId, bookingId, payload) {
  * Always goes to moderation.
  */
 async function submitMarketplaceReview(venueId, payload, reviewer) {
-  if (wordCount(payload.review_text) < 30) {
-    throw new AppError("Review must be at least 30 words", 400);
+  if (!(payload.review_text || "").trim()) {
+    throw new AppError("Review text is required", 400);
   }
 
   const venue = await Venue.findByPk(venueId);
@@ -214,8 +210,8 @@ async function updateOwnReview(reviewId, userId, role, payload) {
   }
 
   if (payload.review_text !== undefined) {
-    if (wordCount(payload.review_text) < 30) {
-      throw new AppError("Review must be at least 30 words", 400);
+    if (!payload.review_text.trim()) {
+      throw new AppError("Review text is required", 400);
     }
     review.review_text = payload.review_text;
   }

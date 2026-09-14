@@ -12,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM("quotation", "invoice"),
       allowNull: false
     },
-    invoice_number: { type: DataTypes.STRING, unique: true },
+    invoice_number: { type: DataTypes.STRING },
     line_items: {
       type: DataTypes.JSONB,
       allowNull: false,
@@ -40,7 +40,7 @@ module.exports = (sequelize, DataTypes) => {
     tableName: "invoices",
     indexes: [
       { fields: ["venue_id"] },
-      { fields: ["invoice_number"] }
+      { unique: true, fields: ["venue_id", "invoice_number"] }
     ]
   });
 

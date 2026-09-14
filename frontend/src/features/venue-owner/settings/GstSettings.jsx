@@ -12,7 +12,9 @@ import { showSuccess, showError } from "../../../components/common/Toast";
 export default function GstSettings() {
   const { t } = useTranslation();
   const { venue, refetchVenue } = useVenue();
-  const { register, handleSubmit, watch, reset, formState: { isSubmitting } } = useForm({
+  const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+
+  const { register, handleSubmit, watch, reset, setValue, formState: { isSubmitting, errors } } = useForm({
     defaultValues: { gst_enabled: venue?.gst_enabled || false, gst_number: venue?.gst_number || "" }
   });
   const gstEnabled = watch("gst_enabled");
@@ -39,7 +41,22 @@ export default function GstSettings() {
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" {...register("gst_enabled")} /> {t("settings.gst.enableLabel")}
         </label>
-        {gstEnabled && <Input label={t("settings.gst.gstNumber")} {...register("gst_number")} />}
+        {gstEnabled && (
+          <Input
+            label={t("settings.gst.gstNumber")}
+            placeholder="22AAAAA0000A1Z5"
+            maxLength={15}
+            error={errors.gst_number?.message}
+            {...register("gst_number", {
+              required: gstEnabled ? t("settings.gst.required") : false,
+              pattern: { value: GSTIN_REGEX, message: t("settings.gst.invalidFormat") },
+              onChange: (e) => {
+                const cleaned = e.target.value.toUpperCase().slice(0, 15);
+                setValue("gst_number", cleaned, { shouldValidate: true });
+              },
+            })}
+          />
+        )}
         <Button type="submit" loading={isSubmitting}>{t("settings.gst.save")}</Button>
       </form>
     </DashboardLayout>

@@ -59,6 +59,9 @@ async function createManualBooking(venueId, payload) {
     client = await Client.findOne({ where: { id: payload.client_id, venue_id: venueId } });
     if (!client) throw new AppError("Client not found", 404);
   } else {
+    if (!/^\d{10}$/.test(String(payload.client_phone || "").trim())) {
+      throw new AppError("Enter a valid 10-digit phone number", 400);
+    }
     client = await Client.create({
       venue_id: venueId,
       name: payload.client_name,
@@ -168,6 +171,9 @@ async function updateBooking(bookingId, venueId, updates) {
   await booking.save();
 
   if (updates.client_name !== undefined || updates.client_phone !== undefined) {
+    if (updates.client_phone !== undefined && !/^\d{10}$/.test(String(updates.client_phone).trim())) {
+      throw new AppError("Enter a valid 10-digit phone number", 400);
+    }
     const client = await Client.findByPk(booking.client_id);
     if (client) {
       if (updates.client_name !== undefined) client.name = updates.client_name;

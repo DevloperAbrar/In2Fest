@@ -91,8 +91,7 @@ function ReviewFormModal({ venueId, onClose, onSubmitted }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const wordCount = form.review_text.trim().split(/\s+/).filter(Boolean).length;
-  const formIsValid = wordCount >= 30;
+  const formIsValid = form.review_text.trim().length > 0;
 
   const handleGoogleAuth = async (credential) => {
     setError("");
@@ -177,9 +176,8 @@ function ReviewFormModal({ venueId, onClose, onSubmitted }) {
             </div>
             <div>
               <textarea rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                placeholder="Write your review (minimum 30 words)"
+                placeholder="Write your review"
                 value={form.review_text} onChange={(e) => setForm({ ...form, review_text: e.target.value })} />
-              <p className={`text-xs mt-1 ${wordCount >= 30 ? "text-green-600" : "text-gray-400"}`}>{wordCount} / 30 words</p>
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
 

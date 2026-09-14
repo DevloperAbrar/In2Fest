@@ -43,6 +43,9 @@ export default function QuickBookingModal({ isOpen, onClose, venue, slots, selec
     if (!form.client_name.trim() || !form.client_phone.trim() || !form.slot_id) {
       return showError("Client name, phone and slot are required");
     }
+    if (!/^\d{10}$/.test(form.client_phone.trim())) {
+      return showError("Enter a valid 10-digit phone number");
+    }
     setSaving(true);
     try {
       await bookingService.create(venue.id, {
@@ -96,8 +99,20 @@ export default function QuickBookingModal({ isOpen, onClose, venue, slots, selec
 
         <div className="p-5 sm:p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Client Name *" value={form.client_name} onChange={(e) => update("client_name", e.target.value)} />
-            <Input label="Phone *" value={form.client_phone} onChange={(e) => update("client_phone", e.target.value)} />
+            <Input
+              label="Client Name *"
+              value={form.client_name}
+              onChange={(e) => update("client_name", e.target.value)}
+            />
+            <Input
+              label="Phone *"
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="10-digit mobile number"
+              value={form.client_phone}
+              onChange={(e) => update("client_phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
+            />
           </div>
 
           <Input
