@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import Modal from "../../../components/common/Modal";
 import Input from "../../../components/common/Input";
 import Select from "../../../components/common/Select";
@@ -9,17 +10,24 @@ import { bookingService } from "../../../services/bookingService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatCurrency, formatDate } from "../../../lib/formatters";
 import { BOOKING_STATUSES } from "../../../lib/constants";
-import { VENUE_TYPE_OPTIONS } from "../../../lib/venueTypes";
+import { useFetch } from "../../../hooks/useFetch";
+import { translateCategory } from "../../../lib/i18nLabels";
 import { Pencil, X } from "lucide-react";
 
 export default function BookingDetail({ booking, venue, slots, venueId, isOpen, onClose, onUpdated }) {
+  const { i18n } = useTranslation();
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("upi_manual");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
 
-  const venueTypeOptions = VENUE_TYPE_OPTIONS.filter(
+  // Same live Category Manager list used on the venue profile page and by
+  // public discovery search - not the old hardcoded, mismatched slug list.
+  const { data: categories } = useFetch("/meta/categories");
+  const allCategoryOptions = (categories || [])
+    .map((c) => ({ value: c.slug, label: translateCategory(c, i18n.language) }));
+  const venueTypeOptions = allCategoryOptions.filter(
     (opt) => opt.value && venue?.venue_type?.includes(opt.value)
   );
 
@@ -111,7 +119,7 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
                 <span className="text-navy-400">Venue Type:</span>{" "}
                 <span className="text-navy-800">
                   {booking.venue_type
-                    .map((v) => VENUE_TYPE_OPTIONS.find((o) => o.value === v)?.label || v)
+                    .map((v) => allCategoryOptions.find((o) => o.value === v)?.label || v)
                     .join(", ")}
                 </span>
               </div>

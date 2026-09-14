@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useVenue } from "../../../context/VenueContext.jsx";
@@ -15,7 +16,7 @@ import EmptyState from "../../../components/common/EmptyState";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import { formatCurrency, formatDate } from "../../../lib/formatters";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { VENUE_TYPE_OPTIONS } from "../../../lib/venueTypes";
+import { translateCategory } from "../../../lib/i18nLabels";
 import { Plus, Pencil, Trash2, Phone, Mail, Users2 } from "lucide-react";
 
 const emptyForm = {
@@ -30,9 +31,13 @@ const emptyForm = {
 };
 
 export default function ClientList() {
+  const { i18n } = useTranslation();
   const { venue } = useVenue();
   const { data: clients, loading, refetch } = useFetch(venue ? `/venues/${venue.id}/clients` : null, { skip: !venue });
   const { data: slots } = useFetch(venue ? `/venues/${venue.id}/slots` : null, { skip: !venue });
+  // Same live Category Manager list used on the venue profile page and by
+  // public discovery search - not the old hardcoded, mismatched slug list.
+  const { data: categories } = useFetch("/meta/categories");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);
@@ -45,7 +50,9 @@ export default function ClientList() {
   const [deletingClient, setDeletingClient] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const venueTypeOptions = VENUE_TYPE_OPTIONS.filter(
+  const allCategoryOptions = (categories || [])
+    .map((c) => ({ value: c.slug, label: translateCategory(c, i18n.language) }));
+  const venueTypeOptions = allCategoryOptions.filter(
     (opt) => opt.value && venue?.venue_type?.includes(opt.value)
   );
 
@@ -134,7 +141,7 @@ export default function ClientList() {
 
   const venueTypeLabels = (values) =>
     (values || [])
-      .map((v) => VENUE_TYPE_OPTIONS.find((opt) => opt.value === v)?.label || v)
+      .map((v) => allCategoryOptions.find((opt) => opt.value === v)?.label || v)
       .join(", ");
 
   const clientForm = (form, update, onSubmit, submitting, submitLabel) => (

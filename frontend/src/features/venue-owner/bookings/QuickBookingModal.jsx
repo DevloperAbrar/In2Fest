@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import Input from "../../../components/common/Input";
 import Select from "../../../components/common/Select";
 import MultiSelect from "../../../components/common/MultiSelect";
 import Button from "../../../components/common/Button";
 import { bookingService } from "../../../services/bookingService";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { VENUE_TYPE_OPTIONS } from "../../../lib/venueTypes";
+import { useFetch } from "../../../hooks/useFetch";
+import { translateCategory } from "../../../lib/i18nLabels";
 import dayjs from "dayjs";
 
 const emptyForm = {
@@ -22,12 +24,19 @@ const emptyForm = {
 };
 
 export default function QuickBookingModal({ isOpen, onClose, venue, slots, selectedDate, onCreated }) {
+  const { i18n } = useTranslation();
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const venueTypeOptions = VENUE_TYPE_OPTIONS.filter(
-    (opt) => opt.value && venue?.venue_type?.includes(opt.value)
-  );
+  // Same live category list (Category Manager -> DB) that the venue profile
+  // and public discovery search use - NOT the old hardcoded venueTypes.js
+  // list, whose slugs (e.g. "marriage_hall") didn't match the real ones
+  // (e.g. "marriage-hall"), so most of a vendor's actual types silently
+  // failed to show up here.
+  const { data: categories } = useFetch("/meta/categories");
+  const venueTypeOptions = (categories || [])
+    .filter((c) => venue?.venue_type?.includes(c.slug))
+    .map((c) => ({ value: c.slug, label: translateCategory(c, i18n.language) }));
 
   useEffect(() => {
     if (isOpen) {

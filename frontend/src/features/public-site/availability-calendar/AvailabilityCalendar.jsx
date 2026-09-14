@@ -1,10 +1,13 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { bookingService } from "../../../services/bookingService";
 import { formatDate } from "../../../lib/formatters";
 import { CalendarCheck, Loader2, ArrowRight, AlertTriangle } from "lucide-react";
-import { VENUE_TYPE_OPTIONS } from "../../../lib/venueTypes";
+import { useFetch } from "../../../hooks/useFetch";
+import { translateCategory } from "../../../lib/i18nLabels";
 
 export default function AvailabilityCalendar({ venue, slots }) {
+  const { i18n } = useTranslation();
   const [selectedSlot, setSelectedSlot] = useState(slots?.[0]?.id || "");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedVenueType, setSelectedVenueType] = useState("");
@@ -13,9 +16,14 @@ export default function AvailabilityCalendar({ venue, slots }) {
   const [checking, setChecking] = useState(false);
   const [formError, setFormError] = useState("");
 
-  const venueTypeOptions = VENUE_TYPE_OPTIONS.filter(
-    (opt) => opt.value && venue?.venue_type?.includes(opt.value)
-  );
+  // Same live Category Manager list used on the venue profile page and by
+  // public discovery search - not the old hardcoded, mismatched slug list
+  // (that's what was silently hiding most of a vendor's actual venue types
+  // on their own public booking widget).
+  const { data: categories } = useFetch("/meta/categories");
+  const venueTypeOptions = (categories || [])
+    .filter((c) => venue?.venue_type?.includes(c.slug))
+    .map((c) => ({ value: c.slug, label: translateCategory(c, i18n.language) }));
 
   const checkAvailability = async () => {
     if (!selectedSlot || !selectedDate) return;

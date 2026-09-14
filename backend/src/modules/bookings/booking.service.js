@@ -231,9 +231,16 @@ async function checkAvailability(venueId, slotId, eventDate, venueTypes = [], ex
 
   for (const booking of existingBookings) {
     const bookedTypes = booking.venue_type || [];
+    const requestHasTypes = venueTypes && venueTypes.length > 0;
+    const existingHasTypes = bookedTypes.length > 0;
 
-    if (venueTypes && venueTypes.length > 0 && bookedTypes.length > 0) {
-      const venueTypeOverlap = bookedTypes.some((t) => venueTypes.includes(t));
+    // If either side named a specific hall/type, only treat it as a clash
+    // when they actually share one. A booking saved without a type (e.g. an
+    // old record from before this venue had multiple halls) is no longer
+    // assumed to occupy every hall - it only blocks another untyped booking
+    // in the same slot, not a new one made for a different, named hall.
+    if (requestHasTypes || existingHasTypes) {
+      const venueTypeOverlap = requestHasTypes && existingHasTypes && bookedTypes.some((t) => venueTypes.includes(t));
       if (!venueTypeOverlap) continue;
     }
 
