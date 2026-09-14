@@ -1,0 +1,126 @@
+backend/
+├── .env.example
+├── .gitignore
+├── ecosystem.config.js
+├── package.json / package-lock.json
+├── src/
+│   ├── app.js
+│   ├── server.js
+│   ├── config/
+│   │   ├── categories.js
+│   │   ├── database.js
+│   │   ├── env.js
+│   │   ├── planFeatures.js
+│   │   ├── r2.js
+│   │   ├── razorpay.js
+│   │   ├── redis.js
+│   │   ├── sectionLibrary.js
+│   │   ├── slotCategories.js
+│   │   └── whatsapp.js
+│   ├── data/
+│   │   └── india.json
+│   ├── database/
+│   │   ├── migrate.js
+│   │   ├── models/  (20 files: booking, category, city, client, index, inquiry, invoice, payment, paymentLedger, plan, publicUser, review, reviewRequest, serviceItem, slot, subscription, teamMember, user, vendorListing, venue, venueServiceArea, whatsappMessage, whatsappTemplate)
+│   │   └── seeders/  (categories, cities, index, plans, superAdmin, whatsappTemplates)
+│   ├── jobs/
+│   │   ├── freeListingNudge.js
+│   │   ├── index.js
+│   │   ├── paymentReminder.js
+│   │   ├── reviewRequestSender.js
+│   │   ├── sitemapRebuilder.js
+│   │   ├── trialExpiryChecker.js
+│   │   └── weeklyStats.js
+│   ├── middleware/
+│   │   ├── auth.middleware.js
+│   │   ├── error.middleware.js
+│   │   ├── planFeature.middleware.js
+│   │   ├── publicAuth.middleware.js
+│   │   ├── rateLimiter.middleware.js
+│   │   ├── role.middleware.js
+│   │   ├── teamPermission.middleware.js
+│   │   ├── upload.middleware.js
+│   │   └── venueOwnership.middleware.js
+│   ├── modules/
+│   │   ├── admin-discovery/ (controller, routes, service)
+│   │   ├── analytics/ (controller, routes, message.scheduler.js)
+│   │   ├── auth/ (controller, routes, google.strategy.js, jwt.service.js)
+│   │   ├── billing/ (billing.routes.js, invoice.controller.js, pdf.generator.js, qr.generator.js, quotation.controller.js, verify.controller.js, verify.routes.js)
+│   │   ├── bookings/ (controller, routes, service)
+│   │   ├── clients/ (client.controller.js, client.routes.js, paymentLedger.controller.js)
+│   │   ├── dashboard/ (controller, routes)
+│   │   ├── discovery/ (city.controller.js, discovery.routes.js, homepage.controller.js, search.controller.js, search.service.js, vendorPublic.controller.js)
+│   │   ├── inquiries/ (controller, routes, service)
+│   │   ├── listing/ (controller, routes, service)
+│   │   ├── marketplace-profile/ (controller, routes, service)
+│   │   ├── meta/ (csc.service.js, meta.controller.js, meta.routes.js, pincode.service.js)
+│   │   ├── otp/ (controller, routes)
+│   │   ├── payments/ (payment.controller.js, payment.routes.js, razorpay.webhook.js)
+│   │   ├── plans/ (controller, routes, service)
+│   │   ├── publicAuth/ (controller, routes, publicJwt.service.js)
+│   │   ├── reviews/ (controller, routes, service)
+│   │   ├── seo/ (sitemap.routes.js, sitemap.service.js)
+│   │   ├── slots/ (controller, routes, service)
+│   │   ├── subscriptions/ (controller, routes, service)
+│   │   ├── team-members/ (controller, routes, service)
+│   │   ├── venues/ (teamMember.controller.js, venue.controller.js, venue.routes.js, venue.service.js) ⚠️ *stray `teamMember.controller.js` sitting in `venues/` — looks misplaced/duplicate of team-members module*
+│   │   └── whatsapp/ (message.scheduler.js, template.manager.js, whatsapp.controller.js, whatsapp.routes.js, whatsapp.service.js)
+│   ├── routes/index.js
+│   ├── scripts/migrateImagesToR2.js
+│   ├── subdomain/subdomain.middleware.js   ⚠️ *plan doc said this folder was removed/moved into middleware — it's still here in the actual repo*
+│   └── utils/
+│       ├── dateHelpers.js
+│       ├── googleIdToken.js
+│       ├── imageCompress.js
+│       ├── invoiceNumberGenerator.js
+│       ├── otpService.js
+│       ├── pageSections.js
+│       ├── planAccess.js
+│       ├── servicesChecklist.js
+│       └── slugify.js
+frontend/
+├── config files (.env.example, .oxlintrc.json, index.html, package.json, postcss/tailwind/vite configs)
+├── public/ (favicon.svg, icons.svg, logo.png)
+├── src/
+│   ├── App.jsx, App.css, index.css, main.jsx
+│   ├── assets/ (hero images, templates/ previews: aurora/bloom/classic/slate, vendor-toolkit/ images)
+│   ├── components/
+│   │   ├── common/ (Badge, Button, Card, ConfirmDialog, DonutBreakdown, EmptyState, ErrorBoundary, FunnelBars, Input, KpiCard, LanguageToggle, Loader, Modal, MultiSelect, SectionDivider, Select, Toast)
+│   │   ├── forms/ (FormField, FormWrapper, validationSchemas)
+│   │   └── layout/ (BottomNav, DashboardLayout, Footer, MoreMenuSheet, Navbar, ProtectedRoute, PublicLayout, RequireFeature, RequireOwner, Sidebar)
+│   ├── config/slotCategories.js
+│   ├── context/ (AuthContext, ThemeContext, VenueContext)
+│   ├── features/
+│   │   ├── auth/ (AccountDeactivatedPage, AdminLoginForm, AuthCallback, GoogleLoginButton, LoginPage, TeamLoginForm, TeamLoginPage, authSlice.js)
+│   │   ├── discovery/VendorPublicProfilePage.jsx
+│   │   ├── platform/PlatformHomePage.jsx
+│   │   ├── public-site/ (VenueHomePage, VerifyInvoicePage, availability-calendar/, inquiry-form/, templates/ {aurora, bloom, slate — each with AboutSection, ContactSection, GallerySection, HeroSection, ServicesSection, TestimonialsSection, index.jsx}, venue-home/ {8 section components})
+│   │   ├── superadmin/ (adminSidebarItems.js + analytics/, dashboard/, discovery/, payments/, plans/, settings/, venues/, whatsapp-center/ — each with several components)
+│   │   └── venue-owner/ (ownerSidebarItems.js + analytics/, billing/, bookings/, clients/, dashboard/, inquiries/, marketplace-profile/ {+ tabs/}, onboarding/, reviews/, settings/, slots/, website-builder/)
+│   ├── hooks/ (useAuth, useDebounce, useFetch, usePagination, useScrollReveal, useVisibleNavItems)
+│   ├── i18n/ (index.js, locales/en.json, locales/hi.json)
+│   ├── lib/ (axiosInstance, constants, formatters, i18nLabels, marketplaceCategories, planFeatures, razorpay, sectionLibrary, vendorCategoryConfig, venueTypes)
+│   ├── routes/ (AppRoutes, PublicRoutes, SuperAdminRoutes, VenueOwnerRoutes)
+│   ├── services/ (adminDiscoveryService, api, authService, billingService, bookingService, clientService, inquiryService, marketplaceProfileService, metaService, paymentService, planService, publicService, reviewService, subscriptionService, venueService, whatsappService)
+│   ├── store/ (authStore, venueStore)
+│   └── styles/tailwind.css
+discovery-frontend/
+├── config files (.env.example, .oxlintrc.json, README.md, index.html, postcss/tailwind/vite configs)
+├── public/ (favicon.svg, icons.svg, logo.png, og-default.jpg, robots.txt)
+├── src/
+│   ├── App.jsx, App.css, index.css, main.jsx
+│   ├── assets/ (hero, logo images + budget/, categories/ [18 category jpgs], trust/, vendor-toolkit/, web-image/ [slides])
+│   ├── components/
+│   │   ├── common/ (Badge, CategoryIcon, CitySelect, ErrorBoundary, FloatingOrbs, HeroBackground, LanguageToggle, OtpInput, PriceRange, RequestCityModal, SectionDivider, StarRating)
+│   │   ├── home/ (BuiltForVendors, CategoriesShowcase, CategoryShowcase, CityLaunchBadge, FeaturedThisWeek, FeaturedVendors, HeroSearch, HomeFAQ, HowItWorks, Testimonials, TrustVerification, VendorCTA, WeddingBudgetPlanner, WhyDifferent) ⚠️ *overlaps with `homepage/` below — looks like a duplicate/leftover set*
+│   │   ├── homepage/ (CityCoverage, FeaturedVendors, HeroSearch, HowItWorks, TrustSignals)
+│   │   ├── layout/ (Footer, Header, MobileNav)
+│   │   ├── search/ (ActiveFiltersBar, CategoryChipStrip, FilterSidebar, MapView, ResultsGrid, SearchBar, SearchStats, VendorCard, categoryIcon.js, useCategories.js)
+│   │   ├── seo/ (BreadcrumbNav, SchemaMarkup)
+│   │   └── vendor-profile/ (AvailabilityCalendar, ContactButtons, GoogleSignInButton, HeroSection, InquiryModal, MyReviewsModal, PhotoGallery, ReviewsSection, ServicesGrid, SimilarVendors, VendorCTAPrompt)
+│   ├── context/PublicAuthContext.jsx
+│   ├── data/launchCities.js
+│   ├── i18n/ (index.js, locales/en.json, locales/hi.json)
+│   ├── lib/ (api, categoryGroups, constants, seoHelpers, seo/Schema.jsx, seo/meta.js)
+│   ├── pages/ (CategoriesIndexPage, CitiesIndexPage, CityCategoryLocalityPage, CityCategoryPage, CityOrStatePage, ForVendorsPage, GetYourWebsite, Home.jsx, HomePage.jsx, NotFoundPage, RegisterFreePage, ReviewTokenPage, SearchPage, ThirdSegmentResolver, VendorProfilePage, static/ {AboutPage, ContactPage, PrivacyPage, TermsPage}) ⚠️ *both `Home.jsx` and `HomePage.jsx` exist — likely one is unused/leftover*
+│   └── services/ (publicAuthApi.js, reviewApi.js)
