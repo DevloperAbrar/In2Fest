@@ -35,9 +35,19 @@ const getSubdomain = () => {
   const hostname = window.location.hostname;
   const parts = hostname.split(".");
   const reserved = ["www", "app", "api", "admin"];
-  if (parts.length >= 2 && !reserved.includes(parts[0]) && parts[0] !== "localhost") {
+
+  // Production: subdomain.venuesafar.com
+  if (parts.length >= 3 && !reserved.includes(parts[0])) {
     return parts[0];
   }
+
+  // Local dev: ar-event.localhost OR ar-event.localhost:5173
+  // hostname doesn't include port, so just check if last part is "localhost"
+  if (parts.length === 2 && parts[1] === "localhost" && !reserved.includes(parts[0])) {
+    return parts[0];
+  }
+
+  // Fallback: ?venue=ar-event query param
   const params = new URLSearchParams(window.location.search);
   return params.get("venue") || null;
 };

@@ -225,8 +225,8 @@ async function getPublicVenueBySubdomain(subdomain) {
   const venue = await Venue.findOne({
     where: {
       subdomain,
-      is_live: true,
       is_active: true
+      // is_live check removed for dev; add back in production
     }
   });
 
