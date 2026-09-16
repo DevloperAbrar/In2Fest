@@ -1,302 +1,206 @@
-const { Booking, Client, Inquiry, Slot } = require("../../database/models");
-const { AppError } = require("../../middleware/error.middleware");
-const { sendWhatsApp } = require("../whatsapp/whatsapp.service");
-const dayjs = require("dayjs");
+const { Op } = require("sequelize");
+const { Booking, Client, Slot, Package, BookingUnit, sequelize } = require("../../database/models");
 
-async function convertInquiryToBooking(inquiryId, venueId, payload) {
-  const inquiry = await Inquiry.findOne({ where: { id: inquiryId, venue_id: venueId } });
-  if (!inquiry) throw new AppError("Inquiry not found", 404);
-
-  const slotId = payload.slot_id || inquiry.slot_id;
-  const venueTypes = Array.isArray(payload.venue_type)
-    ? payload.venue_type
-    : (payload.venue_type ? [payload.venue_type] : []);
-
-  const isFree = await checkAvailability(venueId, slotId, inquiry.event_date, venueTypes);
-  if (!isFree) {
-    throw new AppError("This slot is already booked for the selected venue type on this date", 409);
+// Get all dates between date_from and date_to
+function getDateRange(from, to) {
+  const dates = [];
+  let cur = new Date(from);
+  const end = new Date(to);
+  while (cur <= end) {
+    dates.push(cur.toISOString().split("T")[0]);
+    cur.setDate(cur.getDate() + 1);
   }
-
-  let client = await Client.findOne({ where: { venue_id: venueId, phone: inquiry.phone } });
-  if (!client) {
-    client = await Client.create({
-      venue_id: venueId,
-      name: inquiry.customer_name,
-      phone: inquiry.phone,
-      email: inquiry.email,
-      source: "inquiry"
-    });
-  }
-
-  const booking = await Booking.create({
-    venue_id: venueId,
-    client_id: client.id,
-    slot_id: slotId,
-    inquiry_id: inquiry.id,
-    event_date: inquiry.event_date,
-    venue_type: venueTypes,
-    event_type: inquiry.event_type,
-    guest_count: inquiry.guest_count,
-    total_amount: payload.total_amount || 0,
-    balance_pending: payload.total_amount || 0,
-    status: "confirmed"
-  });
-
-  inquiry.status = "confirmed";
-  await inquiry.save();
-
-  client.total_business_value = Number(client.total_business_value) + Number(booking.total_amount);
-  client.pending_balance = Number(client.pending_balance) + Number(booking.balance_pending);
-  await client.save();
-
-  return booking;
+  return dates;
 }
 
-async function createManualBooking(venueId, payload) {
-  let client;
-
-  if (payload.client_id) {
-    client = await Client.findOne({ where: { id: payload.client_id, venue_id: venueId } });
-    if (!client) throw new AppError("Client not found", 404);
-  } else {
-    if (!/^\d{10}$/.test(String(payload.client_phone || "").trim())) {
-      throw new AppError("Enter a valid 10-digit phone number", 400);
+// Check how many units are occupied for a slot on a date+time
+async function getOccupiedUnits(venueId, slotId, date, startTime, endTime) {
+  const units = await BookingUnit.findAll({
+    where: {
+      venue_id: venueId,
+      slot_id: slotId,
+      date,
+      start_time: { [Op.lt]: endTime },
+      end_time:   { [Op.gt]: startTime }
     }
-    client = await Client.create({
-      venue_id: venueId,
-      name: payload.client_name,
-      phone: payload.client_phone,
-      email: payload.client_email,
-      source: "booking"
-    });
-  }
-
-  const venueTypes = Array.isArray(payload.venue_type) ? payload.venue_type : (payload.venue_type ? [payload.venue_type] : []);
-
-  const isFree = await checkAvailability(venueId, payload.slot_id, payload.event_date, venueTypes);
-  if (!isFree) {
-    throw new AppError("This slot is already booked for the selected venue type on this date", 409);
-  }
-
-  const booking = await Booking.create({
-    venue_id: venueId,
-    client_id: client.id,
-    slot_id: payload.slot_id,
-    event_date: payload.event_date,
-    venue_type: venueTypes,
-    event_type: payload.event_type,
-    guest_count: payload.guest_count,
-    total_amount: payload.total_amount || 0,
-    balance_pending: payload.total_amount || 0,
-    notes: payload.notes
   });
-
-  client.total_business_value = Number(client.total_business_value) + Number(booking.total_amount);
-  client.pending_balance = Number(client.pending_balance) + Number(booking.balance_pending);
-  await client.save();
-
-  sendWhatsApp({
-    venueId,
-    recipientPhone: client.phone,
-    triggerType: "booking_confirmed",
-    variables: { customerName: client.name, eventDate: payload.event_date }
-  }).catch((err) => console.error("[WHATSAPP] Failed to notify customer of booking:", err.message));
-
-  return booking;
+  return units.reduce((sum, u) => sum + u.units_used, 0);
 }
 
-async function getBookingsByVenue(venueId, filters = {}) {
-  const where = { venue_id: venueId };
-  if (filters.status) where.status = filters.status;
-  if (filters.slot_id) where.slot_id = filters.slot_id;
-  if (filters.date_from && filters.date_to) {
-    const { Op } = require("sequelize");
-    where.event_date = { [Op.between]: [filters.date_from, filters.date_to] };
-  }
+async function createManualBooking(venueId, data) {
+  const {
+    client_name, phone, email,
+    date_from, date_to,
+    start_time, end_time,
+    booking_items = [],   // [{ type: "slot"|"package", id, name, amount }]
+    notes, total_amount
+  } = data;
 
+  return sequelize.transaction(async (t) => {
+    // 1. Upsert client
+    let client = await Client.findOne({ where: { venue_id: venueId, phone }, transaction: t });
+    if (!client) {
+      client = await Client.create({ venue_id: venueId, name: client_name, phone, email }, { transaction: t });
+    } else {
+      await client.update({ name: client_name, email }, { transaction: t });
+    }
+
+    const dateFrom = date_from;
+    const dateTo   = date_to || date_from;
+    const dates    = getDateRange(dateFrom, dateTo);
+
+    // 2. Validate unit availability for each slot item across all dates
+    for (const item of booking_items) {
+      if (item.type !== "slot") continue;
+      const slot = await Slot.findOne({ where: { id: item.id, venue_id: venueId }, transaction: t });
+      if (!slot) throw new Error(`Slot not found: ${item.id}`);
+
+      for (const date of dates) {
+        const occupied = await getOccupiedUnits(venueId, slot.id, date, start_time, end_time);
+        if (occupied >= slot.total_units) {
+          throw new Error(`Slot "${slot.name}" is fully booked on ${date} for ${start_time}–${end_time}`);
+        }
+      }
+    }
+
+    // 3. For package items — check all slots inside package
+    for (const item of booking_items) {
+      if (item.type !== "package") continue;
+      const pkg = await Package.findOne({ where: { id: item.id, venue_id: venueId }, transaction: t });
+      if (!pkg) throw new Error(`Package not found: ${item.id}`);
+
+      for (const slotId of (pkg.slot_ids || [])) {
+        const slot = await Slot.findOne({ where: { id: slotId, venue_id: venueId }, transaction: t });
+        if (!slot) continue;
+        for (const date of dates) {
+          const occupied = await getOccupiedUnits(venueId, slot.id, date, start_time, end_time);
+          if (occupied >= slot.total_units) {
+            throw new Error(`Slot "${slot.name}" (in package "${pkg.name}") is fully booked on ${date}`);
+          }
+        }
+      }
+    }
+
+    // 4. Create booking
+    const booking = await Booking.create({
+      venue_id: venueId,
+      client_id: client.id,
+      date_from: dateFrom,
+      date_to: dateTo,
+      event_date: dateFrom,   // backward compat
+      start_time,
+      end_time,
+      booking_items,
+      total_amount: total_amount || 0,
+      notes,
+      status: "confirmed"
+    }, { transaction: t });
+
+    // 5. Create booking_units for each slot item
+    const unitRows = [];
+
+    for (const item of booking_items) {
+      if (item.type === "slot") {
+        for (const date of dates) {
+          unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: item.id, date, start_time, end_time, units_used: 1 });
+        }
+      }
+      if (item.type === "package") {
+        const pkg = await Package.findByPk(item.id, { transaction: t });
+        for (const slotId of (pkg?.slot_ids || [])) {
+          for (const date of dates) {
+            unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: slotId, date, start_time, end_time, units_used: 1 });
+          }
+        }
+      }
+    }
+
+    if (unitRows.length > 0) {
+      await BookingUnit.bulkCreate(unitRows, { transaction: t });
+    }
+
+    return booking;
+  });
+}
+
+async function getBookingsByVenue(venueId, query = {}) {
+  const where = { venue_id: venueId };
+  if (query.status) where.status = query.status;
   return Booking.findAll({
     where,
     include: [
       { model: Client, as: "client" },
-      { model: Slot, as: "slot" }
+      { model: Slot,   as: "slot", required: false },
+      { model: Package, as: "package", required: false }
     ],
-    order: [["event_date", "ASC"]]
+    order: [["date_from", "DESC"], ["created_at", "DESC"]]
   });
 }
 
 async function getBookingById(bookingId, venueId) {
-  const booking = await Booking.findOne({
+  return Booking.findOne({
     where: { id: bookingId, venue_id: venueId },
-    include: [{ model: Client, as: "client" }, { model: Slot, as: "slot" }]
+    include: [
+      { model: Client,  as: "client" },
+      { model: Slot,    as: "slot",    required: false },
+      { model: Package, as: "package", required: false }
+    ]
   });
-  if (!booking) throw new AppError("Booking not found", 404);
-  return booking;
 }
 
 async function updateBookingStatus(bookingId, venueId, status) {
-  const booking = await getBookingById(bookingId, venueId);
-  booking.status = status;
-  await booking.save();
-  return booking;
+  const booking = await Booking.findOne({ where: { id: bookingId, venue_id: venueId } });
+  if (!booking) throw new Error("Booking not found");
+  return booking.update({ status });
 }
 
-async function updateBooking(bookingId, venueId, updates) {
-  const booking = await getBookingById(bookingId, venueId);
-
-  const newSlotId = updates.slot_id !== undefined ? updates.slot_id : booking.slot_id;
-  const newDate = updates.event_date !== undefined ? updates.event_date : booking.event_date;
-  const newVenueTypes = updates.venue_type !== undefined
-    ? (Array.isArray(updates.venue_type) ? updates.venue_type : [updates.venue_type])
-    : (booking.venue_type || []);
-
-  const slotChanged = newSlotId !== booking.slot_id;
-  const dateChanged = String(newDate) !== String(booking.event_date);
-  const venueTypeChanged = JSON.stringify(newVenueTypes) !== JSON.stringify(booking.venue_type || []);
-
-  if (slotChanged || dateChanged || venueTypeChanged) {
-    const isFree = await checkAvailability(venueId, newSlotId, newDate, newVenueTypes, bookingId);
-    if (!isFree) {
-      throw new AppError("This slot is already booked for the selected venue type on this date", 409);
-    }
-  }
-
-  if (updates.slot_id !== undefined) booking.slot_id = updates.slot_id;
-  if (updates.event_date !== undefined) booking.event_date = updates.event_date;
-  if (updates.venue_type !== undefined) booking.venue_type = newVenueTypes;
-  if (updates.event_type !== undefined) booking.event_type = updates.event_type;
-  if (updates.guest_count !== undefined) booking.guest_count = updates.guest_count;
-  if (updates.notes !== undefined) booking.notes = updates.notes;
-  if (updates.status !== undefined) booking.status = updates.status;
-
-  await booking.save();
-
-  if (updates.client_name !== undefined || updates.client_phone !== undefined) {
-    if (updates.client_phone !== undefined && !/^\d{10}$/.test(String(updates.client_phone).trim())) {
-      throw new AppError("Enter a valid 10-digit phone number", 400);
-    }
-    const client = await Client.findByPk(booking.client_id);
-    if (client) {
-      if (updates.client_name !== undefined) client.name = updates.client_name;
-      if (updates.client_phone !== undefined) client.phone = updates.client_phone;
-      await client.save();
-    }
-  }
-
-  return getBookingById(bookingId, venueId);
-}
-
-function toMinutes(timeStr) {
-  const [h, m, s] = timeStr.split(":").map(Number);
-  return h * 60 + m + (s || 0) / 60;
-}
-
-function splitIntoSegments(startStr, endStr) {
-  const start = toMinutes(startStr);
-  const end = toMinutes(endStr);
-  if (end > start) return [[start, end]];
-  return [[start, 1440], [0, end]];
-}
-
-function timeRangesOverlap(startA, endA, startB, endB) {
-  const segmentsA = splitIntoSegments(startA, endA);
-  const segmentsB = splitIntoSegments(startB, endB);
-
-  for (const [aStart, aEnd] of segmentsA) {
-    for (const [bStart, bEnd] of segmentsB) {
-      if (aStart < bEnd && bStart < aEnd) return true;
-    }
-  }
-  return false;
-}
-
-async function checkAvailability(venueId, slotId, eventDate, venueTypes = [], excludeBookingId = null) {
-  const { Op } = require("sequelize");
-
-  const requestedSlot = await Slot.findOne({ where: { id: slotId, venue_id: venueId } });
-  if (!requestedSlot) throw new AppError("Slot not found", 404);
-
-  const where = {
-    venue_id: venueId,
-    event_date: eventDate,
-    status: ["confirmed", "in_progress"]
-  };
-  if (excludeBookingId) where.id = { [Op.ne]: excludeBookingId };
-
-  const existingBookings = await Booking.findAll({
-    where,
-    include: [{ model: Slot, as: "slot" }]
-  });
-
-  if (existingBookings.length === 0) return true;
-
-  for (const booking of existingBookings) {
-    const bookedTypes = booking.venue_type || [];
-    const requestHasTypes = venueTypes && venueTypes.length > 0;
-    const existingHasTypes = bookedTypes.length > 0;
-
-    // If either side named a specific hall/type, only treat it as a clash
-    // when they actually share one. A booking saved without a type (e.g. an
-    // old record from before this venue had multiple halls) is no longer
-    // assumed to occupy every hall - it only blocks another untyped booking
-    // in the same slot, not a new one made for a different, named hall.
-    if (requestHasTypes || existingHasTypes) {
-      const venueTypeOverlap = requestHasTypes && existingHasTypes && bookedTypes.some((t) => venueTypes.includes(t));
-      if (!venueTypeOverlap) continue;
-    }
-
-    const existingSlot = booking.slot;
-    if (!existingSlot) continue;
-
-    const overlaps = timeRangesOverlap(
-      requestedSlot.start_time, requestedSlot.end_time,
-      existingSlot.start_time, existingSlot.end_time
-    );
-
-    if (overlaps) return false;
-  }
-
-  return true;
-}
-
-async function getNextAvailableDate(venueId, slotId, fromDate, venueTypes = [], maxDays = 60) {
-  let date = dayjs(fromDate);
-
-  for (let i = 1; i <= maxDays; i++) {
-    date = date.add(1, "day");
-    const dateStr = date.format("YYYY-MM-DD");
-    const isFree = await checkAvailability(venueId, slotId, dateStr, venueTypes);
-    if (isFree) return dateStr;
-  }
-
-  return null;
+async function updateBooking(bookingId, venueId, data) {
+  const booking = await Booking.findOne({ where: { id: bookingId, venue_id: venueId } });
+  if (!booking) throw new Error("Booking not found");
+  return booking.update(data);
 }
 
 async function deleteBooking(bookingId, venueId) {
-  const { PaymentLedger } = require("../../database/models");
+  const booking = await Booking.findOne({ where: { id: bookingId, venue_id: venueId } });
+  if (!booking) throw new Error("Booking not found");
+  await BookingUnit.destroy({ where: { booking_id: bookingId } });
+  return booking.destroy();
+}
 
-  const booking = await getBookingById(bookingId, venueId);
-
-  const client = await Client.findByPk(booking.client_id);
-  if (client) {
-    client.total_business_value = Math.max(0, Number(client.total_business_value) - Number(booking.total_amount));
-    client.pending_balance = Math.max(0, Number(client.pending_balance) - Number(booking.balance_pending));
-    await client.save();
+// For public availability calendar
+async function getSlotAvailability(venueId, date, startTime, endTime) {
+  const slots = await Slot.findAll({ where: { venue_id: venueId, is_active: true } });
+  const result = [];
+  for (const slot of slots) {
+    const st = startTime || slot.start_time;
+    const et = endTime   || slot.end_time;
+    if (!st || !et) {
+      result.push({ slot_id: slot.id, slot_name: slot.name, service_type: slot.service_type, total_units: slot.total_units, occupied: 0, available: slot.total_units });
+      continue;
+    }
+    const occupied = await getOccupiedUnits(venueId, slot.id, date, st, et);
+    result.push({
+      slot_id: slot.id,
+      slot_name: slot.name,
+      service_type: slot.service_type,
+      total_units: slot.total_units,
+      occupied,
+      available: Math.max(0, slot.total_units - occupied),
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      is_fully_booked: occupied >= slot.total_units
+    });
   }
-
-  await PaymentLedger.destroy({ where: { booking_id: booking.id } });
-  await booking.destroy();
-
-  return { id: bookingId };
+  return result;
 }
 
 module.exports = {
-  convertInquiryToBooking,
   createManualBooking,
   getBookingsByVenue,
   getBookingById,
   updateBookingStatus,
   updateBooking,
-  checkAvailability,
-  getNextAvailableDate,
-  deleteBooking
+  deleteBooking,
+  getSlotAvailability,
+  getOccupiedUnits
 };

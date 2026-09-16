@@ -5,21 +5,21 @@ import { CATEGORIES, BRAND_NAME } from "../../lib/constants";
 import api from "../../lib/api";
 
 let heroBg = null;
-try { heroBg = new URL("../../assets/hero.png", import.meta.url).href; } catch {}
+try { heroBg = new URL("../../assets/hero.png", import.meta.url).href; } catch { }
 
 const POPULAR_SEARCHES = [
-  { label: "Marriage Hall",  slug: "marriage-hall" },
-  { label: "Photographer",   slug: "photographer" },
-  { label: "Decorator",      slug: "decorator" },
-  { label: "Caterer",        slug: "caterer" },
-  { label: "DJ",             slug: "dj" },
-  { label: "Makeup Artist",  slug: "makeup-artist" },
+  { label: "Marriage Hall", slug: "marriage-hall" },
+  { label: "Photographer", slug: "photographer" },
+  { label: "Decorator", slug: "decorator" },
+  { label: "Caterer", slug: "caterer" },
+  { label: "DJ", slug: "dj" },
+  { label: "Makeup Artist", slug: "makeup-artist" },
 ];
 
 const TRUST = [
-  { icon: ShieldCheck,   text: "Verified vendors" },
+  { icon: ShieldCheck, text: "Verified vendors" },
   { icon: MessageCircle, text: "Direct WhatsApp contact" },
-  { icon: Star,          text: "Real reviews" },
+  { icon: Star, text: "Real reviews" },
 ];
 
 // ─── Floating Petal Particle Canvas ─────────────────────────────────────────
@@ -186,7 +186,7 @@ function TiltCard({ children, className, style }) {
 }
 
 // ─── Inline autocomplete search bar ─────────────────────────────────────────
-function HeroSearchBar() {
+function HeroSearchBar({ onOpenChange }) {
   const [q, setQ]       = useState("");
   const [city, setCity] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -194,6 +194,10 @@ function HeroSearchBar() {
   const [focused, setFocused] = useState(false);
   const navigate        = useNavigate();
   const wrapRef         = useRef(null);
+
+  useEffect(() => {
+    onOpenChange?.(open && suggestions.length > 0);
+  }, [open, suggestions.length, onOpenChange]);
 
   useEffect(() => {
     const fn = (e) => {
@@ -208,14 +212,14 @@ function HeroSearchBar() {
     const t = setTimeout(() => {
       api.get("/autocomplete", { params: { q } })
         .then(({ data }) => { setSuggestions(data.data || []); setOpen(true); })
-        .catch(() => {});
+        .catch(() => { });
     }, 250);
     return () => clearTimeout(t);
   }, [q]);
 
   const go = () => {
     const params = new URLSearchParams();
-    if (q)    params.set("q", q);
+    if (q) params.set("q", q);
     if (city) params.set("city", city);
     navigate(`/search?${params.toString()}`);
     setOpen(false);
@@ -309,6 +313,7 @@ function HeroSearchBar() {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function HeroSearch({ topCities = [] }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   return (
     <>
       {/* ── Keyframe injection ── */}
@@ -503,9 +508,10 @@ export default function HeroSearch({ topCities = [] }) {
           </p>
 
           {/* Search bar */}
-          <HeroSearchBar />
+          <HeroSearchBar onOpenChange={setDropdownOpen} />
 
           {/* Popular category pills */}
+          {!dropdownOpen && (
           <div className="flex flex-wrap justify-center gap-2 mt-6">
             {POPULAR_SEARCHES.map((c, i) => (
               <Link
@@ -526,13 +532,15 @@ export default function HeroSearch({ topCities = [] }) {
                   e.currentTarget.style.transform = "";
                   e.currentTarget.style.boxShadow = "";
                 }}
-              >
+                >
                 {c.label}
               </Link>
             ))}
           </div>
+          )}
 
           {/* Trust row */}
+          {!dropdownOpen && (
           <div className="flex flex-wrap items-center justify-center gap-5 mt-6">
             {TRUST.map(({ icon: Icon, text }, i) => (
               <span
@@ -545,6 +553,7 @@ export default function HeroSearch({ topCities = [] }) {
               </span>
             ))}
           </div>
+          )}
         </div>
 
         {/* ── Differentiator strip ── */}

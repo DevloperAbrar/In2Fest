@@ -30,6 +30,8 @@ const adminDiscoveryRoutes = require("../modules/admin-discovery/adminDiscovery.
 
 const router = express.Router();
 
+const packageRoutes = require("../modules/packages/package.routes");
+
 router.use("/auth", authRoutes);
 router.use("/public-auth", publicAuthRoutes);
 router.use("/venues", venueRoutes);
@@ -44,6 +46,8 @@ router.use("/venues/:venueId/bookings", bookingRoutes);
 router.use("/venues/:venueId/clients", clientRoutes);
 router.use("/venues/:venueId/billing", billingRoutes);
 router.use("/venues/:venueId/team-members", teamMemberRoutes);
+
+router.use("/venues/:venueId/packages", packageRoutes);
 
 // Public, unauthenticated  - invoice authenticity verification (scanned via QR on PDF)
 router.use("/public/invoices", publicInvoiceVerifyRoutes);

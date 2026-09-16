@@ -35,11 +35,23 @@
   "settings": {
     "pageTitle": "Settings",
     "links": {
-      "profile": { "label": "Venue Profile", "desc": "Name, contact, address, capacity" },
-      "payment": { "label": "Payment Settings", "desc": "UPI ID and bank details for invoices" },
+      "profile": {
+        "label": "Venue Profile",
+        "desc": "Name, contact, address, capacity"
+      },
+      "payment": {
+        "label": "Payment Settings",
+        "desc": "UPI ID and bank details for invoices"
+      },
       "gst": { "label": "GST Settings", "desc": "Enable GST and set your GSTIN" },
-      "team": { "label": "Team Members", "desc": "Manage staff access" },
-      "subscription": { "label": "Subscription", "desc": "Plan, billing, and usage" }
+      "team": {
+        "label": "Team Members",
+        "desc": "Manage staff access"
+      },
+      "subscription": {
+        "label": "Subscription",
+        "desc": "Plan, billing, and usage"
+      }
     },
     "venueProfile": {
       "pageTitle": "Venue Profile",
@@ -92,7 +104,8 @@
       "gstNumber": "GST Number",
       "save": "Save",
       "updateSuccess": "GST settings updated",
-      "updateError": "Failed to update GST settings"
+      "updateError": "Failed to update GST settings",
+      "invalidFormat": "Please enter a valid GST number (e.g. 22AAAAA0000A1Z5)"
     },
     "team": {
       "pageTitle": "Team Members",
@@ -125,7 +138,12 @@
       "removeError": "Could not remove team member",
       "removeConfirmTitle": "Remove team member?",
       "removeConfirmMsg": "This will permanently delete their account and revoke all access. This can't be undone.",
-      "removeConfirmBtn": "Remove"
+      "removeConfirmBtn": "Remove",
+      "loginLinkTitle": "Team Login Link",
+      "copyLink": "Copy Link",
+      "linkCopied": "Link copied!",
+      "copyError": "Could not copy to clipboard",
+      "copyMessage": "Team login: {{url}} | Email: {{email}}"
     },
     "subscription": {
       "pageTitle": "Subscription",

@@ -92,7 +92,8 @@
       "gstNumber": "GST नंबर",
       "save": "सहेजें",
       "updateSuccess": "GST सेटिंग अपडेट हो गई",
-      "updateError": "GST सेटिंग अपडेट करने में विफल"
+      "updateError": "GST सेटिंग अपडेट करने में विफल",
+      "invalidFormat": "कृपया एक मान्य GST नंबर दर्ज करें (उदा. 22AAAAA0000A1Z5)"
     },
     "team": {
       "pageTitle": "टीम सदस्य",

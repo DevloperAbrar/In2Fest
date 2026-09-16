@@ -7,6 +7,8 @@ const Plan = require("./plan.model")(sequelize, DataTypes);
 const Subscription = require("./subscription.model")(sequelize, DataTypes);
 const Payment = require("./payment.model")(sequelize, DataTypes);
 const Slot = require("./slot.model")(sequelize, DataTypes);
+const Package = require("./package.model")(sequelize, DataTypes);         // ADD
+const BookingUnit = require("./bookingUnit.model")(sequelize, DataTypes); // ADD
 const Inquiry = require("./inquiry.model")(sequelize, DataTypes);
 const Booking = require("./booking.model")(sequelize, DataTypes);
 const Client = require("./client.model")(sequelize, DataTypes);
@@ -31,7 +33,6 @@ const SavedVendor = require("./savedVendor.model")(sequelize, DataTypes);
 
 // ---- Associations ----
 
-// A User (owner) can own multiple Venues (multi-hall support, day-one design)
 User.hasMany(Venue, { foreignKey: "owner_id", as: "venues" });
 Venue.belongsTo(User, { foreignKey: "owner_id", as: "owner" });
 
@@ -63,6 +64,21 @@ Booking.belongsTo(Client, { foreignKey: "client_id", as: "client" });
 
 Slot.hasMany(Booking, { foreignKey: "slot_id", as: "bookings" });
 Booking.belongsTo(Slot, { foreignKey: "slot_id", as: "slot" });
+
+// Package associations
+Venue.hasMany(Package, { foreignKey: "venue_id", as: "packages" });
+Package.belongsTo(Venue, { foreignKey: "venue_id" });
+
+// BookingUnit associations
+Booking.hasMany(BookingUnit, { foreignKey: "booking_id", as: "units" });
+BookingUnit.belongsTo(Booking, { foreignKey: "booking_id" });
+Slot.hasMany(BookingUnit, { foreignKey: "slot_id", as: "units" });
+BookingUnit.belongsTo(Slot, { foreignKey: "slot_id" });
+Venue.hasMany(BookingUnit, { foreignKey: "venue_id", as: "bookingUnits" });
+
+// Package in booking
+Booking.belongsTo(Package, { foreignKey: "package_id", as: "package" });
+Package.hasMany(Booking, { foreignKey: "package_id", as: "bookings" });
 
 Inquiry.belongsTo(Slot, { foreignKey: "slot_id", as: "slot" });
 Inquiry.hasOne(Booking, { foreignKey: "inquiry_id", as: "booking" });
@@ -123,8 +139,6 @@ ReviewRequest.belongsTo(Venue, { foreignKey: "venue_id" });
 Booking.hasOne(ReviewRequest, { foreignKey: "booking_id" });
 ReviewRequest.belongsTo(Booking, { foreignKey: "booking_id" });
 
-// Public (visitor) reviewer accounts  - NOT a hard FK constraint, since
-// reviewer_user_id can also point at a vendor's row in `users` (see review.model.js).
 PublicUser.hasMany(Review, { foreignKey: "reviewer_user_id", constraints: false, as: "reviewsGiven" });
 Review.belongsTo(PublicUser, { foreignKey: "reviewer_user_id", constraints: false, as: "reviewerAccount" });
 
@@ -133,27 +147,12 @@ SavedVendor.belongsTo(Venue, { foreignKey: "venue_id", as: "venue" });
 
 module.exports = {
   sequelize,
-  User,
-  Venue,
-  Plan,
-  Subscription,
-  Payment,
-  Slot,
-  Inquiry,
-  Booking,
-  Client,
-  PaymentLedger,
-  Invoice,
-  ServiceItem,
-  WhatsappTemplate,
-  WhatsappMessage,
-  TeamMember,
-  City,
-  Category,
-  VenueServiceArea,
-  VendorListing,
-  Review,
-  ReviewRequest,
-  PublicUser,
-  SavedVendor,
+  User, Venue, Plan, Subscription, Payment,
+  Slot, Package, BookingUnit,
+  Inquiry, Booking, Client,
+  PaymentLedger, Invoice, ServiceItem,
+  WhatsappTemplate, WhatsappMessage, TeamMember,
+  City, Category, VenueServiceArea,
+  VendorListing, Review, ReviewRequest,
+  PublicUser, SavedVendor,
 };

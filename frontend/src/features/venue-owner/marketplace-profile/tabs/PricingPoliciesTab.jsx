@@ -33,9 +33,21 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
     setServicePrices((prev) => ({ ...prev, [service]: value }));
   };
 
+  const priceError = (() => {
+    const start = parseFloat(form.starting_price);
+    const max = parseFloat(form.maximum_price);
+    if (form.starting_price && form.maximum_price && !isNaN(start) && !isNaN(max)) {
+      if (max <= start) return "Maximum price must be greater than starting price";
+    }
+    return null;
+  })();
+
   const errors = [];
   if (pricingMode === "single" && !form.starting_price) {
     errors.push("Starting price is required");
+  }
+  if (priceError) {
+    errors.push(priceError);
   }
   if (pricingMode === "per_service" && services.length === 0) {
     errors.push("Please select services in the Services tab first");
@@ -51,6 +63,7 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
   };
 
   const handleSave = () => {
+    if (priceError) return;
     let derivedStartingPrice = form.starting_price;
   
     if (pricingMode === "per_service") {
@@ -109,15 +122,25 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
           <Input
             label="Starting price (₹)"
             type="number"
+            min="0"
             value={form.starting_price}
             onChange={(e) => setForm({ ...form, starting_price: e.target.value })}
           />
-          <Input
-            label="Maximum price (₹)"
-            type="number"
-            value={form.maximum_price}
-            onChange={(e) => setForm({ ...form, maximum_price: e.target.value })}
-          />
+          <div>
+            <Input
+              label="Maximum price (₹)"
+              type="number"
+              min="0"
+              value={form.maximum_price}
+              onChange={(e) => setForm({ ...form, maximum_price: e.target.value })}
+              className={priceError ? "border-red-500 focus:ring-red-500" : ""}
+            />
+            {priceError && (
+              <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                <AlertCircle size={12} className="shrink-0" /> {priceError}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
