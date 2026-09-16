@@ -90,7 +90,7 @@ export default function BookingCalendarView() {
           onNavigate={setCurrentDate}
           onSelectEvent={event => setSelectedBooking(event.resource)}
           onSelectSlot={slotInfo => openBookingForm(slotInfo.start)}
-          onDrillDown={date => openBookingForm(date)}
+          onDrillDown={date => { setCurrentDate(date); setCurrentView(Views.DAY); }}
           eventPropGetter={event => ({
             style: {
               backgroundColor: STATUS_COLORS[event.status] || STATUS_COLORS.confirmed,
@@ -114,6 +114,13 @@ export default function BookingCalendarView() {
         .venue-calendar .rbc-btn-group button.rbc-active { background-color: #c81322; border-color: #c81322; color: #fff; }
         .venue-calendar .rbc-today { background-color: #fdecec; }
         .venue-calendar .rbc-off-range-bg { background-color: #faf9fc; }
+        .venue-calendar .rbc-event { line-height: 1.25; }
+        .venue-calendar .rbc-event-content { overflow: hidden; text-overflow: ellipsis; }
+        .venue-calendar .rbc-show-more {
+          color: #c81322; font-weight: 700; font-size: 11px;
+          background: #fdecec; border-radius: 6px; padding: 1px 6px; margin-top: 2px;
+        }
+        .venue-calendar .rbc-show-more:hover { background: #fbdadb; text-decoration: none; }
       `}</style>
 
       <BookingDetail

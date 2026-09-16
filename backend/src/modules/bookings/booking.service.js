@@ -154,10 +154,23 @@ async function updateBookingStatus(bookingId, venueId, status) {
   return booking.update({ status });
 }
 
+// Numeric columns on the Booking model - an empty string ("") from a
+// cleared number input must become NULL, not be sent to Postgres as-is
+// (an INTEGER/DECIMAL column rejects "" with "invalid input syntax").
+const NUMERIC_BOOKING_FIELDS = ["guest_count", "total_amount", "amount_received", "balance_pending"];
+
+function sanitizeBookingUpdate(data) {
+  const clean = { ...data };
+  for (const field of NUMERIC_BOOKING_FIELDS) {
+    if (clean[field] === "") clean[field] = null;
+  }
+  return clean;
+}
+
 async function updateBooking(bookingId, venueId, data) {
   const booking = await Booking.findOne({ where: { id: bookingId, venue_id: venueId } });
   if (!booking) throw new Error("Booking not found");
-  return booking.update(data);
+  return booking.update(sanitizeBookingUpdate(data));
 }
 
 async function deleteBooking(bookingId, venueId) {

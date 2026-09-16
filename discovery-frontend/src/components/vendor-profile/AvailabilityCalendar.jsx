@@ -22,6 +22,65 @@ const statusTheme = {
   booked:    { bg: "#FFF1F2",     text: "#DC2626" },
 };
 
+// Day window the mini-timeline visual is drawn across. Event/venue bookings
+// realistically fall in this range - tighten or widen if a vendor's actual
+// hours differ noticeably.
+const TIMELINE_START_MIN = 6 * 60;   // 6:00 AM
+const TIMELINE_END_MIN   = 23 * 60;  // 11:00 PM
+
+function timeToMin(t) {
+  const [h, m] = String(t).split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function timelinePct(t) {
+  const mins = timeToMin(t);
+  const pct = ((mins - TIMELINE_START_MIN) / (TIMELINE_END_MIN - TIMELINE_START_MIN)) * 100;
+  return Math.max(0, Math.min(100, pct));
+}
+
+// Collapses raw per-booking ranges into merged, non-overlapping busy blocks
+// for a clean display - e.g. four overlapping 1-6pm bookings become one
+// "1:00 PM - 6:00 PM" block instead of four separate rows.
+function mergeRanges(ranges) {
+  if (!ranges.length) return [];
+  const sorted = [...ranges].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const merged = [sorted[0]];
+  for (const r of sorted.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (r.start_time <= last.end_time) {
+      if (r.end_time > last.end_time) last.end_time = r.end_time;
+    } else {
+      merged.push({ ...r });
+    }
+  }
+  return merged;
+}
+
+function MiniTimeline({ busyBlocks }) {
+  return (
+    <div>
+      <div style={{ position:"relative", height:10, borderRadius:5, backgroundColor:"#F1F5F9", overflow:"hidden" }}>
+        {busyBlocks.map((r, i) => {
+          const left  = timelinePct(r.start_time);
+          const right = timelinePct(r.end_time);
+          return (
+            <div key={i} style={{
+              position:"absolute", top:0, bottom:0,
+              left:`${left}%`, width:`${Math.max(1.5, right - left)}%`,
+              backgroundColor:"#EF4444", borderRadius:3
+            }} />
+          );
+        })}
+      </div>
+      <div style={{ display:"flex", justifyContent:"space-between", marginTop:2 }}>
+        <span style={{ fontSize:8, color:"#CBD5E1", fontWeight:600 }}>6 AM</span>
+        <span style={{ fontSize:8, color:"#CBD5E1", fontWeight:600 }}>11 PM</span>
+      </div>
+    </div>
+  );
+}
+
 function Tooltip({ day, dayInfo, onClose }) {
   const slots    = dayInfo?.slots    || [];
   const packages = dayInfo?.packages || [];
@@ -32,43 +91,50 @@ function Tooltip({ day, dayInfo, onClose }) {
       <div style={{ position:"fixed", inset:0, zIndex:40 }} onClick={onClose} />
       <div style={{
         position:"absolute", zIndex:50, top:"calc(100% + 8px)", left:"50%",
-        transform:"translateX(-50%)", width:240, backgroundColor:"#fff",
-        border:"1px solid #E2E8F0", borderRadius:14,
-        boxShadow:"0 8px 24px rgba(15,23,42,0.12)", padding:"14px 14px 10px", fontSize:12
+        transform:"translateX(-50%)", width:264, backgroundColor:"#fff",
+        border:"1px solid #E2E8F0", borderRadius:16,
+        boxShadow:"0 12px 32px rgba(15,23,42,0.16)",
+        display:"flex", flexDirection:"column", maxHeight:360
       }}>
         <div style={{ position:"absolute", top:-7, left:"50%", transform:"translateX(-50%) rotate(45deg)",
           width:12, height:12, backgroundColor:"#fff", border:"1px solid #E2E8F0",
           borderBottom:"none", borderRight:"none" }} />
 
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <div style={{
+          display:"flex", justifyContent:"space-between", alignItems:"center",
+          padding:"14px 14px 10px", borderBottom:"1px solid #F1F5F9", flexShrink:0
+        }}>
           <span style={{ fontWeight:700, color:"#0F172A", fontSize:13 }}>{day}</span>
-          <button onClick={onClose} style={{ border:"none", background:"none", cursor:"pointer", color:"#94A3B8", fontSize:15 }}>✕</button>
+          <button onClick={onClose} style={{ border:"none", background:"none", cursor:"pointer", color:"#94A3B8", fontSize:15, lineHeight:1, padding:2 }}>✕</button>
         </div>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {all.length === 0 && <p style={{ color:"#94A3B8", fontSize:12 }}>No slots configured</p>}
+        <div style={{ overflowY:"auto", padding:"10px 14px 12px", display:"flex", flexDirection:"column", gap:10 }}>
+          {all.length === 0 && <p style={{ color:"#94A3B8", fontSize:12, margin:0 }}>No slots configured</p>}
           {all.map((item, i) => {
-            const isSlot   = item._kind === "slot";
+            const isSlot      = item._kind === "slot";
             const fullyBooked = item.is_fully_booked;
-            const avail    = isSlot ? item.available : item.available;
-            const total    = isSlot ? item.total_units : null;
+            const avail       = item.available;
+            const total       = isSlot ? item.total_units : null;
+            const busyBlocks  = isSlot ? mergeRanges(item.ranges || []) : [];
 
             return (
               <div key={i} style={{
-                paddingBottom: i < all.length-1 ? 8 : 0,
-                borderBottom:  i < all.length-1 ? "1px solid #F1F5F9" : "none"
+                borderLeft: `3px solid ${fullyBooked ? "#EF4444" : "#10B981"}`,
+                borderRadius: 8,
+                backgroundColor: "#FAFBFC",
+                padding: "8px 10px"
               }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:5, minWidth:0 }}>
                     {isSlot
-                      ? <Clock size={11} color="#64748B" />
-                      : <Package size={11} color="#7C3AED" />}
-                    <span style={{ fontWeight:600, color:"#1E293B", fontSize:12 }}>
+                      ? <Clock size={11} color="#64748B" style={{ flexShrink:0 }} />
+                      : <Package size={11} color="#7C3AED" style={{ flexShrink:0 }} />}
+                    <span style={{ fontWeight:600, color:"#1E293B", fontSize:12, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       {isSlot ? item.slot_name : item.package_name}
                     </span>
                   </div>
                   <span style={{
-                    padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:700,
+                    flexShrink:0, padding:"2px 8px", borderRadius:20, fontSize:10, fontWeight:700,
                     backgroundColor: fullyBooked ? "#FEE2E2" : avail > 0 ? "#D1FAE5" : "#FEF3C7",
                     color: fullyBooked ? "#DC2626" : avail > 0 ? "#059669" : "#B45309"
                   }}>
@@ -76,21 +142,30 @@ function Tooltip({ day, dayInfo, onClose }) {
                   </span>
                 </div>
 
-                {isSlot && item.start_time && item.end_time && (
-                  <div style={{ color:"#94A3B8", marginTop:2, fontSize:11 }}>
-                    {fmt(item.start_time)} – {fmt(item.end_time)}
+                {isSlot && busyBlocks.length > 0 ? (
+                  <div style={{ marginTop:7 }}>
+                    <MiniTimeline busyBlocks={busyBlocks} />
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
+                      {busyBlocks.map((r, ri) => (
+                        <span key={ri} style={{
+                          fontSize:10, fontWeight:600, color:"#B91C1C",
+                          backgroundColor:"#FEF2F2", borderRadius:6, padding:"2px 7px"
+                        }}>
+                          {fmt(r.start_time)} – {fmt(r.end_time)}
+                        </span>
+                      ))}
+                    </div>
+                    {total > 1 && (
+                      <div style={{ color:"#94A3B8", marginTop:5, fontSize:9.5 }}>
+                        Peak usage: {item.occupied}/{total} units
+                      </div>
+                    )}
                   </div>
-                )}
-                {isSlot && total > 1 && (
-                  <div style={{ color:"#94A3B8", marginTop:2, fontSize:10 }}>
-                    {item.occupied}/{total} units occupied
+                ) : isSlot ? (
+                  <div style={{ color:"#16A34A", marginTop:6, fontSize:11, fontWeight:500 }}>
+                    Available all day
                   </div>
-                )}
-                {isSlot && item.service_type && (
-                  <div style={{ color:"#94A3B8", marginTop:2, fontSize:10, textTransform:"capitalize" }}>
-                    {item.service_type}
-                  </div>
-                )}
+                ) : null}
               </div>
             );
           })}

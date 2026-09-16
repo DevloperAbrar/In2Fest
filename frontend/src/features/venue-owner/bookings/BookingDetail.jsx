@@ -8,7 +8,7 @@ import Button from "../../../components/common/Button";
 import Badge from "../../../components/common/Badge";
 import { bookingService } from "../../../services/bookingService";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { formatCurrency, formatDate } from "../../../lib/formatters";
+import { formatCurrency, formatDateRange, formatTimeRange } from "../../../lib/formatters";
 import { BOOKING_STATUSES } from "../../../lib/constants";
 import { useFetch } from "../../../hooks/useFetch";
 import { translateCategory } from "../../../lib/i18nLabels";
@@ -36,8 +36,10 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
       setEditForm({
         client_name: booking.client?.name || "",
         client_phone: booking.client?.phone || "",
-        slot_id: booking.slot_id || "",
-        event_date: booking.event_date || "",
+        date_from: booking.date_from || "",
+        date_to: booking.date_to || booking.date_from || "",
+        start_time: booking.start_time || "",
+        end_time: booking.end_time || "",
         venue_type: booking.venue_type || [],
         event_type: booking.event_type || "",
         guest_count: booking.guest_count || ""
@@ -80,8 +82,8 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
   };
 
   const saveEdit = async () => {
-    if (!editForm.client_name.trim() || !editForm.client_phone.trim() || !editForm.slot_id || !editForm.event_date) {
-      return showError("Client name, phone, slot and date are required");
+    if (!editForm.client_name.trim() || !editForm.client_phone.trim() || !editForm.date_from || !editForm.start_time || !editForm.end_time) {
+      return showError("Client name, phone, date and time are required");
     }
     setSaving(true);
     try {
@@ -112,8 +114,16 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-sm mb-4">
             <div><span className="text-navy-400">Client:</span> <span className="text-navy-800">{booking.client?.name}</span></div>
             <div><span className="text-navy-400">Phone:</span> <span className="text-navy-800">{booking.client?.phone}</span></div>
-            <div><span className="text-navy-400">Event Date:</span> <span className="text-navy-800">{formatDate(booking.event_date)}</span></div>
-            <div><span className="text-navy-400">Slot:</span> <span className="text-navy-800">{booking.slot?.name}</span></div>
+            <div><span className="text-navy-400">Event Date:</span> <span className="text-navy-800">{formatDateRange(booking.date_from, booking.date_to)}</span></div>
+            <div><span className="text-navy-400">Time:</span> <span className="text-navy-800">{formatTimeRange(booking.start_time, booking.end_time)}</span></div>
+            {booking.booking_items?.length > 0 && (
+              <div className="sm:col-span-2">
+                <span className="text-navy-400">Slots / Packages:</span>{" "}
+                <span className="text-navy-800">
+                  {booking.booking_items.map((it) => it.name).join(", ")}
+                </span>
+              </div>
+            )}
             {booking.venue_type?.length > 0 && (
               <div className="sm:col-span-2">
                 <span className="text-navy-400">Venue Type:</span>{" "}
@@ -185,19 +195,31 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input
-                label="Event Date"
+                label="From Date"
                 type="date"
-                value={editForm.event_date}
-                onChange={(e) => updateField("event_date", e.target.value)}
+                value={editForm.date_from}
+                onChange={(e) => updateField("date_from", e.target.value)}
               />
-              <Select
-                label="Slot"
-                value={editForm.slot_id}
-                onChange={(e) => updateField("slot_id", e.target.value)}
-                options={(slots || []).map((s) => ({
-                  value: s.id,
-                  label: `${s.name} (${s.start_time} – ${s.end_time})`
-                }))}
+              <Input
+                label="To Date"
+                type="date"
+                value={editForm.date_to}
+                onChange={(e) => updateField("date_to", e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Start Time"
+                type="time"
+                value={editForm.start_time}
+                onChange={(e) => updateField("start_time", e.target.value)}
+              />
+              <Input
+                label="End Time"
+                type="time"
+                value={editForm.end_time}
+                onChange={(e) => updateField("end_time", e.target.value)}
               />
             </div>
 

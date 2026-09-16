@@ -27,6 +27,34 @@ export function formatDateTime(date) {
   });
 }
 
+// Turns a "HH:MM" / "HH:MM:SS" DB time string into 12-hour display
+// ("14:30:00" -> "2:30 PM"). Booking start_time/end_time come from
+// Postgres TIME columns in this format.
+export function formatTime(time) {
+  if (!time) return "";
+  const [hStr, mStr] = time.split(":");
+  const hour = parseInt(hStr, 10);
+  if (Number.isNaN(hour)) return "";
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${mStr} ${period}`;
+}
+
+// Formats a booking's start_time/end_time pair for display.
+export function formatTimeRange(startTime, endTime) {
+  if (!startTime && !endTime) return "-";
+  if (!endTime) return formatTime(startTime);
+  return `${formatTime(startTime)} – ${formatTime(endTime)}`;
+}
+
+// Formats a booking's date_from/date_to pair (multi-day bookings collapse
+// to a single date when both are the same day, or missing date_to).
+export function formatDateRange(dateFrom, dateTo) {
+  if (!dateFrom) return "-";
+  if (!dateTo || dateTo === dateFrom) return formatDate(dateFrom);
+  return `${formatDate(dateFrom)} – ${formatDate(dateTo)}`;
+}
+
 // Turns a category/service slug ("sound-lighting") into a readable label
 // ("Sound Lighting") for places that only have the raw slug on hand and
 // don't want to fetch the full /meta/categories list just to show a name.
