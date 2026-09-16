@@ -46,3 +46,9 @@ CREATE TABLE IF NOT EXISTS booking_units (
 CREATE INDEX IF NOT EXISTS idx_booking_units_venue_date ON booking_units(venue_id, date);
 CREATE INDEX IF NOT EXISTS idx_booking_units_slot       ON booking_units(slot_id, date);
 CREATE INDEX IF NOT EXISTS idx_booking_units_booking    ON booking_units(booking_id);
+
+-- Legacy leftover: bookings.slot_id was NOT NULL from the old single-slot
+-- booking schema. The app now stores items in booking_items (JSONB) and
+-- never sets slot_id directly, so every booking insert violated this
+-- constraint. Safe to run even if already nullable (no-op, no error).
+ALTER TABLE bookings ALTER COLUMN slot_id DROP NOT NULL;

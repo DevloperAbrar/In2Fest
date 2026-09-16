@@ -1,6 +1,6 @@
 import React from "react";
 import { Edit2, Trash2, Package, Power, CheckCircle2 } from "lucide-react";
-import { formatCurrency } from "../../../lib/formatters";
+import { formatCurrency, formatSlugLabel } from "../../../lib/formatters";
 
 export default function PackageCard({ pkg, slots = [], onEdit, onDelete, onToggle }) {
   const pkgSlots = (pkg.slot_ids || [])
@@ -54,7 +54,7 @@ export default function PackageCard({ pkg, slots = [], onEdit, onDelete, onToggl
             <div key={s.id} className="flex items-center gap-1.5 text-xs text-gray-600">
               <CheckCircle2 size={11} className="text-purple-400 flex-shrink-0" />
               {s.name}
-              {s.service_type && <span className="text-gray-400">({s.service_type})</span>}
+              {s.service_type && <span className="text-gray-400">({formatSlugLabel(s.service_type)})</span>}
             </div>
           ))}
         </div>

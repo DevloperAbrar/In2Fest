@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock, Sun, Timer, Package, CheckCircle2 } from "lucide-react";
+import { Clock, Sun, Timer, Package, LayoutGrid, CheckCircle2 } from "lucide-react";
 
 const TYPE_ICON = { time_slot: Clock, full_day: Sun, hourly: Timer, package: Package };
 const TYPE_LABEL = { time_slot: "Time Slot", full_day: "Full Day", hourly: "Hourly", package: "Package" };
@@ -18,7 +18,11 @@ function formatINR(val) {
 
 function PublicSlotCard({ slot, themeColor }) {
   const pricingType = slot.pricing_type || "time_slot";
-  const Icon = TYPE_ICON[pricingType] || Clock;
+  const hasTimeInfo = !!(slot.start_time && slot.end_time);
+  // Simplified slots have no time window of their own — the client picks
+  // date/time while booking — so don't mislabel them as "Time Slot".
+  const isSimpleSlot = pricingType === "time_slot" && !hasTimeInfo;
+  const Icon = isSimpleSlot ? LayoutGrid : (TYPE_ICON[pricingType] || Clock);
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow">
@@ -29,11 +33,18 @@ function PublicSlotCard({ slot, themeColor }) {
         </div>
         <div>
           <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight">{slot.name}</p>
-          <span className="text-[10px] font-medium text-gray-400">{TYPE_LABEL[pricingType]}</span>
+          {!isSimpleSlot && <span className="text-[10px] font-medium text-gray-400">{TYPE_LABEL[pricingType]}</span>}
         </div>
       </div>
 
-      {pricingType === "time_slot" && (
+      {isSimpleSlot && (
+        <div className="space-y-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400">Choose your date & time while booking</p>
+          {slot.base_price && <p className="text-xl font-bold text-gray-900 dark:text-white">{formatINR(slot.base_price)}</p>}
+        </div>
+      )}
+
+      {!isSimpleSlot && pricingType === "time_slot" && (
         <div className="space-y-1">
           {slot.start_time && slot.end_time && <p className="text-sm text-gray-500 dark:text-gray-400">{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</p>}
           {slot.base_price && <p className="text-xl font-bold text-gray-900 dark:text-white">{formatINR(slot.base_price)}</p>}

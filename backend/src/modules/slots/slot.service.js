@@ -1,6 +1,23 @@
 const { Slot } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 
+const NUMERIC_FIELDS = ["base_price", "weekend_price", "price_per_hour", "min_hours", "max_hours", "total_units"];
+
+// Postgres throws a raw 500 for "" against numeric columns instead of a
+// friendly validation error, so normalize blank/undefined numeric fields to
+// null before they ever reach Sequelize.
+function sanitizeSlotData(data) {
+  const cleaned = { ...data };
+  NUMERIC_FIELDS.forEach((field) => {
+    if (cleaned[field] === "" || cleaned[field] === undefined) {
+      cleaned[field] = field === "total_units" ? undefined : null;
+    } else if (cleaned[field] !== null) {
+      cleaned[field] = Number(cleaned[field]);
+    }
+  });
+  return cleaned;
+}
+
 async function getSlotsByVenue(venueId, activeOnly = false) {
   const where = { venue_id: venueId };
   if (activeOnly) where.is_active = true;
@@ -8,13 +25,13 @@ async function getSlotsByVenue(venueId, activeOnly = false) {
 }
 
 async function createSlot(venueId, data) {
-  return Slot.create({ ...data, venue_id: venueId });
+  return Slot.create({ ...sanitizeSlotData(data), venue_id: venueId });
 }
 
 async function updateSlot(slotId, venueId, data) {
   const slot = await Slot.findOne({ where: { id: slotId, venue_id: venueId } });
   if (!slot) throw new AppError("Slot not found", 404);
-  return slot.update(data);
+  return slot.update(sanitizeSlotData(data));
 }
 
 async function toggleSlot(slotId, venueId) {

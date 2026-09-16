@@ -27,6 +27,17 @@ export function formatDateTime(date) {
   });
 }
 
+// Turns a category/service slug ("sound-lighting") into a readable label
+// ("Sound Lighting") for places that only have the raw slug on hand and
+// don't want to fetch the full /meta/categories list just to show a name.
+export function formatSlugLabel(slug) {
+  if (!slug) return "";
+  return slug
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function truncate(text, length = 50) {
   if (!text) return "";
   return text.length > length ? `${text.slice(0, length)}...` : text;

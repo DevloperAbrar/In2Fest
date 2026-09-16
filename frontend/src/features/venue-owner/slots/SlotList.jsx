@@ -36,9 +36,6 @@ export default function SlotList() {
   const [deletingPkg, setDeletingPkg]       = useState(null);
   const [submitting, setSubmitting]         = useState(false);
 
-  // Venue services from marketplace profile for service_type dropdown
-  const venueServices = venue?.marketplace_services || [];
-
   /* ---------- SLOT handlers ---------- */
   const handleSlotSubmit = async (values) => {
     setSubmitting(true);
@@ -199,7 +196,7 @@ export default function SlotList() {
 
       {/* Slot Modal */}
       <Modal isOpen={slotModalOpen} onClose={() => setSlotModalOpen(false)} title={editingSlot ? "Edit Slot" : "Add Slot"}>
-        <SlotForm existingSlot={editingSlot} venueServices={venueServices}
+        <SlotForm existingSlot={editingSlot} existingSlots={slots || []}
           onSubmit={handleSlotSubmit} onCancel={() => setSlotModalOpen(false)} submitting={submitting} />
       </Modal>
 
