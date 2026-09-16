@@ -133,6 +133,10 @@ function computeSlotOccupancy(units, totalUnits) {
  *     that day (computed from each booking's actual start_time/end_time),
  *     not a raw sum of every booking that day - two non-overlapping
  *     bookings must not be treated as if they compete for the same unit.
+ *   - Only bookings that are still actually holding the slot count toward
+ *     occupancy - a cancelled booking's booking_units rows still exist in
+ *     the table (for history/audit) but must NOT block the slot for anyone
+ *     else, so cancelled bookings are excluded here via the Booking join.
  *   - `ranges` lists every booked time window that day so the vendor and
  *     visitors can see exactly when a slot is busy vs. free.
  */
@@ -166,7 +170,17 @@ async function getVendorAvailability(req, res, next) {
       // same numbers instead of re-querying and re-summing.
       const slotOccupancyById = {};
       const slotResults = await Promise.all(slots.map(async (slot) => {
-        const units = await BookingUnit.findAll({ where: { slot_id: slot.id, date: dateStr } });
+        // Exclude cancelled bookings - their booking_units rows are kept
+        // for history but no longer occupy the slot.
+        const units = await BookingUnit.findAll({
+          where: { slot_id: slot.id, date: dateStr },
+          include: [{
+            model: Booking,
+            attributes: [],
+            where: { status: { [Op.ne]: "cancelled" } },
+            required: true
+          }]
+        });
         const { occupied, available, ranges } = computeSlotOccupancy(units, slot.total_units);
         slotOccupancyById[slot.id] = { available, ranges };
         return {

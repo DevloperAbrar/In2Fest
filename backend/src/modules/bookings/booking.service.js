@@ -13,7 +13,9 @@ function getDateRange(from, to) {
   return dates;
 }
 
-// Check how many units are occupied for a slot on a date+time
+// Check how many units are occupied for a slot on a date+time.
+// Cancelled bookings are excluded - their booking_units rows stay in the
+// table for history, but a cancelled booking must not block the slot.
 async function getOccupiedUnits(venueId, slotId, date, startTime, endTime) {
   const units = await BookingUnit.findAll({
     where: {
@@ -22,7 +24,13 @@ async function getOccupiedUnits(venueId, slotId, date, startTime, endTime) {
       date,
       start_time: { [Op.lt]: endTime },
       end_time:   { [Op.gt]: startTime }
-    }
+    },
+    include: [{
+      model: Booking,
+      attributes: [],
+      where: { status: { [Op.ne]: "cancelled" } },
+      required: true
+    }]
   });
   return units.reduce((sum, u) => sum + u.units_used, 0);
 }
@@ -167,10 +175,61 @@ function sanitizeBookingUpdate(data) {
   return clean;
 }
 
+// Rebuilds booking_units for a booking from its CURRENT booking_items and
+// the given date/time - used whenever the schedule changes so the units
+// that drive availability calculations never go stale/out of sync with
+// what the booking actually shows on the calendar.
+async function regenerateBookingUnits(booking, venueId, t) {
+  const dateFrom = booking.date_from;
+  const dateTo   = booking.date_to || booking.date_from;
+  const dates    = getDateRange(dateFrom, dateTo);
+
+  await BookingUnit.destroy({ where: { booking_id: booking.id }, transaction: t });
+
+  const unitRows = [];
+  for (const item of (booking.booking_items || [])) {
+    if (item.type === "slot") {
+      for (const date of dates) {
+        unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: item.id, date, start_time: booking.start_time, end_time: booking.end_time, units_used: 1 });
+      }
+    }
+    if (item.type === "package") {
+      const pkg = await Package.findByPk(item.id, { transaction: t });
+      for (const slotId of (pkg?.slot_ids || [])) {
+        for (const date of dates) {
+          unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: slotId, date, start_time: booking.start_time, end_time: booking.end_time, units_used: 1 });
+        }
+      }
+    }
+  }
+
+  if (unitRows.length > 0) {
+    await BookingUnit.bulkCreate(unitRows, { transaction: t });
+  }
+}
+
 async function updateBooking(bookingId, venueId, data) {
   const booking = await Booking.findOne({ where: { id: bookingId, venue_id: venueId } });
   if (!booking) throw new Error("Booking not found");
-  return booking.update(sanitizeBookingUpdate(data));
+
+  const clean = sanitizeBookingUpdate(data);
+
+  // If date/time is changing, the booking_units rows created back when the
+  // booking was first made now describe the OLD schedule - they must be
+  // rebuilt to match, otherwise they keep occupying the old slot forever
+  // (invisible on the calendar, silently eating into capacity elsewhere).
+  const SCHEDULE_FIELDS = ["date_from", "date_to", "start_time", "end_time"];
+  const touchesSchedule = SCHEDULE_FIELDS.some((f) => f in clean);
+
+  if (!touchesSchedule) {
+    return booking.update(clean);
+  }
+
+  return sequelize.transaction(async (t) => {
+    await booking.update(clean, { transaction: t });
+    await regenerateBookingUnits(booking, venueId, t);
+    return booking;
+  });
 }
 
 async function deleteBooking(bookingId, venueId) {
@@ -180,7 +239,8 @@ async function deleteBooking(bookingId, venueId) {
   return booking.destroy();
 }
 
-// For public availability calendar
+// For public availability calendar.
+// Cancelled bookings are excluded here too - see getOccupiedUnits above.
 async function getSlotAvailability(venueId, date, startTime, endTime) {
   const slots = await Slot.findAll({ where: { venue_id: venueId, is_active: true } });
   const result = [];
