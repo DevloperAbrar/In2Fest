@@ -24,6 +24,7 @@ async function createPublicInquiry(venueId, payload) {
   const inquiry = await Inquiry.create({
     venue_id: venueId,
     slot_id: payload.slot_id,
+    selected_slots: Array.isArray(payload.selected_slots) ? payload.selected_slots : [],
     customer_name: payload.customer_name,
     phone: payload.phone,
     email: payload.email,
@@ -96,8 +97,12 @@ async function createMarketplaceInquiry(venueId, payload) {
     throw new AppError("Google verification required.", 401);
   }
 
+  const selectedSlots = Array.isArray(payload.selected_slots) ? payload.selected_slots : [];
+
   const inquiry = await Inquiry.create({
     venue_id: venueId,
+    slot_id: selectedSlots[0]?.slot_id || null,
+    selected_slots: selectedSlots,
     customer_name: payload.customer_name,
     phone: payload.phone,
     email: payload.email,

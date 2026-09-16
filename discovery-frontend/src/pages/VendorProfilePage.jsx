@@ -55,6 +55,7 @@ export default function VendorProfilePage() {
   const { city, category, slug: vendorSlug } = useParams();
   const [data, setData] = useState(null);
   const [showInquiry, setShowInquiry] = useState(false);
+  const [inquiryDate, setInquiryDate] = useState("");   // 👈 add this line
 
   useEffect(() => {
     api.get(`/vendor/${city}/${category}/${vendorSlug}`).then(({ data }) => setData(data.data));
@@ -247,7 +248,12 @@ export default function VendorProfilePage() {
               </SectionCard>
             )}
 
-            {venue.id && <AvailabilityCalendar venueId={venue.id} />}
+            {venue.id && (
+              <AvailabilityCalendar
+                venueId={venue.id}
+                onSendInquiry={(date) => { setInquiryDate(date); setShowInquiry(true); }}
+              />
+            )}
 
             {venue.famous_events_handled && (
               <SectionCard title="Notable Events Handled">
@@ -371,7 +377,13 @@ export default function VendorProfilePage() {
         </div>
       </div>
 
-      {showInquiry && <InquiryModal venue={venue} onClose={() => setShowInquiry(false)} />}
+      {showInquiry && (
+  <InquiryModal
+    venue={venue}
+    initialDate={inquiryDate}
+    onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
+  />
+)}
 
       {/* Scroll-triggered "become a vendor" nudge - shows once per session */}
       <VendorCTAPrompt />

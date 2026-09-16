@@ -1,6 +1,6 @@
-import React, { useState, useRef } from "react";
-import { X, Calendar, ChevronDown } from "lucide-react";
-import { inquiryApi } from "../../lib/api";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { X, Calendar, ChevronDown, Clock, Loader2, CheckCircle2, Info } from "lucide-react";
+import api, { inquiryApi } from "../../lib/api";
 import GoogleSignInButton from "./GoogleSignInButton";
 
 const EVENT_TYPES = [
@@ -9,15 +9,28 @@ const EVENT_TYPES = [
   "Sangeet", "Haldi", "Mehendi", "Other",
 ];
 
-export default function InquiryModal({ venue, onClose }) {
+function fmt(t) {
+  if (!t) return "";
+  const [h, m] = String(t).split(":");
+  const hr = parseInt(h, 10);
+  return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
+}
+
+export default function InquiryModal({ venue, onClose, initialDate = "" }) {
   const [step, setStep] = useState("form"); // "form" | "google" | "done"
   const [form, setForm] = useState({
     customer_name: "", phone: "", email: "",
-    event_date: "", event_type: "", guest_count: "", message: "",
+    event_date: initialDate, event_type: "", guest_count: "", message: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const dateRef = useRef(null);
+
+  // Availability for the selected date + which slots the customer picked
+  const [daySlots, setDaySlots] = useState([]);      // all slots/packages available that day
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState(false);
+  const [selectedSlots, setSelectedSlots] = useState([]); // [{slot_id, slot_name, ...}]
 
   // Only allow digits, max 10
   const handlePhoneChange = (e) => {
@@ -25,11 +38,69 @@ export default function InquiryModal({ venue, onClose }) {
     setForm({ ...form, phone: digits });
   };
 
+  // Whenever the event date changes, fetch that day's slot/package
+  // availability so the customer can pick exactly what they need.
+  const fetchDayAvailability = useCallback((dateStr) => {
+    if (!venue?.id || !dateStr) { setDaySlots([]); return; }
+    setSlotsLoading(true);
+    setSlotsError(false);
+    api.get(`/vendor-availability/${venue.id}`, { params: { from: dateStr, to: dateStr } })
+      .then(({ data }) => {
+        const day = data?.data?.days?.[0];
+        const slots = (day?.slots || []).map((s) => ({ ...s, _kind: "slot" }));
+        const packages = (day?.packages || []).map((p) => ({ ...p, _kind: "package" }));
+        setDaySlots([...slots, ...packages]);
+      })
+      .catch(() => setSlotsError(true))
+      .finally(() => setSlotsLoading(false));
+  }, [venue?.id]);
+
+  useEffect(() => {
+    if (form.event_date) fetchDayAvailability(form.event_date);
+    else setDaySlots([]);
+    // Clear previous selections whenever the date changes - a slot picked
+    // for one date shouldn't silently carry over to another.
+    setSelectedSlots([]);
+  }, [form.event_date, fetchDayAvailability]);
+
+  const toggleSlot = (item) => {
+    if (item.is_fully_booked) return;
+    const key = item._kind === "slot" ? item.slot_id : item.package_id;
+    const isSelected = selectedSlots.some((s) => s.key === key);
+    if (isSelected) {
+      setSelectedSlots(selectedSlots.filter((s) => s.key !== key));
+      return;
+    }
+    setSelectedSlots([
+      ...selectedSlots,
+      item._kind === "slot"
+        ? {
+            key,
+            slot_id: item.slot_id,
+            slot_name: item.slot_name,
+            service_type: item.service_type || null,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            kind: "slot",
+          }
+        : {
+            key,
+            package_id: item.package_id,
+            slot_name: item.package_name,
+            kind: "package",
+          },
+    ]);
+  };
+
   // Called when user clicks "Continue with Google"
   const goToGoogle = () => {
     setError("");
     if (!form.customer_name.trim()) { setError("Please enter your name."); return; }
     if (form.phone && form.phone.length !== 10) { setError("Phone number must be exactly 10 digits."); return; }
+    if (form.event_date && daySlots.length > 0 && selectedSlots.length === 0) {
+      setError("Please select at least one service/slot for your date.");
+      return;
+    }
     setStep("google");
   };
 
@@ -40,6 +111,7 @@ export default function InquiryModal({ venue, onClose }) {
     try {
       await inquiryApi.post(`/venues/${venue.id}/inquiries/marketplace`, {
         ...form,
+        selected_slots: selectedSlots.map(({ key, ...rest }) => rest),
         google_credential: credential,
       });
       setStep("done");
@@ -62,7 +134,7 @@ export default function InquiryModal({ venue, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-md p-5 relative" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl w-full max-w-md p-5 relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400"><X size={20} /></button>
 
         {/* ── STEP 1: Form ── */}
@@ -113,6 +185,84 @@ export default function InquiryModal({ venue, onClose }) {
                 value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
             </div>
 
+            {/* SLOT / SERVICE PICKER — shown once a date is chosen */}
+            {form.event_date && (
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <p className="text-xs font-semibold text-gray-600 mb-2">
+                  What do you need on {formatDate(form.event_date)}?
+                </p>
+
+                {slotsLoading ? (
+                  <div className="flex items-center justify-center py-4 text-gray-400">
+                    <Loader2 size={16} className="animate-spin" />
+                  </div>
+                ) : slotsError ? (
+                  <p className="text-xs text-gray-400 py-2">Could not load availability for this date.</p>
+                ) : daySlots.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2">No specific slots configured - we'll check availability for you.</p>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {daySlots.map((item) => {
+                      const key = item._kind === "slot" ? item.slot_id : item.package_id;
+                      const name = item._kind === "slot" ? item.slot_name : item.package_name;
+                      const isSelected = selectedSlots.some((s) => s.key === key);
+                      const disabled = item.is_fully_booked;
+
+                      return (
+                        <button
+                          type="button"
+                          key={key}
+                          disabled={disabled}
+                          onClick={() => toggleSlot(item)}
+                          className={[
+                            "w-full text-left rounded-lg border px-3 py-2 transition-colors",
+                            disabled
+                              ? "border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed"
+                              : isSelected
+                              ? "border-primary-500 bg-primary-50"
+                              : "border-gray-200 bg-white hover:border-primary-300",
+                          ].join(" ")}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={[
+                                "flex items-center justify-center w-4 h-4 rounded border shrink-0",
+                                isSelected ? "bg-primary-600 border-primary-600" : "border-gray-300 bg-white",
+                              ].join(" ")}>
+                                {isSelected && <CheckCircle2 size={12} className="text-white" />}
+                              </span>
+                              <span className="text-sm font-medium text-gray-800 truncate">{name}</span>
+                            </div>
+                            <span className={[
+                              "shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full",
+                              disabled ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700",
+                            ].join(" ")}>
+                              {disabled ? "Full" : `${item.available} free`}
+                            </span>
+                          </div>
+
+                          {item._kind === "slot" && (
+                            <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-500">
+                              <Clock size={10} />
+                              {item.start_time && item.end_time
+                                ? `${fmt(item.start_time)} – ${fmt(item.end_time)}`
+                                : "Available all day"}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedSlots.length > 0 && (
+                  <p className="text-[11px] text-primary-700 mt-2 flex items-center gap-1">
+                    <Info size={11} /> {selectedSlots.length} selected — you can pick more than one.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* EVENT TYPE */}
             <div className="relative">
               <select
@@ -147,6 +297,16 @@ export default function InquiryModal({ venue, onClose }) {
             <p className="text-sm text-gray-500 text-center">
               Sign in with your Google account to send the inquiry to <strong>{venue.hall_name}</strong>.
             </p>
+
+            {selectedSlots.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {selectedSlots.map((s) => (
+                  <span key={s.key} className="text-[11px] font-medium bg-primary-50 text-primary-700 px-2 py-1 rounded-full">
+                    {s.slot_name}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {loading ? (
               <p className="text-sm text-center text-gray-500 py-4">Submitting your inquiry…</p>

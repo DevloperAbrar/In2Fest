@@ -102,6 +102,27 @@ export default function InquiryDetailModal({ inquiryId, isOpen, onClose, onUpdat
 
           {inquiry.message && <p className="text-sm text-gray-600 mb-4">{inquiry.message}</p>}
 
+          {Array.isArray(inquiry.selected_slots) && inquiry.selected_slots.length > 0 && (
+            <div className="mb-4">
+              <dt className="text-gray-400 text-sm mb-1.5">Requested Services/Slots</dt>
+              <div className="flex flex-wrap gap-2">
+                {inquiry.selected_slots.map((s, i) => (
+                  <span
+                    key={s.slot_id || s.package_id || i}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-primary-50 text-primary-700 px-2.5 py-1.5 rounded-lg"
+                  >
+                    {s.slot_name}
+                    {s.start_time && s.end_time && (
+                      <span className="text-primary-500 font-normal">
+                        ({s.start_time}–{s.end_time})
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           
          <a   href={whatsappLink}
             target="_blank"

@@ -81,7 +81,7 @@ function MiniTimeline({ busyBlocks }) {
   );
 }
 
-function Tooltip({ day, dayInfo, onClose }) {
+function Tooltip({ day, ymd, dayInfo, onClose, onSendInquiry }) {
   const slots    = dayInfo?.slots    || [];
   const packages = dayInfo?.packages || [];
   const all      = [...slots.map(s => ({ ...s, _kind: "slot" })), ...packages.map(p => ({ ...p, _kind: "package" }))];
@@ -170,12 +170,27 @@ function Tooltip({ day, dayInfo, onClose }) {
             );
           })}
         </div>
+
+        {onSendInquiry && (
+          <div style={{ padding:"10px 14px 14px", borderTop:"1px solid #F1F5F9", flexShrink:0 }}>
+            <button
+              onClick={() => { onSendInquiry(ymd); onClose(); }}
+              style={{
+                width:"100%", border:"none", borderRadius:10, padding:"9px 0",
+                backgroundColor:"#DC2626", color:"#fff", fontSize:12.5, fontWeight:700,
+                cursor:"pointer"
+              }}
+            >
+              Send Inquiry for this date
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
 }
 
-export default function AvailabilityCalendar({ venueId }) {
+export default function AvailabilityCalendar({ venueId, onSendInquiry }) {
   const today = new Date();
   const [viewYear, setViewYear]     = useState(today.getFullYear());
   const [viewMonth, setViewMonth]   = useState(today.getMonth());
@@ -334,8 +349,10 @@ export default function AvailabilityCalendar({ venueId }) {
                 {isActive && dayInfo && (
                   <Tooltip
                     day={`${MONTHS[viewMonth]} ${day}`}
+                    ymd={ymd}
                     dayInfo={dayInfo}
                     onClose={() => setActiveDay(null)}
+                    onSendInquiry={onSendInquiry}
                   />
                 )}
               </div>
