@@ -9,6 +9,12 @@ export const adminDiscoveryService = {
   createCity: (payload) => api.post("/admin/discovery/cities", payload),
   updateCity: (cityId, payload) => api.put(`/admin/discovery/cities/${cityId}`, payload),
 
+  // City requests ("Notify me")
+  updateCityRequest: (id, status) => api.put(`/admin/discovery/city-requests/${id}`, { status }),
+  bulkUpdateCityRequests: (cityKey, status) =>
+    api.put("/admin/discovery/city-requests/bulk-status", { city_key: cityKey, status }),
+  deleteCityRequest: (id) => api.delete(`/admin/discovery/city-requests/${id}`),
+
   // Category CRUD
   listAllCategories: () => api.get("/admin/discovery/categories"),
   createCategory: (payload) => api.post("/admin/discovery/categories", payload),

@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { LogOut, ChevronDown } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
-import LanguageToggle from "../common//LanguageToggle";
+import LanguageToggle from "../common/LanguageToggle";
+import { SHOW_LANGUAGE_TOGGLE } from "../../config/features";
 
 export default function Navbar({ title }) {
   const { user, logout } = useAuth();
@@ -23,7 +24,7 @@ export default function Navbar({ title }) {
       </h1>
 
       <div className="flex items-center gap-2 shrink-0">
-        <LanguageToggle />
+        {SHOW_LANGUAGE_TOGGLE && <LanguageToggle />}
 
         <div className="relative">
           <button

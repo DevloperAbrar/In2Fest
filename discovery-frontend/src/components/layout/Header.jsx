@@ -11,6 +11,7 @@ import SavedVendorsModal from "../vendor-profile/SavedVendorsModal.jsx";
 import { BRAND_NAME } from "../../lib/constants";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "../common/LanguageToggle.jsx";
+import { SHOW_LANGUAGE_TOGGLE } from "../../config/features";
 
 const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
 
@@ -118,7 +119,7 @@ export default function Header() {
 
           {/* Desktop Right */}
           <div className="hidden md:flex items-center gap-2 ml-auto">
-            <LanguageToggle />
+            {SHOW_LANGUAGE_TOGGLE && <LanguageToggle />}
 
             
             <a  href={`${APP_URL}/login`}
@@ -191,7 +192,7 @@ export default function Header() {
             ))}
 
             <div className="pt-3 border-t border-gray-100 space-y-2 mt-1">
-              <LanguageToggle variant="mobile" />
+              {SHOW_LANGUAGE_TOGGLE && <LanguageToggle variant="mobile" />}
 
               
               <a  href={`${APP_URL}/login`}

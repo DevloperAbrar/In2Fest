@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Home, Search, PlusCircle, Menu, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "../common/LanguageToggle.jsx";
+import { SHOW_LANGUAGE_TOGGLE } from "../../config/features";
 
 export default function MobileNav() {
   const { pathname } = useLocation();
@@ -83,10 +84,12 @@ export default function MobileNav() {
               <DrawerLink to="/cities" label={t("mobileNav.allCities")} onClick={() => setDrawerOpen(false)} />
               <DrawerLink to="/for-vendors" label={t("mobileNav.forVendors")} onClick={() => setDrawerOpen(false)} />
               <DrawerLink to="/register-free" label={t("mobileNav.listBusinessFree")} onClick={() => setDrawerOpen(false)} />
-              {/* Language toggle inside drawer */}
-              <div className="px-3 pt-1">
-                <LanguageToggle variant="mobile" />
-              </div>
+              {/* Language toggle inside drawer (controlled by SHOW_LANGUAGE_TOGGLE) */}
+              {SHOW_LANGUAGE_TOGGLE && (
+                <div className="px-3 pt-1">
+                  <LanguageToggle variant="mobile" />
+                </div>
+              )}
             </div>
 
             <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 text-center">

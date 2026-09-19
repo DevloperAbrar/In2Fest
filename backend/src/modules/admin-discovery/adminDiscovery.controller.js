@@ -37,5 +37,19 @@ module.exports = {
   }),
   getAnalytics: wrap(async (req, res) => {
     res.json({ success: true, data: await service.getAnalytics() });
+  }),
+
+  // City requests ("Notify me")
+  listCityRequests: wrap(async (req, res) => {
+    res.json({ success: true, data: await service.listCityRequests(req.query.status) });
+  }),
+  updateCityRequest: wrap(async (req, res) => {
+    res.json({ success: true, data: await service.updateCityRequest(req.params.id, req.body) });
+  }),
+  bulkUpdateCityRequests: wrap(async (req, res) => {
+    res.json({ success: true, data: await service.bulkUpdateCityRequests(req.body) });
+  }),
+  deleteCityRequest: wrap(async (req, res) => {
+    res.json({ success: true, data: await service.deleteCityRequest(req.params.id) });
   })
 };

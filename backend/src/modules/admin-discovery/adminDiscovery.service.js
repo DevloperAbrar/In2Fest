@@ -1,5 +1,5 @@
 const { Op, fn, col } = require("sequelize");
-const { Venue, City, Category, Inquiry } = require("../../database/models");
+const { Venue, City, Category, Inquiry, CityRequest } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { slugify } = require("../../utils/slugify");
 
@@ -167,9 +167,95 @@ async function getAnalytics() {
   };
 }
 
+// ─── City requests ("Notify me" from the public site) ────────────────────────
+
+const CITY_REQUEST_STATUSES = ["pending", "notified", "dismissed"];
+
+async function listCityRequests(status) {
+  const where = {};
+  if (status && CITY_REQUEST_STATUSES.includes(status)) where.status = status;
+
+  const [requests, grouped, statusCounts] = await Promise.all([
+    CityRequest.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit: 500
+    }),
+    // Demand per city (only requests still waiting to be notified)
+    CityRequest.findAll({
+      where: { status: "pending" },
+      attributes: [
+        "city_key",
+        [fn("MIN", col("city")), "city_name"],
+        [fn("COUNT", col("id")), "count"]
+      ],
+      group: ["city_key"],
+      order: [[fn("COUNT", col("id")), "DESC"]],
+      raw: true
+    }),
+    CityRequest.findAll({
+      attributes: ["status", [fn("COUNT", col("id")), "count"]],
+      group: ["status"],
+      raw: true
+    })
+  ]);
+
+  const counts = { pending: 0, notified: 0, dismissed: 0 };
+  statusCounts.forEach((row) => {
+    counts[row.status] = Number(row.count);
+  });
+
+  return {
+    requests,
+    cities: grouped.map((g) => ({
+      city_key: g.city_key,
+      city: g.city_name,
+      count: Number(g.count)
+    })),
+    counts
+  };
+}
+
+async function updateCityRequest(id, payload) {
+  const request = await CityRequest.findByPk(id);
+  if (!request) throw new AppError("Request not found", 404);
+
+  if (!CITY_REQUEST_STATUSES.includes(payload.status)) {
+    throw new AppError("Invalid status", 400);
+  }
+
+  await request.update({
+    status: payload.status,
+    notified_at: payload.status === "notified" ? new Date() : null
+  });
+  return request;
+}
+
+// Mark every still-pending request for one city as notified / dismissed
+async function bulkUpdateCityRequests({ city_key, status }) {
+  if (!city_key) throw new AppError("city_key is required", 400);
+  if (!CITY_REQUEST_STATUSES.includes(status)) {
+    throw new AppError("Invalid status", 400);
+  }
+
+  const [updated] = await CityRequest.update(
+    { status, notified_at: status === "notified" ? new Date() : null },
+    { where: { city_key, status: "pending" } }
+  );
+  return { updated };
+}
+
+async function deleteCityRequest(id) {
+  const request = await CityRequest.findByPk(id);
+  if (!request) throw new AppError("Request not found", 404);
+  await request.destroy();
+  return { deleted: true };
+}
+
 module.exports = {
   getFeaturedVendors, setFeaturedVendors, setVenueBadges,
   listCities, createCity, updateCity,
   listAllCategories, createCategory, updateCategory, deleteCategory,
-  getAnalytics
+  getAnalytics,
+  listCityRequests, updateCityRequest, bulkUpdateCityRequests, deleteCityRequest
 };

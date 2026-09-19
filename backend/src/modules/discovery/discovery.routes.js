@@ -5,6 +5,8 @@ const searchController = require("./search.controller");
 const homepageController = require("./homepage.controller");
 const cityController = require("./city.controller");
 const vendorPublicController = require("./vendorPublic.controller");
+const cityRequestController = require("./cityRequest.controller");
+const { cityRequestLimiter } = require("../../middleware/rateLimiter.middleware");
 
 const router = express.Router();
 
@@ -12,6 +14,9 @@ router.get("/homepage", homepageController.getHomepage);
 router.get("/search", searchController.searchVendors);
 router.get("/autocomplete", searchController.autocomplete);
 router.get("/cities-with-vendors", cityController.getCitiesWithVendors);
+
+// "Notify me when you launch in my city"
+router.post("/city-requests", cityRequestLimiter, cityRequestController.createCityRequest);
 
 router.get("/states", cityController.getStates);
 router.get("/state/:stateSlug", cityController.getState);

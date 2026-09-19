@@ -30,6 +30,7 @@ const ReviewRequest = require("./reviewRequest.model")(sequelize, DataTypes);
 
 const PublicUser = require("./publicUser.model")(sequelize, DataTypes);
 const SavedVendor = require("./savedVendor.model")(sequelize, DataTypes);
+const CityRequest = require("./cityRequest.model")(sequelize, DataTypes);
 
 // ---- Associations ----
 
@@ -154,5 +155,5 @@ module.exports = {
   WhatsappTemplate, WhatsappMessage, TeamMember,
   City, Category, VenueServiceArea,
   VendorListing, Review, ReviewRequest,
-  PublicUser, SavedVendor,
+  PublicUser, SavedVendor, CityRequest,
 };
