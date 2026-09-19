@@ -379,26 +379,73 @@ export default function VendorProfilePage() {
                 {venue.primary_locality && `${venue.primary_locality}, `}{venue.city}
                 {venue.full_pincode && ` - ${venue.full_pincode}`}
               </p>
-              <a href={venue.google_maps_link || `https://www.google.com/maps/search/${encodeURIComponent(`${venue.hall_name} ${venue.city}`)}`}
-                target="_blank" rel="noreferrer"
+
+              {/* Embedded Google Maps iframe */}
+              {(() => {
+                const embedUrl = (() => {
+                  const link = (venue.google_maps_link || "").trim();
+                  if (!link) {
+                    const q = [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
+                    return q ? `https://www.google.com/maps?q=${encodeURIComponent(q)}&z=15&output=embed` : null;
+                  }
+                  if (/^https:\/\/(www\.)?google\.(com|co\.in)\/maps\/embed/i.test(link)) return link;
+                  // extract !3d lat !4d lng
+                  const pin = link.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+                  if (pin) return `https://www.google.com/maps?q=${pin[1]},${pin[2]}&z=16&output=embed`;
+                  // extract @lat,lng
+                  const at = link.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+                  if (at) return `https://www.google.com/maps?q=${at[1]},${at[2]}&z=16&output=embed`;
+                  // fallback: name search
+                  const q = [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
+                  return q ? `https://www.google.com/maps?q=${encodeURIComponent(q)}&z=15&output=embed` : null;
+                })();
+
+                const openUrl = venue.google_maps_link ||
+                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    [venue.hall_name, venue.city].filter(Boolean).join(", ")
+                  )}`;
+
+                return embedUrl ? (
+                  <div className="rounded-xl overflow-hidden border border-gray-100 mb-3">
+                    <iframe
+                      src={embedUrl}
+                      title={`${venue.hall_name} location`}
+                      className="w-full border-0 block"
+                      style={{ height: "180px" }}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                ) : null;
+              })()}
+
+
+              href={venue.google_maps_link ||
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  [venue.hall_name, venue.city].filter(Boolean).join(", ")
+                )}`}
+              <a target="_blank"
+                rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs text-accent-600 hover:underline font-medium"
               >
-                <MapPin size={13} /> View on Google Maps
+                <MapPin size={13} /> Open in Google Maps
               </a>
             </div>
+
           </div>
         </div>
       </div>
 
       {showInquiry && (
-  <InquiryModal
-    venue={venue}
-    initialDate={inquiryDate}
-    onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
-  />
-)}
+        <InquiryModal
+          venue={venue}
+          initialDate={inquiryDate}
+          onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
+        />
+      )}
 
-{showVideo && videoEmbed && (
+      {showVideo && videoEmbed && (
         <VideoModal
           embed={videoEmbed}
           title={`${venue.hall_name} intro video`}
