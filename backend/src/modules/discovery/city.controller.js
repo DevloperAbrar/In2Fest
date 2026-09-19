@@ -185,4 +185,44 @@ async function getCityCategoryLocality(req, res, next) {
   }
 }
 
-module.exports = { getStates, getState, getCityHome, getCityCategory, getCityCategoryLocality };
+// Add this function before module.exports:
+
+async function getCitiesWithVendors(req, res, next) {
+  try {
+    // Distinct city names that have at least one active, marketplace-listed vendor
+    const rows = await Venue.findAll({
+      where: { is_active: true, marketplace_listed: true, city: { [Op.ne]: null } },
+      attributes: [[fn("DISTINCT", col("city")), "city"]],
+      raw: true
+    });
+
+    const cityNames = rows.map((r) => r.city).filter(Boolean);
+
+    // Enrich with slug/state from the cities table where available
+    const cityRecords = await City.findAll({
+      where: { name: { [Op.in]: cityNames }, active: true },
+      attributes: ["name", "slug", "state"],
+      raw: true
+    });
+    const cityMap = {};
+    cityRecords.forEach((c) => { cityMap[c.name.toLowerCase()] = c; });
+
+    const data = cityNames
+      .map((name) => {
+        const record = cityMap[name.toLowerCase()];
+        return {
+          name,
+          slug: record?.slug || name.toLowerCase().replace(/\s+/g, "-"),
+          state: record?.state || ""
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+
+module.exports = { getStates, getState, getCityHome, getCityCategory, getCityCategoryLocality, getCitiesWithVendors };

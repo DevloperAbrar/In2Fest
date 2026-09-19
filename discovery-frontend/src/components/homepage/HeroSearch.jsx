@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Search, ShieldCheck, MessageCircle, Star, ChevronRight, Globe, CalendarCheck } from "lucide-react";
 import { CATEGORIES, BRAND_NAME } from "../../lib/constants";
 import api from "../../lib/api";
+import CitySelect from "../common/CitySelect";
 
 let heroBg = null;
 try { heroBg = new URL("../../assets/hero.png", import.meta.url).href; } catch { }
@@ -191,13 +192,14 @@ function HeroSearchBar({ onOpenChange }) {
   const [city, setCity] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
+  const [cityOpen, setCityOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const navigate        = useNavigate();
   const wrapRef         = useRef(null);
 
   useEffect(() => {
-    onOpenChange?.(open && suggestions.length > 0);
-  }, [open, suggestions.length, onOpenChange]);
+    onOpenChange?.((open && suggestions.length > 0) || cityOpen);
+  }, [open, suggestions.length, cityOpen, onOpenChange]);
 
   useEffect(() => {
     const fn = (e) => {
@@ -243,7 +245,7 @@ function HeroSearchBar({ onOpenChange }) {
       />
 
       <div
-        className="relative flex items-center bg-white rounded-2xl shadow-2xl overflow-hidden border"
+        className="relative flex items-center bg-white rounded-2xl shadow-2xl border"
         style={{
           borderColor: focused ? "#f5a623" : "rgba(255,255,255,0.6)",
           transition: "border-color 0.3s",
@@ -267,18 +269,13 @@ function HeroSearchBar({ onOpenChange }) {
           />
         </div>
 
-        <div className="hidden sm:flex items-center border-l border-gray-200 px-4 py-1 gap-2 w-44">
-          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.243-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <input
-            className="flex-1 outline-none text-sm text-gray-800 placeholder-gray-400 py-3 min-w-0"
-            placeholder="City"
+        <div className="hidden sm:flex items-center border-l border-gray-200 px-4 py-1 gap-2 w-48">
+          <CitySelect
+            variant="inline"
             value={city}
-            onChange={(e) => setCity(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && go()}
+            onChange={setCity}
+            placeholder="City"
+            onOpenChange={setCityOpen}
           />
         </div>
 
@@ -510,9 +507,18 @@ export default function HeroSearch({ topCities = [] }) {
           {/* Search bar */}
           <HeroSearchBar onOpenChange={setDropdownOpen} />
 
-          {/* Popular category pills */}
-          {!dropdownOpen && (
-          <div className="flex flex-wrap justify-center gap-2 mt-6">
+          {/* Popular category pills — ALWAYS mounted, never conditionally
+              rendered. This is the key fix: only opacity/visibility toggle,
+              so the space they occupy stays reserved and the hero never
+              shrinks/jumps when the city dropdown opens. */}
+          <div
+            className="flex flex-wrap justify-center gap-2 mt-6 transition-opacity duration-150"
+            style={{
+              opacity: dropdownOpen ? 0 : 1,
+              visibility: dropdownOpen ? "hidden" : "visible",
+              pointerEvents: dropdownOpen ? "none" : "auto",
+            }}
+          >
             {POPULAR_SEARCHES.map((c, i) => (
               <Link
                 key={c.slug}
@@ -537,11 +543,16 @@ export default function HeroSearch({ topCities = [] }) {
               </Link>
             ))}
           </div>
-          )}
 
-          {/* Trust row */}
-          {!dropdownOpen && (
-          <div className="flex flex-wrap items-center justify-center gap-5 mt-6">
+          {/* Trust row — same fix: always mounted, only opacity toggles. */}
+          <div
+            className="flex flex-wrap items-center justify-center gap-5 mt-6 transition-opacity duration-150"
+            style={{
+              opacity: dropdownOpen ? 0 : 1,
+              visibility: dropdownOpen ? "hidden" : "visible",
+              pointerEvents: dropdownOpen ? "none" : "auto",
+            }}
+          >
             {TRUST.map(({ icon: Icon, text }, i) => (
               <span
                 key={text}
@@ -553,7 +564,6 @@ export default function HeroSearch({ topCities = [] }) {
               </span>
             ))}
           </div>
-          )}
         </div>
 
         {/* ── Differentiator strip ── */}

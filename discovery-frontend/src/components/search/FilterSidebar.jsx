@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import resolveCategoryIcon from "./categoryIcon";
 import useCategories from "./useCategories";
+import CitySelect from "../common/CitySelect";
 
 const BUDGET_PRESETS = [
   { label: "Any budget", min: "", max: "" },
@@ -27,40 +28,50 @@ function activeFilterCount(filters) {
   ).length;
 }
 
-/* Collapsible section wrapper - keeps the sidebar scannable instead of one
-   long unbroken block of inputs. */
-function Section({ title, icon: Icon, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between mb-3"
-      >
-        <span className="flex items-center gap-2 text-sm font-bold text-navy-900">
-          <Icon size={15} className="text-accent-600" /> {title}
-        </span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown size={15} className="text-gray-400" />
-        </motion.span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+
+   function Section({ title, icon: Icon, children, defaultOpen = true }) {
+    const [open, setOpen] = useState(defaultOpen);
+    // Only clip during the expand/collapse animation. Once settled open,
+    // switch to overflow-visible so dropdowns inside (e.g. CitySelect) aren't
+    // clipped by this wrapper.
+    const [settled, setSettled] = useState(defaultOpen);
+  
+    const toggle = () => {
+      setSettled(false);
+      setOpen((o) => !o);
+    };
+  
+    return (
+      <div className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+        <button
+          type="button"
+          onClick={toggle}
+          className="w-full flex items-center justify-between mb-3"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold text-navy-900">
+            <Icon size={15} className="text-accent-600" /> {title}
+          </span>
+          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronDown size={15} className="text-gray-400" />
+          </motion.span>
+        </button>
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onAnimationComplete={() => setSettled(true)}
+              style={{ overflow: settled ? "visible" : "hidden" }}
+            >
+              {children}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
 
 function FilterBody({ filters, update, categories, venueCategories, vendorCategories }) {
   const [categoryTab, setCategoryTab] = useState("all");
@@ -73,18 +84,15 @@ function FilterBody({ filters, update, categories, venueCategories, vendorCatego
 
   return (
     <div className="space-y-5">
-      {/* City */}
-      <Section title="City" icon={MapPin}>
-        <div className="relative">
-          <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
-          <input
-            className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-100 focus:border-accent-400 transition-colors"
-            value={filters.city || ""}
-            onChange={(e) => update("city", e.target.value)}
-            placeholder="e.g. Indore"
-          />
-        </div>
-      </Section>
+  
+{/* City */}
+<Section title="City" icon={MapPin}>
+  <CitySelect
+    value={filters.city || ""}
+    onChange={(val) => update("city", val)}
+    placeholder="All cities"
+  />
+</Section>
 
       {/* Category */}
       <Section title="Category" icon={Building2}>

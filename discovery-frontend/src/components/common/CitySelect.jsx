@@ -1,16 +1,36 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MapPin, ChevronDown } from "lucide-react";
-import { LAUNCH_CITIES } from "../../data/launchCities";
+import api from "../../lib/api";
 import RequestCityModal from "./RequestCityModal";
 
-export default function CitySelect({ value, onChange, variant = "field", placeholder = "City" }) {
+/**
+ * CitySelect — dropdown of cities that ACTUALLY have vendors listed.
+ * Data comes live from GET /discovery/cities-with-vendors so it stays in
+ * sync automatically as new vendors register in new cities — no more
+ * hardcoded city list, and no more free-text typing.
+ */
+export default function CitySelect({ value, onChange, variant = "field", placeholder = "City", onOpenChange }) {
   const [query, setQuery]         = useState(value || "");
   const [open, setOpen]           = useState(false);
+  const [cities, setCities]       = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCity, setModalCity] = useState("");
   const wrapRef = useRef(null);
 
   useEffect(() => setQuery(value || ""), [value]);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
+
+  // Fetch the live "has vendors" city list once on mount
+  useEffect(() => {
+    api.get("/cities-with-vendors")
+      .then(({ data }) => setCities(data.data || []))
+      .catch(() => setCities([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     const fn = (e) => {
@@ -20,20 +40,20 @@ export default function CitySelect({ value, onChange, variant = "field", placeho
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  const filtered = LAUNCH_CITIES.filter((c) =>
+  const filtered = cities.filter((c) =>
     c.name.toLowerCase().includes(query.toLowerCase())
   );
 
   const pick = (city) => {
-    if (!city.live) {
-      setModalCity(city.name);
-      setModalOpen(true);
-      setOpen(false);
-      return;
-    }
     setQuery(city.name);
     onChange?.(city.name);
     setOpen(false);
+  };
+
+  const clear = (e) => {
+    e.stopPropagation();
+    setQuery("");
+    onChange?.("");
   };
 
   const requestOther = () => {
@@ -66,7 +86,19 @@ export default function CitySelect({ value, onChange, variant = "field", placeho
           <span className={query ? "text-gray-800 truncate" : "text-gray-400 truncate"}>
             {query || placeholder}
           </span>
-          <ChevronDown size={14} className={`text-gray-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {query && (
+              <span
+                onClick={clear}
+                className="text-gray-300 hover:text-gray-500 cursor-pointer px-0.5"
+                role="button"
+                aria-label="Clear city"
+              >
+                ×
+              </span>
+            )}
+            <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          </div>
         </button>
       </div>
 
@@ -79,25 +111,30 @@ export default function CitySelect({ value, onChange, variant = "field", placeho
             placeholder="Search city…"
             className="w-full px-4 py-2 text-sm outline-none border-b border-gray-50 mb-1"
           />
-          {filtered.map((c) => (
+
+          {loading && (
+            <p className="px-4 py-2.5 text-xs text-gray-400">Loading cities…</p>
+          )}
+
+          {!loading && filtered.map((c) => (
             <button
               key={c.slug}
               onClick={() => pick(c)}
               className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-3"
             >
               <span className="text-gray-800 font-medium">{c.name}</span>
-              {c.live ? (
-                <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#16a34a" }}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#16a34a" }} /> Live
-                </span>
-              ) : (
-                <span className="text-[10px] font-medium text-gray-300">Coming soon</span>
+              {c.state && (
+                <span className="text-[10px] font-normal text-gray-400 shrink-0">{c.state}</span>
               )}
             </button>
           ))}
-          {filtered.length === 0 && (
-            <p className="px-4 py-2.5 text-xs text-gray-400">No matching city</p>
+
+          {!loading && filtered.length === 0 && (
+            <p className="px-4 py-2.5 text-xs text-gray-400">
+              {query ? `No city matching "${query}"` : "No cities with vendors yet"}
+            </p>
           )}
+
           <div className="border-t border-gray-50 mt-1 pt-1">
             <button
               onClick={requestOther}
