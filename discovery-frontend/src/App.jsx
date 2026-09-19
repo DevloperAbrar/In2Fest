@@ -4,6 +4,7 @@ import { PublicAuthProvider } from "./context/PublicAuthContext.jsx";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
 import MobileNav from "./components/layout/MobileNav";
+import ScrollToTop from "./components/common/ScrollToTop";
 import PageLoader from "./components/common/PageLoader";
 import GetYourWebsite from "./pages/GetYourWebsite";
 
@@ -26,6 +27,7 @@ const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 export default function App() {
   return (
     <PublicAuthProvider>
+      <ScrollToTop />
       <div className="min-h-screen flex flex-col bg-gray-50">
         <Header />
         <main className="flex-1">
