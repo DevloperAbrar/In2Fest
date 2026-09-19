@@ -6,6 +6,7 @@ import { inquiryFormSchema } from "../../../../components/forms/validationSchema
 import { inquiryService } from "../../../../services/inquiryService";
 import { showSuccess, showError } from "../../../../components/common/Toast";
 import { useScrollReveal } from "../../../../hooks/useScrollReveal";
+import { useInquiryDatePrefill } from "../../../../hooks/useInquiryDatePrefill";
 
 function Reveal({ children, delay = 0, className = "" }) {
   const [ref, visible] = useScrollReveal();
@@ -22,7 +23,8 @@ function Reveal({ children, delay = 0, className = "" }) {
 
 export default function ContactSection({ venue, slots }) {
   const theme = venue.theme_color || "#2563eb";
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({ resolver: yupResolver(inquiryFormSchema) });
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm({ resolver: yupResolver(inquiryFormSchema) });
+  useInquiryDatePrefill(setValue);
   const mapsLink = venue.google_maps_link;
   const isEmbeddable = mapsLink?.includes("/maps/embed");
 

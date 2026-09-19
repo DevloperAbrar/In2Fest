@@ -14,7 +14,7 @@ import { useFetch } from "../../../hooks/useFetch";
 import { translateCategory } from "../../../lib/i18nLabels";
 import { Pencil, X } from "lucide-react";
 
-export default function BookingDetail({ booking, venue, slots, venueId, isOpen, onClose, onUpdated }) {
+export default function BookingDetail({ booking, venue, slots, venueId, isOpen, onClose, onUpdated, startEditing = false }) {
   const { i18n } = useTranslation();
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("upi_manual");
@@ -36,6 +36,7 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
       setEditForm({
         client_name: booking.client?.name || "",
         client_phone: booking.client?.phone || "",
+        client_email: booking.client?.email || "",
         date_from: booking.date_from || "",
         date_to: booking.date_to || booking.date_from || "",
         start_time: booking.start_time || "",
@@ -44,9 +45,9 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
         event_type: booking.event_type || "",
         guest_count: booking.guest_count || ""
       });
-      setEditing(false);
+      setEditing(startEditing);
     }
-  }, [booking]);
+  }, [booking, startEditing]);
 
   if (!booking || !editForm) return null;
 
@@ -114,6 +115,9 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2.5 text-sm mb-4">
             <div><span className="text-navy-400">Client:</span> <span className="text-navy-800">{booking.client?.name}</span></div>
             <div><span className="text-navy-400">Phone:</span> <span className="text-navy-800">{booking.client?.phone}</span></div>
+            {booking.client?.email && (
+              <div><span className="text-navy-400">Email:</span> <span className="text-navy-800">{booking.client.email}</span></div>
+            )}
             <div><span className="text-navy-400">Event Date:</span> <span className="text-navy-800">{formatDateRange(booking.date_from, booking.date_to)}</span></div>
             <div><span className="text-navy-400">Time:</span> <span className="text-navy-800">{formatTimeRange(booking.start_time, booking.end_time)}</span></div>
             {booking.booking_items?.length > 0 && (
@@ -192,6 +196,13 @@ export default function BookingDetail({ booking, venue, slots, venueId, isOpen, 
                 onChange={(e) => updateField("client_phone", e.target.value)}
               />
             </div>
+
+            <Input
+              label="Email (optional)"
+              type="email"
+              value={editForm.client_email}
+              onChange={(e) => updateField("client_email", e.target.value)}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input

@@ -1,4 +1,4 @@
-const { Slot } = require("../../database/models");
+const { Slot, Package } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 
 const NUMERIC_FIELDS = ["base_price", "weekend_price", "price_per_hour", "min_hours", "max_hours", "total_units"];
@@ -25,7 +25,18 @@ async function getSlotsByVenue(venueId, activeOnly = false) {
 }
 
 async function createSlot(venueId, data) {
-  return Slot.create({ ...sanitizeSlotData(data), venue_id: venueId });
+  const cleaned = sanitizeSlotData(data);
+
+  // Server-side guard: a slot must always have a name (the form derives it from
+  // the chosen service type) and at least 1 unit.
+  if (!cleaned.name || !String(cleaned.name).trim()) {
+    throw new AppError("Please select a service type for this slot", 400);
+  }
+  if (cleaned.total_units !== undefined && (!Number.isInteger(cleaned.total_units) || cleaned.total_units < 1)) {
+    throw new AppError("Total units must be at least 1", 400);
+  }
+
+  return Slot.create({ ...cleaned, name: String(cleaned.name).trim(), venue_id: venueId });
 }
 
 async function updateSlot(slotId, venueId, data) {
@@ -45,7 +56,7 @@ async function deleteSlot(slotId, venueId) {
   if (!slot) throw new AppError("Slot not found", 404);
 
   try {
-    return await slot.destroy();
+    await slot.destroy();
   } catch (err) {
     if (err.name === "SequelizeForeignKeyConstraintError") {
       throw new AppError(
@@ -56,6 +67,18 @@ async function deleteSlot(slotId, venueId) {
     }
     throw err;
   }
+
+  // Packages keep their slot ids in a JSON array (no foreign key), so remove
+  // the deleted slot from every package - otherwise a stale id is left behind.
+  const packages = await Package.findAll({ where: { venue_id: venueId } });
+  for (const pkg of packages) {
+    const ids = pkg.slot_ids || [];
+    if (ids.includes(slotId)) {
+      await pkg.update({ slot_ids: ids.filter((id) => id !== slotId) });
+    }
+  }
+
+  return slot;
 }
 
 module.exports = { getSlotsByVenue, createSlot, updateSlot, toggleSlot, deleteSlot };

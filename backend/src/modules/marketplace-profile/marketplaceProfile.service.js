@@ -14,6 +14,7 @@ const EDITABLE_FIELDS = [
   "long_description", "specialty_tagline", "famous_events_handled", "awards_recognition",
   "booking_advance_notice_days", "peak_season_months", "off_season_discount_enabled",
   "marketplace_services",
+  "marketplace_services_detail", // NEW - vendor-defined services with sub-items
   "service_prices",   // NEW
   "pricing_mode"      // NEW
 ];

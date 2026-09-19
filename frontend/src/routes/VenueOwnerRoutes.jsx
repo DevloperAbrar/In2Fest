@@ -13,10 +13,10 @@ import HeroEditor from "../features/venue-owner/website-builder/HeroEditor.jsx";
 import AboutEditor from "../features/venue-owner/website-builder/AboutEditor.jsx";
 import ServicesEditor from "../features/venue-owner/website-builder/ServicesEditor.jsx";
 import GalleryEditor from "../features/venue-owner/website-builder/GalleryEditor.jsx";
-import TestimonialsEditor from "../features/venue-owner/website-builder/TestimonialsEditor.jsx";
 import ContactEditor from "../features/venue-owner/website-builder/ContactEditor.jsx";
 import WebsiteBuilderHome from "../features/venue-owner/website-builder/WebsiteBuilderHome.jsx";
 import SectionContentEditor from "../features/venue-owner/website-builder/SectionContentEditor.jsx";
+import PackagesSectionEditor from "../features/venue-owner/website-builder/PackagesSectionEditor.jsx";
 
 import SlotList from "../features/venue-owner/slots/SlotList.jsx";
 import InquiryList from "../features/venue-owner/inquiries/InquiryList.jsx";
@@ -56,9 +56,12 @@ export default function VenueOwnerRoutes() {
         <Route path="website/about" element={<RequireFeature feature="website_builder"><AboutEditor /></RequireFeature>} />
         <Route path="website/services" element={<RequireFeature feature="website_builder"><ServicesEditor /></RequireFeature>} />
         <Route path="website/gallery" element={<RequireFeature feature="website_builder"><GalleryEditor /></RequireFeature>} />
-        <Route path="website/testimonials" element={<RequireFeature feature="website_builder"><TestimonialsEditor /></RequireFeature>} />
         <Route path="website/contact" element={<RequireFeature feature="website_builder"><ContactEditor /></RequireFeature>} />
         <Route path="marketplace-profile" element={<RequireFeature feature="marketplace_profile"><MarketplaceProfilePage /></RequireFeature>} />
+
+        {/* Packages section gets its own editor with Slots import support */}
+        <Route path="website/section/packages" element={<RequireFeature feature="website_builder"><PackagesSectionEditor /></RequireFeature>} />
+        {/* Generic section editor for all other pluggable section types */}
         <Route path="website/section/:type" element={<RequireFeature feature="website_builder"><SectionContentEditor /></RequireFeature>} />
 
         <Route path="slots" element={<RequireFeature feature="slots"><SlotList /></RequireFeature>} />

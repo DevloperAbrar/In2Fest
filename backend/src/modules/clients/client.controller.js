@@ -1,4 +1,5 @@
 const { Client, Booking, Slot } = require("../../database/models");
+const { Op } = require("sequelize");
 const { AppError } = require("../../middleware/error.middleware");
 
 async function createClient(req, res, next) {
@@ -14,10 +15,26 @@ async function createClient(req, res, next) {
   }
 }
 
+// A client = someone who has at least one booking. People without any booking
+// (added manually earlier, or only sent an inquiry) are not listed.
 async function getClients(req, res, next) {
   try {
+    const venueId = req.params.venueId;
+
+    const booked = await Booking.findAll({
+      where: { venue_id: venueId, client_id: { [Op.ne]: null } },
+      attributes: ["client_id"],
+      group: ["client_id"],
+      raw: true
+    });
+    const clientIds = booked.map((b) => b.client_id);
+
+    if (clientIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
     const clients = await Client.findAll({
-      where: { venue_id: req.params.venueId },
+      where: { venue_id: venueId, id: { [Op.in]: clientIds } },
       include: [{ model: Slot, as: "slot" }],
       order: [["created_at", "DESC"]]
     });

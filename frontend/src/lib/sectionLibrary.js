@@ -42,13 +42,13 @@ import {
       editorRoute: "/dashboard/website/gallery"
     },
     testimonials: {
-      label: "Testimonials",
-      description: "Client reviews and testimonials",
+      label: "Reviews",
+      description: "Shown automatically from the reviews on your Marketplace profile",
       icon: Star,
       color: "bg-orange-50 text-orange-600",
       removable: false,
       toggleable: true,
-      editorRoute: "/dashboard/website/testimonials"
+      autoManaged: true // no editor - content comes from Marketplace reviews
     },
     contact: {
       label: "Contact",

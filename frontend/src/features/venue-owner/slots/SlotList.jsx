@@ -19,7 +19,7 @@ import { Plus, LayoutGrid, Package, Info } from "lucide-react";
 
 export default function SlotList() {
   const navigate = useNavigate();
-  const { venue } = useVenue();
+  const { venue, refetchVenue } = useVenue();
   const { data: slots, loading: slotsLoading, refetch: refetchSlots } = useFetch(
     venue ? `/venues/${venue.id}/slots` : null, { skip: !venue }
   );
@@ -46,6 +46,8 @@ export default function SlotList() {
       } else {
         await api.post(`/venues/${venue.id}/slots`, values);
         showSuccess("Slot added");
+        // Refresh venue context so setup_completed_steps updates on dashboard
+        await refetchVenue();
       }
       setSlotModalOpen(false);
       refetchSlots();
@@ -59,6 +61,8 @@ export default function SlotList() {
       await api.delete(`/venues/${venue.id}/slots/${deletingSlot.id}`);
       showSuccess("Slot deleted");
       refetchSlots();
+      // Slot count may have dropped to 0 — keep checklist in sync
+      await refetchVenue();
     } catch { showError("Failed to delete slot"); }
     finally { setDeletingSlot(null); }
   };
@@ -68,6 +72,8 @@ export default function SlotList() {
       await api.patch(`/venues/${venue.id}/slots/${slot.id}/toggle`);
       showSuccess(slot.is_active ? "Slot deactivated" : "Slot activated");
       refetchSlots();
+      // Active count changed — keep checklist in sync
+      await refetchVenue();
     } catch { showError("Failed to update slot"); }
   };
 

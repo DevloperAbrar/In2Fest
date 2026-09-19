@@ -1,6 +1,7 @@
 import React from "react";
 import { Star } from "lucide-react";
 import { useScrollReveal } from "../../../../hooks/useScrollReveal";
+import { useVenueReviews } from "../../../../hooks/useVenueReviews";
 
 function Reveal({ children, delay = 0, className = "" }) {
   const [ref, visible] = useScrollReveal();
@@ -16,7 +17,8 @@ function Reveal({ children, delay = 0, className = "" }) {
 }
 
 export default function TestimonialsSection({ venue }) {
-  const testimonials = venue.testimonials || [];
+  // Same approved reviews that show on the vendor's Marketplace profile
+  const { reviews: testimonials, averageRating, reviewCount } = useVenueReviews(venue.id);
   if (!testimonials.length) return null;
   const theme = venue.theme_color || "#a855f7";
 
@@ -30,8 +32,15 @@ export default function TestimonialsSection({ venue }) {
 
       <div className="max-w-6xl mx-auto px-6">
         <Reveal className="mb-20">
-          <p className="text-xs tracking-[0.4em] uppercase font-medium mb-4" style={{ color: theme }}>Testimonials</p>
+          <p className="text-xs tracking-[0.4em] uppercase font-medium mb-4" style={{ color: theme }}>Reviews</p>
           <h2 className="text-5xl md:text-6xl font-bold text-white" style={{ fontFamily: "'Playfair Display', serif", letterSpacing: "-0.02em" }}>What Clients Say</h2>
+          {averageRating && (
+            <p className="mt-5 flex items-center gap-2 text-sm text-white/50">
+              <Star size={14} className="fill-yellow-400 text-yellow-400" />
+              <span className="font-semibold text-white">{Number(averageRating).toFixed(1)}</span>
+              <span>out of 5 · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>
+            </p>
+          )}
         </Reveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -47,6 +56,14 @@ export default function TestimonialsSection({ venue }) {
                   ))}
                 </div>
                 <p className="text-white/55 leading-relaxed text-sm flex-1 italic">&ldquo;{t.description}&rdquo;</p>
+
+                {t.reply && (
+                  <div className="mt-5 rounded-xl p-3 text-xs leading-relaxed text-white/50" style={{ background: "rgba(255,255,255,0.04)" }}>
+                    <p className="font-semibold text-white/70 mb-0.5">Owner&apos;s reply</p>
+                    {t.reply}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 mt-7 pt-7 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0" style={{ background: `linear-gradient(135deg, ${theme}88, ${theme}44)` }}>
                     {t.name?.[0]?.toUpperCase()}

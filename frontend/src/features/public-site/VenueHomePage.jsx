@@ -57,8 +57,12 @@ export default function VenueHomePage() {
   const { data: venue, loading: venueLoading } = useFetch(
     subdomain ? `/venues/public/${subdomain}` : null
   );
-  const { data: slots, loading: slotsLoading } = useFetch(
-    venue ? `/venues/${venue.id}/slots?activeOnly=true` : null,
+
+  // PUBLIC slots endpoint (no login needed). Only used to fill the
+  // "Select Slot" dropdown in the enquiry form - the availability
+  // calendar fetches its own data.
+  const { data: slots } = useFetch(
+    venue ? `/venues/${venue.id}/slots/public` : null,
     { skip: !venue, deps: [venue?.id] }
   );
 
@@ -100,7 +104,7 @@ export default function VenueHomePage() {
         if (section.type === "contact") {
           return (
             <React.Fragment key="contact">
-              {!slotsLoading && <AvailabilityCalendar venue={venue} slots={slots} />}
+              <AvailabilityCalendar venue={venue} />
               <T.ContactSection venue={venue} slots={slots} />
             </React.Fragment>
           );

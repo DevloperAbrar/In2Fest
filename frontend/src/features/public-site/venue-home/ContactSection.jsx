@@ -6,6 +6,7 @@ import { inquiryFormSchema } from "../../../components/forms/validationSchemas";
 import { inquiryService } from "../../../services/inquiryService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
+import { useInquiryDatePrefill } from "../../../hooks/useInquiryDatePrefill";
 
 function Reveal({ children, delay = 0, className = "" }) {
   const [ref, visible] = useScrollReveal();
@@ -25,9 +26,10 @@ export default function ContactSection({ venue, slots }) {
   const mapsLink = venue.google_maps_link;
   const isEmbeddable = mapsLink && mapsLink.includes("/maps/embed");
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm({
     resolver: yupResolver(inquiryFormSchema),
   });
+  useInquiryDatePrefill(setValue);
 
   const onSubmit = async (values) => {
     try {

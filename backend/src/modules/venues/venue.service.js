@@ -53,6 +53,16 @@ async function createVenue(payload) {
 
   const subdomain = await generateUniqueSubdomain(payload.hall_name);
 
+  const secondaryCategories = Array.isArray(payload.secondary_categories) ? payload.secondary_categories : [];
+
+  // The registration flow only sends business_category + secondary_categories.
+  // Mirror them into venue_type (unless the client sent one explicitly) so the
+  // Venue Profile settings, slots, clients, bookings etc. all see what the vendor selected.
+  const venueTypes =
+    Array.isArray(payload.venue_type) && payload.venue_type.length > 0
+      ? payload.venue_type
+      : Array.from(new Set([payload.business_category, ...secondaryCategories].filter(Boolean)));
+
   const venue = await Venue.create({
     owner_id: payload.owner_id,
     hall_name: payload.hall_name,
@@ -62,9 +72,9 @@ async function createVenue(payload) {
     address: payload.address,
     google_maps_link: payload.google_maps_link,
     capacity: payload.capacity,
-    venue_type: payload.venue_type,
+    venue_type: venueTypes,
     business_category: payload.business_category,
-    secondary_categories: Array.isArray(payload.secondary_categories) ? payload.secondary_categories : [],
+    secondary_categories: secondaryCategories,
     primary_locality: payload.primary_locality,
     team_size: payload.team_size,
     starting_price: payload.starting_price,

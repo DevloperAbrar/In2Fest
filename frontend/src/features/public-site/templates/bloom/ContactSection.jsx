@@ -22,7 +22,8 @@ function Reveal({ children, delay = 0, className = "" }) {
 
 export default function ContactSection({ venue, slots }) {
   const theme = venue.theme_color || "#c2410c";
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({ resolver: yupResolver(inquiryFormSchema) });
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm({ resolver: yupResolver(inquiryFormSchema) });
+  useInquiryDatePrefill(setValue);
   const mapsLink = venue.google_maps_link;
   const isEmbeddable = mapsLink?.includes("/maps/embed");
 

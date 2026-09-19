@@ -1,6 +1,7 @@
 import React from "react";
 import { Star } from "lucide-react";
 import { useScrollReveal } from "../../../../hooks/useScrollReveal";
+import { useVenueReviews } from "../../../../hooks/useVenueReviews";
 
 function Reveal({ children, delay = 0, className = "" }) {
   const [ref, visible] = useScrollReveal();
@@ -16,7 +17,8 @@ function Reveal({ children, delay = 0, className = "" }) {
 }
 
 export default function TestimonialsSection({ venue }) {
-  const testimonials = venue.testimonials || [];
+  // Same approved reviews that show on the vendor's Marketplace profile
+  const { reviews: testimonials, averageRating, reviewCount } = useVenueReviews(venue.id);
   if (!testimonials.length) return null;
   const theme = venue.theme_color || "#2563eb";
 
@@ -34,6 +36,13 @@ export default function TestimonialsSection({ venue }) {
             <span className="text-xs tracking-[0.4em] uppercase font-medium" style={{ color: theme }}>Reviews</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-black text-white" style={{ letterSpacing: "-0.03em" }}>What Clients Say</h2>
+          {averageRating && (
+            <p className="mt-5 flex items-center gap-2 text-sm text-white/40">
+              <Star size={14} className="fill-yellow-400 text-yellow-400" />
+              <span className="font-semibold text-white">{Number(averageRating).toFixed(1)}</span>
+              <span>out of 5 · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>
+            </p>
+          )}
         </Reveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -46,6 +55,14 @@ export default function TestimonialsSection({ venue }) {
                   ))}
                 </div>
                 <p className="text-white/45 text-sm leading-relaxed flex-1 font-light">&ldquo;{t.description}&rdquo;</p>
+
+                {t.reply && (
+                  <div className="mt-5 p-3 text-xs leading-relaxed text-white/40 border border-white/[0.07]" style={{ borderRadius: "2px" }}>
+                    <p className="font-semibold text-white/60 mb-0.5">Owner&apos;s reply</p>
+                    {t.reply}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 mt-6 pt-5 border-t border-white/[0.06]">
                   <div className="w-8 h-8 flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ backgroundColor: theme, borderRadius: "2px" }}>
                     {t.name?.[0]?.toUpperCase()}

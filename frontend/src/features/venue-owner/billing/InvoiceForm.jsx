@@ -11,7 +11,7 @@ import Modal from "../../../components/common/Modal";
 import InvoicePreview from "./InvoicePreview.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatCurrency } from "../../../lib/formatters";
-import { Plus, Trash2, Send, FileText, Eye, Download, Pencil } from "lucide-react";
+import { Plus, Trash2, FileText, Eye, Download, Pencil } from "lucide-react";
 
 const DISCOUNT_OPTIONS = [
   { value: "none", label: "No discount" },
@@ -112,7 +112,6 @@ export default function InvoiceForm() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [viewInvoice, setViewInvoice] = useState(null);
-  const [sharingId, setSharingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState(null); // null = creating new
 
@@ -251,30 +250,6 @@ export default function InvoiceForm() {
     }
   };
 
-  const handleShare = async () => {
-    try {
-      await billingService.shareInvoice(venue.id, savedInvoice.id);
-      showSuccess("Invoice shared via WhatsApp");
-      closeModal();
-    } catch {
-      showError("Failed to share invoice");
-    }
-  };
-
-  const handleShareFromList = async (invoiceId) => {
-    setSharingId(invoiceId);
-    try {
-      await billingService.shareInvoice(venue.id, invoiceId);
-      showSuccess("Invoice shared via WhatsApp");
-      refetchInvoices();
-      setViewInvoice(null);
-    } catch {
-      showError("Failed to share invoice");
-    } finally {
-      setSharingId(null);
-    }
-  };
-
   const handleDelete = async (invoiceId, status) => {
     if (status !== "draft") {
       return showError("Only draft invoices can be deleted.");
@@ -360,16 +335,7 @@ export default function InvoiceForm() {
                         <Download size={16} />
                       </a>
                     )}
-                    {inv.status !== "sent" && (
-                      <button
-                        onClick={() => handleShareFromList(inv.id)}
-                        disabled={sharingId === inv.id}
-                        className="tap-scale w-9 h-9 flex items-center justify-center rounded-lg text-navy-400 disabled:opacity-50"
-                        title="Share via WhatsApp"
-                      >
-                        <Send size={16} />
-                      </button>
-                    )}
+  
                     <button
                       onClick={() => openEditModal(inv.id)}
                       disabled={!isDraft}
@@ -430,16 +396,6 @@ export default function InvoiceForm() {
                             <a href={inv.pdf_url} target="_blank" rel="noreferrer" className="text-navy-400 hover:text-primary-600" title="Download PDF">
                               <Download size={16} />
                             </a>
-                          )}
-                          {inv.status !== "sent" && (
-                            <button
-                              onClick={() => handleShareFromList(inv.id)}
-                              disabled={sharingId === inv.id}
-                              className="text-navy-400 hover:text-primary-600 disabled:opacity-50"
-                              title="Share via WhatsApp"
-                            >
-                              <Send size={16} />
-                            </button>
                           )}
                           <button
                             onClick={() => openEditModal(inv.id)}
@@ -644,7 +600,14 @@ export default function InvoiceForm() {
               {editingInvoiceId ? "Save Changes" : "Generate Invoice"}
             </Button>
           ) : (
-            <Button onClick={handleShare} className="w-full"><Send size={14} /> Share via WhatsApp</Button>
+            <div className="flex gap-3">
+              {savedInvoice.pdf_url && (
+                <a href={savedInvoice.pdf_url} target="_blank" rel="noreferrer" className="flex-1">
+                  <Button variant="outline" className="w-full"><Download size={14} /> Download PDF</Button>
+                </a>
+              )}
+              <Button onClick={closeModal} className="flex-1">Done</Button>
+            </div>
           )}
         </div>
       </Modal>
@@ -672,15 +635,6 @@ export default function InvoiceForm() {
                 <a href={viewInvoice.pdf_url} target="_blank" rel="noreferrer" className="flex-1">
                   <Button variant="outline" className="w-full"><Download size={14} /> Download PDF</Button>
                 </a>
-              )}
-              {viewInvoice.status !== "sent" && (
-                <Button
-                  onClick={() => handleShareFromList(viewInvoice.id)}
-                  loading={sharingId === viewInvoice.id}
-                  className="flex-1"
-                >
-                  <Send size={14} /> Share via WhatsApp
-                </Button>
               )}
             </div>
           </div>

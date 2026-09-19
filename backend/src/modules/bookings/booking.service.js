@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { Booking, Client, Slot, Package, BookingUnit, sequelize } = require("../../database/models");
+const { AppError } = require("../../middleware/error.middleware");
 
 // Get all dates between date_from and date_to
 function getDateRange(from, to) {
@@ -33,6 +34,17 @@ async function getOccupiedUnits(venueId, slotId, date, startTime, endTime) {
     }]
   });
   return units.reduce((sum, u) => sum + u.units_used, 0);
+}
+
+// A package stores its slot ids as plain JSON (no foreign key), so ids of
+// slots that were later deleted can linger inside it. Only ever use slots
+// that still exist for this venue - inserting a stale id into booking_units
+// violates booking_units_slot_id_fkey.
+async function getPackageSlots(pkg, venueId, t) {
+  const wanted = new Set((pkg?.slot_ids || []).filter(Boolean));
+  if (wanted.size === 0) return [];
+  const venueSlots = await Slot.findAll({ where: { venue_id: venueId }, transaction: t });
+  return venueSlots.filter((s) => wanted.has(s.id));
 }
 
 async function createManualBooking(venueId, data) {
@@ -71,15 +83,25 @@ async function createManualBooking(venueId, data) {
       }
     }
 
-    // 3. For package items — check all slots inside package
+    // 3. For package items - resolve the slots that REALLY exist, then check
+    //    each of them across all dates. The resolved list is reused in step 5
+    //    so we never insert a booking_unit for a deleted/stale slot id.
+    const packageSlotsById = {};
     for (const item of booking_items) {
       if (item.type !== "package") continue;
       const pkg = await Package.findOne({ where: { id: item.id, venue_id: venueId }, transaction: t });
       if (!pkg) throw new Error(`Package not found: ${item.id}`);
 
-      for (const slotId of (pkg.slot_ids || [])) {
-        const slot = await Slot.findOne({ where: { id: slotId, venue_id: venueId }, transaction: t });
-        if (!slot) continue;
+      const pkgSlots = await getPackageSlots(pkg, venueId, t);
+      if (pkgSlots.length === 0) {
+        throw new AppError(
+          `Package "${pkg.name}" has no valid slots linked to it. Please edit the package and select its slots again.`,
+          400
+        );
+      }
+      packageSlotsById[pkg.id] = pkgSlots;
+
+      for (const slot of pkgSlots) {
         for (const date of dates) {
           const occupied = await getOccupiedUnits(venueId, slot.id, date, start_time, end_time);
           if (occupied >= slot.total_units) {
@@ -114,10 +136,9 @@ async function createManualBooking(venueId, data) {
         }
       }
       if (item.type === "package") {
-        const pkg = await Package.findByPk(item.id, { transaction: t });
-        for (const slotId of (pkg?.slot_ids || [])) {
+        for (const slot of (packageSlotsById[item.id] || [])) {
           for (const date of dates) {
-            unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: slotId, date, start_time, end_time, units_used: 1 });
+            unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: slot.id, date, start_time, end_time, units_used: 1 });
           }
         }
       }
@@ -195,9 +216,11 @@ async function regenerateBookingUnits(booking, venueId, t) {
     }
     if (item.type === "package") {
       const pkg = await Package.findByPk(item.id, { transaction: t });
-      for (const slotId of (pkg?.slot_ids || [])) {
+      // Only slots that still exist - stale ids inside the package are skipped
+      const pkgSlots = await getPackageSlots(pkg, venueId, t);
+      for (const slot of pkgSlots) {
         for (const date of dates) {
-          unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: slotId, date, start_time: booking.start_time, end_time: booking.end_time, units_used: 1 });
+          unitRows.push({ booking_id: booking.id, venue_id: venueId, slot_id: slot.id, date, start_time: booking.start_time, end_time: booking.end_time, units_used: 1 });
         }
       }
     }
@@ -212,7 +235,15 @@ async function updateBooking(bookingId, venueId, data) {
   const booking = await Booking.findOne({ where: { id: bookingId, venue_id: venueId } });
   if (!booking) throw new Error("Booking not found");
 
-  const clean = sanitizeBookingUpdate(data);
+  // client_* fields describe the linked Client record, not the booking itself.
+  // Booking.update() silently ignores them, so they must be saved on the Client.
+  const { client_name, client_phone, client_email, ...bookingData } = data || {};
+  const clean = sanitizeBookingUpdate(bookingData);
+
+  const clientChanges = {};
+  if (typeof client_name === "string" && client_name.trim()) clientChanges.name = client_name.trim();
+  if (typeof client_phone === "string" && client_phone.trim()) clientChanges.phone = client_phone.trim();
+  if (typeof client_email === "string") clientChanges.email = client_email.trim() || null;
 
   // If date/time is changing, the booking_units rows created back when the
   // booking was first made now describe the OLD schedule - they must be
@@ -221,13 +252,19 @@ async function updateBooking(bookingId, venueId, data) {
   const SCHEDULE_FIELDS = ["date_from", "date_to", "start_time", "end_time"];
   const touchesSchedule = SCHEDULE_FIELDS.some((f) => f in clean);
 
-  if (!touchesSchedule) {
-    return booking.update(clean);
-  }
-
   return sequelize.transaction(async (t) => {
+    if (Object.keys(clientChanges).length > 0) {
+      await Client.update(clientChanges, {
+        where: { id: booking.client_id, venue_id: venueId },
+        transaction: t
+      });
+    }
+
     await booking.update(clean, { transaction: t });
-    await regenerateBookingUnits(booking, venueId, t);
+
+    if (touchesSchedule) {
+      await regenerateBookingUnits(booking, venueId, t);
+    }
     return booking;
   });
 }
@@ -275,5 +312,5 @@ module.exports = {
   updateBooking,
   deleteBooking,
   getSlotAvailability,
-  getOccupiedUnits
+  getOccupiedUnits,
 };

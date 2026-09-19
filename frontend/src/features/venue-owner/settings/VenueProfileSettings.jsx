@@ -26,41 +26,46 @@ const getSubdomainUrl = (subdomain) => {
   return `https://${subdomain}.${BASE_DOMAIN}`;
 };
 
+// What the vendor picked at registration is stored as business_category (primary)
+// + secondary_categories. Older/new venues may have an empty venue_type, so fall back
+// to those so the Venue Type field always shows what the vendor originally selected.
+const getVenueTypeValue = (venue) => {
+  if (Array.isArray(venue?.venue_type) && venue.venue_type.length > 0) {
+    return venue.venue_type;
+  }
+  return Array.from(
+    new Set([venue?.business_category, ...(venue?.secondary_categories || [])].filter(Boolean))
+  );
+};
+
+const buildFormValues = (venue) => ({
+  hall_name: venue.hall_name,
+  owner_name: venue.owner_name,
+  phone: venue.phone,
+  city: venue.city,
+  address: venue.address,
+  google_maps_link: venue.google_maps_link,
+  capacity: venue.capacity,
+  venue_type: getVenueTypeValue(venue)
+});
+
 export default function VenueProfileSettings() {
   const { t, i18n } = useTranslation();
   const { venue, refetchVenue } = useVenue();
   const { register, handleSubmit, setValue, watch, reset, formState: { isSubmitting } } = useForm({
-    defaultValues: venue ? {
-      hall_name: venue.hall_name,
-      owner_name: venue.owner_name,
-      phone: venue.phone,
-      city: venue.city,
-      address: venue.address,
-      google_maps_link: venue.google_maps_link,
-      capacity: venue.capacity,
-      venue_type: venue.venue_type,
-    } : {}
+    defaultValues: venue ? buildFormValues(venue) : {}
   });
 
   useEffect(() => {
     if (venue) {
-      reset({
-        hall_name: venue.hall_name,
-        owner_name: venue.owner_name,
-        phone: venue.phone,
-        city: venue.city,
-        address: venue.address,
-        google_maps_link: venue.google_maps_link,
-        capacity: venue.capacity,
-        venue_type: venue.venue_type,
-      });
+      reset(buildFormValues(venue));
     }
   }, [venue, reset]);
 
   const [selectedStateIso, setSelectedStateIso] = useState("");
   const { data: states, loading: statesLoading } = useFetch("/meta/states");
-    // Live venue-type list  - pulled from Category Manager (super admin) via
-  // the DB, not hardcoded. Only categories flagged is_venue_type show here.
+  // Live venue-type list  - pulled from Category Manager (super admin) via
+  // the DB, not hardcoded. Same list the vendor picked from at registration.
   const { data: categories } = useFetch("/meta/categories");
   const venueTypeOptions = (categories || [])
     .map((c) => ({ value: c.slug, label: translateCategory(c, i18n.language) }));
@@ -103,7 +108,7 @@ export default function VenueProfileSettings() {
           <p className="text-sm font-medium text-purple-700 mb-1">{t("settings.venueProfile.publicUrlLabel")}</p>
           <div className="flex items-center gap-2">
             
-             <a href={subdomainUrl}
+           <a   href={subdomainUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-600 font-semibold text-sm underline break-all"

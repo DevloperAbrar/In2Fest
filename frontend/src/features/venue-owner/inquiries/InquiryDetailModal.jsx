@@ -10,7 +10,7 @@ import Input from "../../../components/common/Input";
 import Button from "../../../components/common/Button";
 import InquiryStatusFlow from "./InquiryStatusFlow.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { formatDate, formatDateTime } from "../../../lib/formatters";
+import { formatDate } from "../../../lib/formatters";
 import { MessageCircle } from "lucide-react";
 
 export default function InquiryDetailModal({ inquiryId, isOpen, onClose, onUpdated }) {
@@ -84,7 +84,7 @@ export default function InquiryDetailModal({ inquiryId, isOpen, onClose, onUpdat
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={inquiry ? `Inquiry  - ${inquiry.customer_name}` : "Inquiry"}
+      title={inquiry ? `Inquiry - ${inquiry.customer_name}` : "Inquiry"}
       size="lg"
     >
       {loading || !inquiry ? (
@@ -93,11 +93,13 @@ export default function InquiryDetailModal({ inquiryId, isOpen, onClose, onUpdat
         <>
           <dl className="grid grid-cols-2 gap-4 text-sm mb-4">
             <div><dt className="text-gray-400">Phone</dt><dd>{inquiry.phone}</dd></div>
-            <div><dt className="text-gray-400">Email</dt><dd>{inquiry.email || "-"}</dd></div>
+            <div>
+              <dt className="text-gray-400">Email</dt>
+              <dd>{inquiry.email || <span className="text-gray-400 italic">Not provided</span>}</dd>
+            </div>
             <div><dt className="text-gray-400">Event Date</dt><dd>{formatDate(inquiry.event_date)}</dd></div>
             <div><dt className="text-gray-400">Guests</dt><dd>{inquiry.guest_count}</dd></div>
             <div><dt className="text-gray-400">Event Type</dt><dd>{inquiry.event_type}</dd></div>
-            <div><dt className="text-gray-400">Received</dt><dd>{formatDateTime(inquiry.created_at)}</dd></div>
           </dl>
 
           {inquiry.message && <p className="text-sm text-gray-600 mb-4">{inquiry.message}</p>}
@@ -124,7 +126,7 @@ export default function InquiryDetailModal({ inquiryId, isOpen, onClose, onUpdat
           )}
 
           
-         <a   href={whatsappLink}
+          <a  href={whatsappLink}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2 text-sm text-green-600 hover:underline mb-5"

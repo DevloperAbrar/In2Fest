@@ -14,9 +14,6 @@ const VALID_TRANSITIONS = {
   lost: []
 };
 
-/**
- * Called from the PUBLIC inquiry form on a venue's website  - no auth.
- */
 async function createPublicInquiry(venueId, payload) {
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
@@ -35,7 +32,6 @@ async function createPublicInquiry(venueId, payload) {
     status: "new"
   });
 
-  // Automated trigger: new inquiry -> notify owner
   sendWhatsApp({
     venueId,
     recipientPhone: venue.phone,
@@ -81,7 +77,7 @@ async function updateInternalNotes(inquiryId, venueId, notes) {
 }
 
 /**
- * Called from the DISCOVERY MARKETPLACE inquiry modal  - requires OTP verification.
+ * Called from the DISCOVERY MARKETPLACE inquiry modal - requires Google auth.
  */
 async function createMarketplaceInquiry(venueId, payload) {
   const venue = await Venue.findByPk(venueId);
@@ -105,7 +101,8 @@ async function createMarketplaceInquiry(venueId, payload) {
     selected_slots: selectedSlots,
     customer_name: payload.customer_name,
     phone: payload.phone,
-    email: payload.email,
+    // Use verified Google email — payload.email is empty when signed in with Google
+    email: googleUser.email,
     event_date: payload.event_date,
     event_type: payload.event_type,
     guest_count: payload.guest_count,

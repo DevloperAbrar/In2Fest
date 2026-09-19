@@ -1,6 +1,7 @@
 import React from "react";
 import { Star } from "lucide-react";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
+import { useVenueReviews } from "../../../hooks/useVenueReviews";
 
 function Reveal({ children, delay = 0, className = "" }) {
   const [ref, visible] = useScrollReveal();
@@ -16,9 +17,17 @@ function Reveal({ children, delay = 0, className = "" }) {
 }
 
 export default function TestimonialsSection({ venue }) {
-  const testimonials = venue.testimonials || [];
+  // Same approved reviews that show on the vendor's Marketplace profile
+  const { reviews: testimonials, averageRating, reviewCount } = useVenueReviews(venue.id);
   if (testimonials.length === 0) return null;
   const theme = venue.theme_color || "#7c3aed";
+
+  const gridCols =
+    testimonials.length === 1
+      ? "md:grid-cols-1 max-w-xl mx-auto"
+      : testimonials.length === 2
+      ? "md:grid-cols-2 max-w-4xl mx-auto"
+      : "md:grid-cols-3";
 
   return (
     <section
@@ -35,17 +44,24 @@ export default function TestimonialsSection({ venue }) {
         <Reveal className="text-center mb-20">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="h-px w-8" style={{ backgroundColor: theme }} />
-            <span className="text-sm font-semibold uppercase tracking-widest" style={{ color: theme }}>Testimonials</span>
+            <span className="text-sm font-semibold uppercase tracking-widest" style={{ color: theme }}>Reviews</span>
             <div className="h-px w-8" style={{ backgroundColor: theme }} />
           </div>
           <h2 className="text-4xl md:text-5xl font-extrabold text-stone-900 dark:text-white" style={{ letterSpacing: "-0.02em" }}>
             What Clients Say
           </h2>
+          {averageRating && (
+            <p className="mt-5 inline-flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+              <Star size={16} className="fill-yellow-400 text-yellow-400" />
+              <span className="font-bold text-stone-900 dark:text-white">{Number(averageRating).toFixed(1)}</span>
+              <span>out of 5 · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>
+            </p>
+          )}
         </Reveal>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 gap-6 ${gridCols}`}>
           {testimonials.map((t, idx) => (
-            <Reveal key={t.id} delay={idx * 100}>
+            <Reveal key={t.id || idx} delay={idx * 100}>
               <div className="group bg-white dark:bg-stone-900 rounded-3xl p-8 shadow-sm hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-black/30 transition-all duration-400 border border-stone-100 dark:border-stone-800 hover:-translate-y-2 flex flex-col h-full relative overflow-hidden">
                 {/* Accent corner */}
                 <div
@@ -66,6 +82,13 @@ export default function TestimonialsSection({ venue }) {
                 <p className="text-stone-600 dark:text-stone-300 leading-relaxed text-sm flex-1 italic">
                   "{t.description}"
                 </p>
+
+                {t.reply && (
+                  <div className="mt-4 rounded-xl bg-stone-50 dark:bg-stone-800 p-3 text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+                    <p className="font-semibold text-stone-700 dark:text-stone-200 mb-0.5">Owner&apos;s reply</p>
+                    {t.reply}
+                  </div>
+                )}
 
                 <div className="flex items-center gap-3 mt-6 pt-6 border-t border-stone-100 dark:border-stone-800">
                   <div

@@ -64,24 +64,19 @@ export default function InquiryList() {
                     </span>
                   )}
                 </div>
-
-                <p className="text-[11px] text-navy-400 mt-3 pt-3 border-t border-navy-100/60">
-                  Received {formatDate(inq.created_at)}
-                </p>
               </button>
             ))}
           </div>
 
           {/* Desktop: table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-card border border-navy-100/60 overflow-x-auto">
-            <table className="w-full text-sm min-w-[680px]">
+            <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-paper text-navy-400 text-left">
                 <tr>
                   <th className="px-4 py-3 font-medium">Customer</th>
                   <th className="px-4 py-3 font-medium">Event Date</th>
                   <th className="px-4 py-3 font-medium">Event Type</th>
                   <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Received</th>
                   <th className="px-4 py-3 font-medium text-right">Action</th>
                 </tr>
               </thead>
@@ -100,7 +95,6 @@ export default function InquiryList() {
                     <td className="px-4 py-3 text-navy-600">{formatDate(inq.event_date)}</td>
                     <td className="px-4 py-3 text-navy-600">{inq.event_type}</td>
                     <td className="px-4 py-3"><Badge status={inq.status} /></td>
-                    <td className="px-4 py-3 text-navy-400">{formatDate(inq.created_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => setSelectedInquiryId(inq.id)}

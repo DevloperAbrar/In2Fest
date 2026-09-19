@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import React, { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useVenue } from "../../../context/VenueContext.jsx";
@@ -8,121 +7,90 @@ import { useFetch } from "../../../hooks/useFetch";
 import { clientService } from "../../../services/clientService";
 import Button from "../../../components/common/Button";
 import Modal from "../../../components/common/Modal";
-import Input from "../../../components/common/Input";
-import Select from "../../../components/common/Select";
-import MultiSelect from "../../../components/common/MultiSelect";
+import Badge from "../../../components/common/Badge";
 import Loader from "../../../components/common/Loader";
 import EmptyState from "../../../components/common/EmptyState";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
-import { formatCurrency, formatDate } from "../../../lib/formatters";
+import BookingDetail from "../bookings/BookingDetail.jsx";
+import { formatCurrency, formatDateRange, formatTimeRange } from "../../../lib/formatters";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { translateCategory } from "../../../lib/i18nLabels";
-import { Plus, Pencil, Trash2, Phone, Mail, Users2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Phone, CalendarDays, Package } from "lucide-react";
 
-const emptyForm = {
-  name: "",
-  phone: "",
-  email: "",
-  slot_id: "",
-  venue_type: [],
-  event_type: "",
-  guest_count: "",
-  notes: ""
-};
+const pad = (n) => String(n).padStart(2, "0");
+
+function todayYMD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const dateOf = (b) => b.date_from || b.event_date || "";
+const serviceNames = (b) => (b?.booking_items || []).map((i) => i.name).filter(Boolean);
 
 export default function ClientList() {
-  const { i18n } = useTranslation();
+  const navigate = useNavigate();
   const { venue } = useVenue();
-  const { data: clients, loading, refetch } = useFetch(venue ? `/venues/${venue.id}/clients` : null, { skip: !venue });
-  const { data: slots } = useFetch(venue ? `/venues/${venue.id}/slots` : null, { skip: !venue });
-  // Same live Category Manager list used on the venue profile page and by
-  // public discovery search - not the old hardcoded, mismatched slug list.
-  const { data: categories } = useFetch("/meta/categories");
+  const { data: clients, loading, refetch } = useFetch(
+    venue ? `/venues/${venue.id}/clients` : null,
+    { skip: !venue }
+  );
+  const { data: bookings, loading: bookingsLoading, refetch: refetchBookings } = useFetch(
+    venue ? `/venues/${venue.id}/bookings` : null,
+    { skip: !venue }
+  );
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [addForm, setAddForm] = useState(emptyForm);
-  const [adding, setAdding] = useState(false);
-
-  const [editingClient, setEditingClient] = useState(null);
-  const [editForm, setEditForm] = useState(emptyForm);
-  const [editing, setEditing] = useState(false);
-
+  const [pickClient, setPickClient] = useState(null); // client whose bookings we are choosing from
+  const [editBooking, setEditBooking] = useState(null); // booking opened in edit mode
   const [deletingClient, setDeletingClient] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const allCategoryOptions = (categories || [])
-    .map((c) => ({ value: c.slug, label: translateCategory(c, i18n.language) }));
-  const venueTypeOptions = allCategoryOptions.filter(
-    (opt) => opt.value && venue?.venue_type?.includes(opt.value)
-  );
-
-  const updateAdd = (field, value) => setAddForm((f) => ({ ...f, [field]: value }));
-  const updateEdit = (field, value) => setEditForm((f) => ({ ...f, [field]: value }));
-
-  const openAdd = () => {
-    setAddForm(emptyForm);
-    setModalOpen(true);
-  };
-
-  const buildPayload = (form) => ({
-    name: form.name,
-    phone: form.phone,
-    email: form.email || null,
-    slot_id: form.slot_id || null,
-    venue_type: form.venue_type,
-    event_type: form.event_type || null,
-    guest_count: form.guest_count ? Number(form.guest_count) : null,
-    notes: form.notes || null
-  });
-
-  const onAddSubmit = async (e) => {
-    e.preventDefault();
-    if (!addForm.name.trim() || !addForm.phone.trim()) {
-      return showError("Name and phone are required");
-    }
-    setAdding(true);
-    try {
-      await clientService.create(venue.id, buildPayload(addForm));
-      showSuccess("Client added");
-      setModalOpen(false);
-      refetch();
-    } catch (err) {
-      showError(err.response?.data?.message || "Failed to add client");
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const openEdit = (client) => {
-    setEditingClient(client);
-    setEditForm({
-      name: client.name || "",
-      phone: client.phone || "",
-      email: client.email || "",
-      slot_id: client.slot_id || "",
-      venue_type: client.venue_type || [],
-      event_type: client.event_type || "",
-      guest_count: client.guest_count ?? "",
-      notes: client.notes || ""
+  // Booking-based summary for every client:
+  // next upcoming booking (else the latest one), plus totals.
+  const summaries = useMemo(() => {
+    const today = todayYMD();
+    const byClient = {};
+    (bookings || []).forEach((b) => {
+      if (!byClient[b.client_id]) byClient[b.client_id] = [];
+      byClient[b.client_id].push(b);
     });
-  };
 
-  const onEditSubmit = async (e) => {
-    e.preventDefault();
-    if (!editForm.name.trim() || !editForm.phone.trim()) {
-      return showError("Name and phone are required");
-    }
-    setEditing(true);
-    try {
-      await clientService.update(venue.id, editingClient.id, buildPayload(editForm));
-      showSuccess("Client updated");
-      setEditingClient(null);
-      refetch();
-    } catch (err) {
-      showError(err.response?.data?.message || "Failed to update client");
-    } finally {
-      setEditing(false);
-    }
+    const result = {};
+    Object.entries(byClient).forEach(([clientId, list]) => {
+      const active = list.filter((b) => b.status !== "cancelled");
+      const source = active.length ? active : list;
+
+      const upcoming = source
+        .filter((b) => dateOf(b) >= today)
+        .sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
+      const past = source
+        .filter((b) => dateOf(b) < today)
+        .sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
+      const focus = upcoming[0] || past[0] || null;
+
+      const total = active.reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
+      const received = active.reduce((sum, b) => sum + Number(b.amount_received || 0), 0);
+
+      result[clientId] = {
+        bookings: list,
+        count: list.length,
+        focus,
+        services: serviceNames(focus),
+        total,
+        pending: Math.max(0, total - received),
+      };
+    });
+    return result;
+  }, [bookings]);
+
+  // A client is created automatically when a booking is made, so "Add Client"
+  // takes the owner straight to the new-booking form.
+  const goToNewBooking = () => navigate("/dashboard/bookings/calendar?new=1");
+
+  // Editing a client = editing their booking (same form as the booking edit).
+  const openEdit = (client) => {
+    const list = summaries[client.id]?.bookings || [];
+    if (list.length === 0) return showError("No booking found for this client");
+    if (list.length === 1) return setEditBooking(list[0]);
+    setPickClient(client);
   };
 
   const confirmDelete = async () => {
@@ -132,6 +100,7 @@ export default function ClientList() {
       showSuccess("Client deleted");
       setDeletingClient(null);
       refetch();
+      refetchBookings();
     } catch (err) {
       showError(err.response?.data?.message || "Failed to delete client");
     } finally {
@@ -139,210 +108,203 @@ export default function ClientList() {
     }
   };
 
-  const venueTypeLabels = (values) =>
-    (values || [])
-      .map((v) => allCategoryOptions.find((opt) => opt.value === v)?.label || v)
-      .join(", ");
-
-  const clientForm = (form, update, onSubmit, submitting, submitLabel) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Input label="Name *" value={form.name} onChange={(e) => update("name", e.target.value)} />
-        <Input label="Phone *" value={form.phone} onChange={(e) => update("phone", e.target.value)} />
-      </div>
-
-      <Input
-        label="Email (optional)"
-        type="email"
-        value={form.email}
-        onChange={(e) => update("email", e.target.value)}
-      />
-
-      <Select
-        label="Slot (optional)"
-        value={form.slot_id}
-        onChange={(e) => update("slot_id", e.target.value)}
-        options={[{ value: "", label: "Select slot" }, ...(slots || []).map((s) => ({
-          value: s.id,
-          label: `${s.name} (${s.start_time} – ${s.end_time})`
-        }))]}
-      />
-
-      {venueTypeOptions.length > 0 && (
-        <MultiSelect
-          label="Venue Type / Hall (optional)"
-          options={venueTypeOptions}
-          value={form.venue_type}
-          onChange={(val) => update("venue_type", val)}
-          placeholder="e.g. Marriage Hall, Banquet Hall..."
-        />
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Event Type (optional)"
-          placeholder="e.g. Wedding"
-          value={form.event_type}
-          onChange={(e) => update("event_type", e.target.value)}
-        />
-        <Input
-          label="Guest Count (optional)"
-          type="number"
-          value={form.guest_count}
-          onChange={(e) => update("guest_count", e.target.value)}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-        <textarea
-          rows={2}
-          value={form.notes}
-          onChange={(e) => update("notes", e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-        />
-      </div>
-
-      <Button type="submit" loading={submitting} className="w-full">{submitLabel}</Button>
-    </form>
-  );
-
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Clients">
       <div className="flex justify-between md:justify-end items-center mb-4">
         <h2 className="font-display font-semibold text-navy-800 text-[15px] md:hidden">
           {clients?.length || 0} client{clients?.length === 1 ? "" : "s"}
         </h2>
-        <Button onClick={openAdd}><Plus size={16} /> Add Client</Button>
+        <Button onClick={goToNewBooking}><Plus size={16} /> Add Client</Button>
       </div>
 
-      {loading ? (
+      {loading || bookingsLoading ? (
         <Loader />
       ) : !clients || clients.length === 0 ? (
-        <EmptyState title="No clients yet" />
+        <EmptyState
+          title="No clients yet"
+          description="Clients are added automatically when you create a booking."
+          action={<Button onClick={goToNewBooking}><Plus size={16} /> Create Booking</Button>}
+        />
       ) : (
         <>
-          {/* Mobile: cards - name/contact up top, money stats front and center, rest tucked below */}
+          {/* Mobile: cards */}
           <div className="md:hidden space-y-3">
-            {clients.map((c) => (
-              <div key={c.id} className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <Link to={`/dashboard/clients/${c.id}`} className="min-w-0">
-                    <p className="font-semibold text-navy-900 truncate">{c.name}</p>
-                    <p className="flex items-center gap-1 text-xs text-navy-400 mt-0.5">
-                      <Phone size={11} /> {c.phone}
-                    </p>
-                  </Link>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => openEdit(c)} className="tap-scale w-8 h-8 flex items-center justify-center rounded-lg text-navy-400" title="Edit client">
-                      <Pencil size={15} />
-                    </button>
-                    <button onClick={() => setDeletingClient(c)} className="tap-scale w-8 h-8 flex items-center justify-center rounded-lg text-navy-400" title="Delete client">
-                      <Trash2 size={15} />
-                    </button>
+            {clients.map((c) => {
+              const s = summaries[c.id];
+              return (
+                <div key={c.id} className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link to={`/dashboard/clients/${c.id}`} className="min-w-0">
+                      <p className="font-semibold text-navy-900 truncate">{c.name}</p>
+                      <p className="flex items-center gap-1 text-xs text-navy-400 mt-0.5">
+                        <Phone size={11} /> {c.phone}
+                      </p>
+                    </Link>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => openEdit(c)} className="tap-scale w-8 h-8 flex items-center justify-center rounded-lg text-navy-400" title="Edit booking">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => setDeletingClient(c)} className="tap-scale w-8 h-8 flex items-center justify-center rounded-lg text-navy-400" title="Delete client">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {s?.focus && (
+                    <div className="mt-3 space-y-1.5 text-xs text-navy-500">
+                      <p className="flex items-center gap-1.5">
+                        <CalendarDays size={12} className="shrink-0" />
+                        {formatDateRange(dateOf(s.focus), s.focus.date_to)} · {formatTimeRange(s.focus.start_time, s.focus.end_time)}
+                      </p>
+                      {s.services.length > 0 && (
+                        <p className="flex items-center gap-1.5">
+                          <Package size={12} className="shrink-0" /> {s.services.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-navy-100/60">
+                    <div>
+                      <p className="text-[11px] text-navy-400">Bookings</p>
+                      <p className="font-semibold text-navy-900 text-sm">{s?.count || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-navy-400">Total Business</p>
+                      <p className="font-semibold text-navy-900 text-sm">{formatCurrency(s?.total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-navy-400">Pending</p>
+                      <p className="font-semibold text-primary-600 text-sm">{formatCurrency(s?.pending)}</p>
+                    </div>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-navy-100/60">
-                  <div>
-                    <p className="text-[11px] text-navy-400">Total Business</p>
-                    <p className="font-semibold text-navy-900 text-sm">{formatCurrency(c.total_business_value)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-navy-400">Pending Balance</p>
-                    <p className="font-semibold text-primary-600 text-sm">{formatCurrency(c.pending_balance)}</p>
-                  </div>
-                </div>
-
-                {(c.event_type || c.guest_count || c.slot) && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {c.event_type && (
-                      <span className="text-xs text-navy-500 bg-paper rounded-lg px-2.5 py-1.5">{c.event_type}</span>
-                    )}
-                    {c.slot && (
-                      <span className="text-xs text-navy-500 bg-paper rounded-lg px-2.5 py-1.5">{c.slot.name}</span>
-                    )}
-                    {c.guest_count ? (
-                      <span className="flex items-center gap-1 text-xs text-navy-500 bg-paper rounded-lg px-2.5 py-1.5">
-                        <Users2 size={12} /> {c.guest_count} guests
-                      </span>
-                    ) : null}
-                  </div>
-                )}
-
-                <p className="text-[11px] text-navy-400 mt-3">Added {formatDate(c.createdAt)}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Desktop: full table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-card border border-navy-100/60 overflow-x-auto">
-            <table className="w-full text-sm min-w-[980px]">
+            <table className="w-full text-sm min-w-[1000px]">
               <thead className="bg-paper text-navy-400 text-left">
                 <tr>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Phone</th>
                   <th className="px-4 py-3 font-medium">Email</th>
-                  <th className="px-4 py-3 font-medium">Slot</th>
-                  <th className="px-4 py-3 font-medium">Venue Type</th>
-                  <th className="px-4 py-3 font-medium">Event Type</th>
-                  <th className="px-4 py-3 font-medium">Guests</th>
+                  <th className="px-4 py-3 font-medium">Event Date</th>
+                  <th className="px-4 py-3 font-medium">Time</th>
+                  <th className="px-4 py-3 font-medium">Slots / Packages</th>
+                  <th className="px-4 py-3 font-medium">Bookings</th>
                   <th className="px-4 py-3 font-medium">Total Business</th>
                   <th className="px-4 py-3 font-medium">Pending Balance</th>
-                  <th className="px-4 py-3 font-medium">Added On</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {clients.map((c) => (
-                  <tr key={c.id} className="border-t border-navy-100/60 hover:bg-paper">
-                    <td className="px-4 py-3">
-                      <Link to={`/dashboard/clients/${c.id}`} className="font-medium text-primary-600">{c.name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-navy-600">{c.phone}</td>
-                    <td className="px-4 py-3 text-navy-400">{c.email || "-"}</td>
-                    <td className="px-4 py-3 text-navy-400">{c.slot ? `${c.slot.name}` : "-"}</td>
-                    <td className="px-4 py-3 text-navy-400">{venueTypeLabels(c.venue_type) || "-"}</td>
-                    <td className="px-4 py-3 text-navy-400">{c.event_type || "-"}</td>
-                    <td className="px-4 py-3 text-navy-400">{c.guest_count ?? "-"}</td>
-                    <td className="px-4 py-3 text-navy-700">{formatCurrency(c.total_business_value)}</td>
-                    <td className="px-4 py-3 text-primary-600 font-medium">{formatCurrency(c.pending_balance)}</td>
-                    <td className="px-4 py-3 text-navy-400">{formatDate(c.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-3">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="text-navy-400 hover:text-primary-600"
-                          title="Edit client"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => setDeletingClient(c)}
-                          className="text-navy-400 hover:text-primary-600"
-                          title="Delete client"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {clients.map((c) => {
+                  const s = summaries[c.id];
+                  return (
+                    <tr key={c.id} className="border-t border-navy-100/60 hover:bg-paper">
+                      <td className="px-4 py-3">
+                        <Link to={`/dashboard/clients/${c.id}`} className="font-medium text-primary-600">{c.name}</Link>
+                      </td>
+                      <td className="px-4 py-3 text-navy-600">{c.phone}</td>
+                      <td className="px-4 py-3 text-navy-400">{c.email || "-"}</td>
+                      <td className="px-4 py-3 text-navy-600">
+                        {s?.focus ? formatDateRange(dateOf(s.focus), s.focus.date_to) : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-navy-400 whitespace-nowrap">
+                        {s?.focus ? formatTimeRange(s.focus.start_time, s.focus.end_time) : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-navy-600 max-w-[220px]">
+                        {s?.services.length ? (
+                          <span className="block truncate" title={s.services.join(", ")}>
+                            {s.services.join(", ")}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-navy-600">{s?.count || 0}</td>
+                      <td className="px-4 py-3 text-navy-700">{formatCurrency(s?.total)}</td>
+                      <td className="px-4 py-3 text-primary-600 font-medium">{formatCurrency(s?.pending)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => openEdit(c)}
+                            className="text-navy-400 hover:text-primary-600"
+                            title="Edit booking"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDeletingClient(c)}
+                            className="text-navy-400 hover:text-primary-600"
+                            title="Delete client"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </>
       )}
 
-      {/* Add Client Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Client" size="lg">
-        {clientForm(addForm, updateAdd, onAddSubmit, adding, "Add Client")}
+      {/* Client has several bookings: choose which one to edit */}
+      <Modal
+        isOpen={!!pickClient}
+        onClose={() => setPickClient(null)}
+        title={`Bookings - ${pickClient?.name || ""}`}
+        size="lg"
+      >
+        <p className="text-sm text-navy-400 mb-3">Select the booking you want to edit.</p>
+        <div className="space-y-2">
+          {(summaries[pickClient?.id]?.bookings || []).map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => {
+                setEditBooking(b);
+                setPickClient(null);
+              }}
+              className="w-full text-left flex items-center justify-between gap-3 rounded-xl border border-navy-100/60 hover:border-primary-200 hover:bg-paper px-4 py-3 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-navy-800">
+                  {formatDateRange(dateOf(b), b.date_to)} · {formatTimeRange(b.start_time, b.end_time)}
+                </p>
+                <p className="text-xs text-navy-400 truncate">
+                  {serviceNames(b).join(", ") || "-"} · {formatCurrency(b.total_amount)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge status={b.status} />
+                <Pencil size={14} className="text-navy-400" />
+              </div>
+            </button>
+          ))}
+        </div>
       </Modal>
 
-      {/* Edit Client Modal */}
-      <Modal isOpen={!!editingClient} onClose={() => setEditingClient(null)} title="Edit Client" size="lg">
-        {clientForm(editForm, updateEdit, onEditSubmit, editing, "Save Changes")}
-      </Modal>
+      {/* Same booking edit form used on the Bookings page */}
+      <BookingDetail
+        booking={editBooking}
+        venue={venue}
+        venueId={venue?.id}
+        startEditing
+        isOpen={!!editBooking}
+        onClose={() => setEditBooking(null)}
+        onUpdated={() => {
+          refetch();
+          refetchBookings();
+          setEditBooking(null);
+        }}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmDialog

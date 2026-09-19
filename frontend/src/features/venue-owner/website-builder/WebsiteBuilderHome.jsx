@@ -168,13 +168,22 @@ export default function WebsiteBuilderHome() {
                   </button>
                 )}
 
-                <button
-                  onClick={() => editSection(section.type)}
-                  title="Edit content"
-                  className="text-gray-400 hover:text-primary-600 p-1"
-                >
-                  <Pencil size={16} />
-                </button>
+                {def.autoManaged ? (
+                  <span
+                    title="Filled automatically from your Marketplace reviews"
+                    className="text-[10px] font-semibold uppercase tracking-wide text-orange-600 bg-orange-50 px-2 py-1 rounded-full"
+                  >
+                    Auto
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => editSection(section.type)}
+                    title="Edit content"
+                    className="text-gray-400 hover:text-primary-600 p-1"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
 
                 {def.removable && (
                   <button

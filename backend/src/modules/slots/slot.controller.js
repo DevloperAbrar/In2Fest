@@ -15,6 +15,14 @@ async function getSlots(req, res, next) {
   } catch (e) { next(e); }
 }
 
+// Public - no auth. Always returns ACTIVE slots only.
+async function getPublicSlots(req, res, next) {
+  try {
+    const slots = await slotService.getSlotsByVenue(req.params.venueId, true);
+    res.json({ success: true, data: slots });
+  } catch (e) { next(e); }
+}
+
 async function updateSlot(req, res, next) {
   try {
     const slot = await slotService.updateSlot(req.params.slotId, req.params.venueId, req.body);
@@ -36,4 +44,4 @@ async function deleteSlot(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { createSlot, getSlots, updateSlot, toggleSlot, deleteSlot };
+module.exports = { createSlot, getSlots, getPublicSlots, updateSlot, toggleSlot, deleteSlot };

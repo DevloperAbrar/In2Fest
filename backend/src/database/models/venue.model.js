@@ -24,7 +24,25 @@ module.exports = (sequelize, DataTypes) => {
     address: DataTypes.TEXT,
     google_maps_link: DataTypes.STRING,
     capacity: DataTypes.INTEGER,
-    venue_type: { type: DataTypes.ARRAY(DataTypes.STRING), defaultValue: [] },
+    // Registration stores the vendor's picks in business_category + secondary_categories
+    // and leaves venue_type empty. When nothing is stored, fall back to those so every
+    // consumer (slots, clients, bookings, public calendar) sees what the vendor selected.
+    // The getter only affects reads/JSON output - it is never written back to the DB.
+    venue_type: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      defaultValue: [],
+      get() {
+        const stored = this.getDataValue("venue_type");
+        if (Array.isArray(stored) && stored.length > 0) return stored;
+
+        const secondary = this.getDataValue("secondary_categories");
+        return Array.from(
+          new Set(
+            [this.getDataValue("business_category"), ...(Array.isArray(secondary) ? secondary : [])].filter(Boolean)
+          )
+        );
+      }
+    },
 
     // Website builder fields
     template_id: { type: DataTypes.STRING, defaultValue: "template-1" },
@@ -98,8 +116,13 @@ module.exports = (sequelize, DataTypes) => {
     peak_season_months: { type: DataTypes.ARRAY(DataTypes.INTEGER), defaultValue: [] },
     off_season_discount_enabled: { type: DataTypes.BOOLEAN, defaultValue: false },
 
-    // Services checklist for the marketplace (separate from V1 website-builder `services`)
+    // Flat list kept for search filtering (Op.contains) and per-service pricing keys.
+    // Auto-derived from marketplace_services_detail whenever the vendor saves the Services tab.
     marketplace_services: { type: DataTypes.JSONB, defaultValue: [] },
+
+    // Vendor-defined services with optional sub-items, e.g.
+    // [{ name: "Photography", options: ["Inhouse shoot", "Outdoor shoot"] }, { name: "Planning", options: [] }]
+    marketplace_services_detail: { type: DataTypes.JSONB, defaultValue: [] },
 
     service_prices: { type: DataTypes.JSONB, defaultValue: {} },
     pricing_mode: { type: DataTypes.STRING, defaultValue: "single" }, // "single" or "per_service"

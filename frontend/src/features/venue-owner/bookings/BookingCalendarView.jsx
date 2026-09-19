@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Calendar, dayjsLocalizer, Views } from "react-big-calendar";
 import dayjs from "dayjs";
 import "react-big-calendar/lib/css/react-big-calendar.css";
@@ -30,6 +31,14 @@ export default function BookingCalendarView() {
   const [quickBookDate, setQuickBookDate]     = useState(null);
   const [currentView, setCurrentView]         = useState(Views.MONTH);
   const [currentDate, setCurrentDate]         = useState(new Date());
+    // Opened from Clients -> "Add Client": jump straight into the new-booking form
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+      if (searchParams.get("new") === "1") {
+        setQuickBookDate(new Date());
+        setSearchParams({}, { replace: true });
+      }
+    }, [searchParams, setSearchParams]);
 
   const events = useMemo(() => (bookings || []).map(b => {
     const dateStr = b.date_from || b.event_date;

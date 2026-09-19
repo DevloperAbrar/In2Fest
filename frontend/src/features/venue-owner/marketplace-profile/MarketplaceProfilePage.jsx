@@ -157,7 +157,13 @@ export default function MarketplaceProfilePage() {
             />
           )}
           {activeTab === "services" && (
-            <ServicesChecklistTab venue={venue} onSave={handleSaveProfile} saving={saving} {...navProps} />
+            <ServicesChecklistTab
+              venue={venue}
+              categories={categories}
+              onSave={handleSaveProfile}
+              saving={saving}
+              {...navProps}
+            />
           )}
           {activeTab === "pricing" && (
             <PricingPoliciesTab venue={venue} onSave={handleSaveProfile} saving={saving} {...navProps} />
