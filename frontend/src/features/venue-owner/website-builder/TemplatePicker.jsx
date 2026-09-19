@@ -72,7 +72,9 @@ export default function TemplatePicker() {
   const [saving, setSaving] = useState(null);
   const [hovered, setHovered] = useState(null);
 
-  const activeId = venue?.template_id ?? null;
+  // Older venues have a legacy value (e.g. "template-1") which renders as Classic,
+  // so treat any unknown id as Classic in the picker
+  const activeId = TEMPLATES.some((t) => t.id === venue?.template_id) ? venue.template_id : null;
 
   const selectTemplate = async (templateId, defaultColor) => {
     setSaving(templateId ?? "classic");

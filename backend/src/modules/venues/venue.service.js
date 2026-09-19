@@ -143,7 +143,10 @@ async function updateVenue(venueId, ownerId, updates) {
     "gallery", "custom_domain", "whatsapp_token", "whatsapp_phone_number_id",
     "lead_notify_email", "lead_notify_whatsapp", "primary_color",
     "hero_heading", "hero_subheading",
-    "meta_title", "meta_description"
+    "meta_title", "meta_description",
+    // Website builder fields (dropped by mistake in the R2 update commit)
+    "template_id", "theme_color", "hero_button_text",
+    "about_highlights", "testimonials", "show_pricing_section"
   ];
 
   allowedFields.forEach((field) => {

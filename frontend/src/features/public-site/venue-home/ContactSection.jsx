@@ -7,13 +7,15 @@ import { inquiryService } from "../../../services/inquiryService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
 import { useInquiryDatePrefill } from "../../../hooks/useInquiryDatePrefill";
+import { getMapEmbedUrl, getMapOpenUrl } from "../../../lib/mapEmbed";
 
-function Reveal({ children, delay = 0, className = "" }) {
+function Reveal({ children, delay = 0, className = "", id }) {
   const [ref, visible] = useScrollReveal();
   return (
     <div
+      id={id}
       ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
+      style={{ transitionDelay: `${delay}ms`, scrollMarginTop: "100px" }}
       className={`transition-all duration-700 ease-out ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"} ${className}`}
     >
       {children}
@@ -23,8 +25,8 @@ function Reveal({ children, delay = 0, className = "" }) {
 
 export default function ContactSection({ venue, slots }) {
   const theme = venue.theme_color || "#7c3aed";
-  const mapsLink = venue.google_maps_link;
-  const isEmbeddable = mapsLink && mapsLink.includes("/maps/embed");
+  const mapEmbedUrl = getMapEmbedUrl(venue);
+  const mapOpenUrl = getMapOpenUrl(venue);
 
   const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm({
     resolver: yupResolver(inquiryFormSchema),
@@ -98,29 +100,25 @@ export default function ContactSection({ venue, slots }) {
               </div>
             )}
 
-            {mapsLink && (
-              <div className="rounded-2xl overflow-hidden shadow-lg h-56 border border-stone-100 dark:border-stone-700">
-                {isEmbeddable ? (
-                  <iframe
-                    src={mapsLink}
-                    title="Venue location"
-                    className="w-full h-full border-0"
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                ) : (
+            {mapEmbedUrl && (
+              <div className="rounded-2xl overflow-hidden shadow-lg border border-stone-100 dark:border-stone-700 bg-white dark:bg-stone-800">
+                <iframe
+                  src={mapEmbedUrl}
+                  title="Venue location"
+                  className="w-full h-80 border-0 block"
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                {mapOpenUrl && (
                   
-                <a    href={mapsLink}
+                  <a  href={mapOpenUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full h-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors text-center px-6"
+                    className="flex items-center justify-center gap-1.5 py-3 text-sm font-semibold hover:underline"
+                    style={{ color: theme }}
                   >
-                    <MapPin size={32} style={{ color: theme }} />
-                    <span className="font-bold text-stone-900 dark:text-white">View on Google Maps</span>
-                    <span className="flex items-center gap-1 text-sm text-stone-400 dark:text-stone-500">
-                      Open map <ExternalLink size={13} />
-                    </span>
+                    Open in Google Maps <ExternalLink size={14} />
                   </a>
                 )}
               </div>

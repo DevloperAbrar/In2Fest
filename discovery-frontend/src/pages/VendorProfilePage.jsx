@@ -12,6 +12,9 @@ import AvailabilityCalendar from "../components/vendor-profile/AvailabilityCalen
 import BreadcrumbNav from "../components/seo/BreadcrumbNav";
 import ReviewsSection from "../components/vendor-profile/ReviewsSection.jsx";
 import VendorCTAPrompt from "../components/vendor-profile/VendorCTAPrompt";
+import VideoModal from "../components/vendor-profile/VideoModal";
+import { getVideoEmbed } from "../lib/videoEmbed";
+import { getVendorSiteUrl } from "../lib/vendorSiteUrl";
 import { VendorProfileSchema } from "../components/seo/SchemaMarkup";
 import {
   MapPin, Award, Users, Calendar, Languages,
@@ -56,6 +59,7 @@ export default function VendorProfilePage() {
   const [data, setData] = useState(null);
   const [showInquiry, setShowInquiry] = useState(false);
   const [inquiryDate, setInquiryDate] = useState("");   // 👈 add this line
+  const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
     api.get(`/vendor/${city}/${category}/${vendorSlug}`).then(({ data }) => setData(data.data));
@@ -65,11 +69,10 @@ export default function VendorProfilePage() {
 
   const { venue, similar_vendors, seo } = data;
   const categoryLabel = category.replace(/-/g, " ");
+  const videoEmbed = getVideoEmbed(venue.video_intro_url);
 
   // ✅ single source of truth for the branded subdomain link
-  const brandedWebsiteUrl = (venue.slug || vendorSlug)
-    ? `http://${venue.slug || vendorSlug}.${import.meta.env.VITE_BASE_DOMAIN}`
-    : null;
+  const brandedWebsiteUrl = getVendorSiteUrl(venue.slug || vendorSlug);
 
   const stats = [
     {
@@ -166,10 +169,19 @@ export default function VendorProfilePage() {
               </a>
             )}
             {venue.video_intro_url && (
-              <a href={venue.video_intro_url} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 border border-accent-200 text-accent-700 hover:bg-accent-50 text-sm px-4 py-2 rounded-xl transition-colors">
-                <PlayCircle size={14} /> Watch Intro Video
-              </a>
+              videoEmbed ? (
+                <button
+                  type="button"
+                  onClick={() => setShowVideo(true)}
+                  className="flex items-center gap-1.5 border border-accent-200 text-accent-700 hover:bg-accent-50 text-sm px-4 py-2 rounded-xl transition-colors">
+                  <PlayCircle size={14} /> Watch Intro Video
+                </button>
+              ) : (
+                <a href={venue.video_intro_url} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1.5 border border-accent-200 text-accent-700 hover:bg-accent-50 text-sm px-4 py-2 rounded-xl transition-colors">
+                  <PlayCircle size={14} /> Watch Intro Video
+                </a>
+              )
             )}
           </div>
         )}
@@ -384,6 +396,14 @@ export default function VendorProfilePage() {
     onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
   />
 )}
+
+{showVideo && videoEmbed && (
+        <VideoModal
+          embed={videoEmbed}
+          title={`${venue.hall_name} intro video`}
+          onClose={() => setShowVideo(false)}
+        />
+      )}
 
       {/* Scroll-triggered "become a vendor" nudge - shows once per session */}
       <VendorCTAPrompt />
