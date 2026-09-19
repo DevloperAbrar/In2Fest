@@ -6,6 +6,7 @@ import BreadcrumbNav from "../components/seo/BreadcrumbNav";
 import ResultsGrid from "../components/search/ResultsGrid";
 import { BreadcrumbSchema } from "../components/seo/SchemaMarkup";
 import { BASE_DOMAIN } from "../lib/constants";
+import PageLoader from "../components/common/PageLoader";
 
 export default function CityCategoryLocalityPage() {
   const { city, category, slug: locality } = useParams();
@@ -17,7 +18,7 @@ export default function CityCategoryLocalityPage() {
       .then(({ data }) => setData(data.data));
   }, [city, category, locality, page]);
 
-  if (!data) return <div className="max-w-6xl mx-auto px-4 py-16 text-gray-400">Loading...</div>;
+  if (!data) return <PageLoader />;
 
   const canonicalUrl = `https://www.${BASE_DOMAIN}/${city}/${category}/${locality}`;
 

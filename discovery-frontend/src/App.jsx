@@ -4,6 +4,7 @@ import { PublicAuthProvider } from "./context/PublicAuthContext.jsx";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
 import MobileNav from "./components/layout/MobileNav";
+import PageLoader from "./components/common/PageLoader";
 import GetYourWebsite from "./pages/GetYourWebsite";
 
 const HomePage = lazy(() => import("./pages/Home"));
@@ -21,10 +22,6 @@ const ContactPage = lazy(() => import("./pages/static/ContactPage"));
 const PrivacyPage = lazy(() => import("./pages/static/PrivacyPage"));
 const TermsPage = lazy(() => import("./pages/static/TermsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
-
-function PageLoader() {
-  return <div className="max-w-6xl mx-auto px-4 py-16 text-gray-400">Loading...</div>;
-}
 
 export default function App() {
   return (

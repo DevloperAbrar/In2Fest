@@ -8,6 +8,7 @@ import ResultsGrid from "../components/search/ResultsGrid";
 import { CityListSchema } from "../components/seo/SchemaMarkup";
 import { FAQSchema } from "../lib/seo/Schema";
 import { BASE_DOMAIN } from "../lib/constants";
+import PageLoader from "../components/common/PageLoader";
 
 export default function CityCategoryPage() {
   const { city, category } = useParams();
@@ -18,7 +19,7 @@ export default function CityCategoryPage() {
     api.get(`/city/${city}/category/${category}`, { params: { page } }).then(({ data }) => setData(data.data));
   }, [city, category, page]);
 
-  if (!data) return <div className="max-w-6xl mx-auto px-4 py-16 text-gray-400">Loading...</div>;
+  if (!data) return <PageLoader />;
 
   const canonicalUrl = `https://www.${BASE_DOMAIN}/${city}/${category}`;
   const faqSchemaItems = (data.faq || []).map((f) => ({ question: f.q, answer: f.a }));

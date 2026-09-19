@@ -21,6 +21,7 @@ import {
   ShieldCheck, Banknote, Copy, MessageCircle, ExternalLink,
   Globe, PlayCircle, Quote,
 } from "lucide-react";
+import PageLoader from "../components/common/PageLoader";
 
 function InstagramIcon(props) {
   return (
@@ -65,7 +66,7 @@ export default function VendorProfilePage() {
     api.get(`/vendor/${city}/${category}/${vendorSlug}`).then(({ data }) => setData(data.data));
   }, [city, category, vendorSlug]);
 
-  if (!data) return <div className="max-w-6xl mx-auto px-4 py-16 text-gray-400">Loading...</div>;
+  if (!data) return <PageLoader />;
 
   const { venue, similar_vendors, seo } = data;
   const categoryLabel = category.replace(/-/g, " ");

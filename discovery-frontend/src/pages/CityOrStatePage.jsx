@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import api from "../lib/api";
 import BreadcrumbNav from "../components/seo/BreadcrumbNav";
+import PageLoader from "../components/common/PageLoader";
 
 export default function CityOrStatePage() {
   const { slug } = useParams();
@@ -20,7 +21,7 @@ export default function CityOrStatePage() {
       });
   }, [slug]);
 
-  if (!type) return <div className="max-w-6xl mx-auto px-4 py-16 text-gray-400">Loading...</div>;
+  if (!type) return <PageLoader />;
   if (type === "notfound") return <div className="max-w-6xl mx-auto px-4 py-16 text-gray-400">Page not found.</div>;
 
   if (type === "city") {
