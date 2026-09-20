@@ -10,13 +10,16 @@ const { generateSitemapXml } = require("../modules/seo/sitemap.service");
  * this job is purely a performance optimization for higher traffic.)
  */
 function startSitemapRebuilder() {
-  const outputPath = path.join(process.cwd(), "uploads", "sitemap.xml");
+  const uploadsDir = path.join(process.cwd(), "uploads");
 
   const rebuild = async () => {
     try {
-      const xml = await generateSitemapXml();
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, xml);
+      // generateSitemapXml() returns { mainSitemap, imageSitemap } (two XML strings),
+      // not a single string, so each one is written to its own file.
+      const { mainSitemap, imageSitemap } = await generateSitemapXml();
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadsDir, "sitemap.xml"), mainSitemap);
+      fs.writeFileSync(path.join(uploadsDir, "sitemap-images.xml"), imageSitemap);
       console.log("[JOB] Sitemap rebuilt.");
     } catch (error) {
       console.error("[JOB] Sitemap rebuild failed:", error.message);
