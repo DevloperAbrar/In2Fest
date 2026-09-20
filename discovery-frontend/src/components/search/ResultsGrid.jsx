@@ -20,7 +20,40 @@ function getPageWindow(page, totalPages, span = 5) {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-export default function ResultsGrid({ vendors = [], page, totalPages, onPageChange, onClearFilters }) {
+function VendorGrid({ vendors }) {
+  return (
+    <motion.div
+      variants={gridVariants}
+      initial="hidden"
+      animate="visible"
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+    >
+      {vendors.map((v) => (
+        <motion.div key={v.id} variants={cardVariants}>
+          <VendorCard vendor={v} />
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
+/**
+ * ResultsGrid
+ *
+ * `activeCategoryLabel` is only used to split/label the two sections below -
+ * it never affects which vendors are shown or their order (that's already
+ * decided server-side in search.service.js).
+ *
+ * When the current page of results has a mix of vendors whose PRIMARY
+ * category matches what was searched and vendors who only offer it as a
+ * secondary service (see category_match on each vendor, from the search
+ * API), we show them as two clearly separated groups - specialists first,
+ * "also offer this" after - the same way JustDial-style listings separate
+ * a category's core businesses from allied/secondary ones. If there's no
+ * such mix (no category filter, or every match is primary), this renders
+ * exactly like a single plain grid, same as before.
+ */
+export default function ResultsGrid({ vendors = [], page, totalPages, onPageChange, onClearFilters, activeCategoryLabel }) {
   if (!vendors.length) {
     return (
       <motion.div
@@ -52,20 +85,32 @@ export default function ResultsGrid({ vendors = [], page, totalPages, onPageChan
 
   const pageWindow = getPageWindow(page, totalPages);
 
+  const hasSecondaryMatches = vendors.some((v) => v.category_match === "secondary");
+  const primaryVendors = hasSecondaryMatches ? vendors.filter((v) => v.category_match !== "secondary") : vendors;
+  const secondaryVendors = hasSecondaryMatches ? vendors.filter((v) => v.category_match === "secondary") : [];
+
   return (
     <div>
-      <motion.div
-        variants={gridVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-      >
-        {vendors.map((v) => (
-          <motion.div key={v.id} variants={cardVariants}>
-            <VendorCard vendor={v} />
-          </motion.div>
-        ))}
-      </motion.div>
+      {hasSecondaryMatches && primaryVendors.length > 0 && (
+        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">
+          {activeCategoryLabel ? `${activeCategoryLabel} specialists` : "Best match"}
+        </p>
+      )}
+
+      {primaryVendors.length > 0 && <VendorGrid vendors={primaryVendors} />}
+
+      {hasSecondaryMatches && secondaryVendors.length > 0 && (
+        <>
+          <div className="flex items-center gap-3 mt-8 mb-4">
+            <div className="h-px flex-1 bg-gray-100" />
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">
+              Also offer {activeCategoryLabel || "this service"}
+            </p>
+            <div className="h-px flex-1 bg-gray-100" />
+          </div>
+          <VendorGrid vendors={secondaryVendors} />
+        </>
+      )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-1.5 mt-10">

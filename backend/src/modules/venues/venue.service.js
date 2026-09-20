@@ -1,3 +1,4 @@
+const { sanitizeSecondaryCategories } = require("../../utils/sanitizeSecondaryCategories");
 const { Op } = require("sequelize");
 const { Venue, Subscription, Plan, User } = require("../../database/models");
 const { calculateCompletion } = require("../marketplace-profile/marketplaceProfile.service");
@@ -53,7 +54,7 @@ async function createVenue(payload) {
 
   const subdomain = await generateUniqueSubdomain(payload.hall_name);
 
-  const secondaryCategories = Array.isArray(payload.secondary_categories) ? payload.secondary_categories : [];
+  const secondaryCategories = await sanitizeSecondaryCategories(payload.secondary_categories, payload.business_category);
 
   // The registration flow only sends business_category + secondary_categories.
   // Mirror them into venue_type (unless the client sent one explicitly) so the
@@ -148,6 +149,11 @@ async function updateVenue(venueId, ownerId, updates) {
     "template_id", "theme_color", "hero_button_text",
     "about_highlights", "testimonials", "show_pricing_section"
   ];
+
+  if (updates.secondary_categories !== undefined) {
+    const primaryCategory = updates.business_category !== undefined ? updates.business_category : venue.business_category;
+    updates.secondary_categories = await sanitizeSecondaryCategories(updates.secondary_categories, primaryCategory);
+  }
 
   allowedFields.forEach((field) => {
     if (updates[field] !== undefined) venue[field] = updates[field];

@@ -12,6 +12,14 @@ const RELEVANCE_SCORE_SQL = `
   (LEAST(COALESCE(review_count, 0), 50) * 0.2)
 `.trim();
 
+// Category slugs only ever come out of Category.slug / the slugify() util,
+// which only ever produces lowercase letters, digits and hyphens. Used as a
+// safety gate before a category value is interpolated into a raw SQL
+// literal (for the "primary match first" ORDER BY below) - if a value ever
+// doesn't match this shape, we simply skip the literal instead of building
+// unsafe SQL with it.
+const SAFE_SLUG_RE = /^[a-z0-9-]+$/;
+
 function baseWhere() {
   return { is_active: true, marketplace_listed: true, business_category: { [Op.ne]: null } };
 }
@@ -28,7 +36,14 @@ function extractCoordsFromLink(link = "") {
   return null;
 }
 
-function vendorSummary(venue, cityRow) {
+// `matchedCategory`: the category slug the caller searched for, if any.
+// When present, flags each vendor as "primary" (this IS their main
+// business_category) or "secondary" (they only offer it via their
+// self-declared secondary_categories) so the frontend can rank/group real
+// specialists above vendors who just also offer the service. Callers that
+// don't pass it (homepage/city/similar-vendors listings) get category_match:
+// null, same as before this field existed - fully backward compatible.
+function vendorSummary(venue, cityRow, matchedCategory) {
   // Try to get precise coords from the vendor's own Google Maps link first.
   // If that fails (e.g. maps.app.goo.gl short URL), fall back to the city's
   // centre coordinates so the vendor still appears on the map.
@@ -63,6 +78,10 @@ function vendorSummary(venue, cityRow) {
     longitude: (longitude != null && !isNaN(longitude)) ? longitude : null,
     // Flag so MapView can show a slightly different marker for city-centre fallback
     coords_are_approximate: !linkCoords && !!(cityRow?.latitude),
+    // "primary" | "secondary" | null - see comment above the function.
+    category_match: matchedCategory
+      ? (venue.business_category === matchedCategory ? "primary" : "secondary")
+      : null,
   };
 }
 
@@ -75,7 +94,19 @@ async function search(query) {
   const where = baseWhere();
 
   if (city) where.city = { [Op.iLike]: unslugify(city) };
-  if (category) where.business_category = category;
+
+  // A vendor genuinely belongs to a category either as their primary
+  // business_category OR as one of up to 2 self-declared secondary_categories.
+  // secondary_categories is now sanitized on every save (see
+  // sanitizeSecondaryCategories) - capped at 2, must be real active
+  // categories, can't duplicate the primary one - so this can be trusted.
+  if (category) {
+    where[Op.or] = [
+      { business_category: category },
+      { secondary_categories: { [Op.contains]: [category] } }
+    ];
+  }
+
   if (budget_min || budget_max) {
     where.starting_price = {};
     if (budget_min) where.starting_price[Op.gte] = Number(budget_min);
@@ -97,11 +128,20 @@ async function search(query) {
   if (sort === "price_high")    order = [["starting_price", "DESC"]];
   if (sort === "newest")        order = [["created_at", "DESC"]];
 
+  // Primary-category listings float above ones offering it only as a
+  // secondary service, whatever sort is chosen. SAFE_SLUG_RE gate means this
+  // can never become unsafe raw SQL even in principle.
+  if (category && SAFE_SLUG_RE.test(category)) {
+    order = [
+      [literal(`(CASE WHEN business_category = '${category}' THEN 1 ELSE 0 END)`), "DESC"],
+      ...order
+    ];
+  }
+
   const offset = (Number(page) - 1) * Number(limit);
 
   const { rows, count } = await Venue.findAndCountAll({ where, order, limit: Number(limit), offset });
 
-  // Fetch city coords for all unique city names in one query, then map by name.
   const cityNames = [...new Set(rows.map((v) => v.city).filter(Boolean))];
   let cityMap = {};
   if (cityNames.length > 0) {
@@ -113,7 +153,7 @@ async function search(query) {
   }
 
   return {
-    results: rows.map((v) => vendorSummary(v, cityMap[v.city] || null)),
+    results: rows.map((v) => vendorSummary(v, cityMap[v.city] || null, category || null)),
     total: count,
     page: Number(page),
     totalPages: Math.ceil(count / Number(limit)),

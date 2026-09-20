@@ -1,4 +1,5 @@
 const { Venue, City, VenueServiceArea } = require("../../database/models");
+const { sanitizeSecondaryCategories } = require("../../utils/sanitizeSecondaryCategories");
 const { AppError } = require("../../middleware/error.middleware");
 const { getRedisClient } = require("../../config/redis");
 const { slugify } = require("../../utils/slugify");
@@ -73,6 +74,14 @@ async function updateProfile(venueId, ownerId, payload) {
         updates[field] = payload[field];
       }
     }
+  }
+
+  // This is the write path the vendor portal's Business Details tab actually
+  // uses - so this is where the "also offers X" data has to be trustworthy.
+  // See sanitizeSecondaryCategories for why.
+  if (updates.secondary_categories !== undefined) {
+    const primaryCategory = updates.business_category !== undefined ? updates.business_category : venue.business_category;
+    updates.secondary_categories = await sanitizeSecondaryCategories(updates.secondary_categories, primaryCategory);
   }
 
   if (updates.long_description !== undefined && wordCount(updates.long_description) < 150 && updates.long_description !== "") {

@@ -12,6 +12,8 @@ import MapView from "../components/search/MapView";
 import CategoryChipStrip from "../components/search/CategoryChipStrip";
 import ActiveFiltersBar from "../components/search/ActiveFiltersBar";
 import SearchStats from "../components/search/SearchStats";
+import CategoryComingSoon from "../components/search/CategoryComingSoon";
+import useCategories from "../components/search/useCategories";
 import FloatingOrbs from "../components/common/FloatingOrbs";
 import SectionDivider from "../components/common/SectionDivider";
 import VendorCTA from "../components/home/VendorCTA";
@@ -23,6 +25,11 @@ const SORT_OPTIONS = [
   { value: "price_high", label: "Price: High to Low" },
   { value: "newest", label: "Newest" },
 ];
+
+// Filter keys that mean "this 0-result page is a genuine filter-combo miss,
+// not an empty category" - if any of these are set alongside category, we
+// keep the normal ResultsGrid empty state instead of Coming Soon.
+const NON_CATEGORY_FILTER_KEYS = ["city", "budget_min", "budget_max", "capacity_min", "rating"];
 
 /* Skeleton card shown while results are loading, so the page never feels
    blank/frozen the way a plain "Loading..." string does. */
@@ -47,6 +54,7 @@ export default function SearchPage() {
   const [showMap, setShowMap] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const { categories } = useCategories();
 
   const filters = Object.fromEntries(params.entries());
 
@@ -84,6 +92,16 @@ export default function SearchPage() {
 
   const activeSort = filters.sort || "relevant";
   const activeSortLabel = SORT_OPTIONS.find((o) => o.value === activeSort)?.label || "Most Relevant";
+
+  // A category is picked, it's the ONLY meaningful filter in play, and the
+  // API genuinely found nothing for it -> that category just hasn't been
+  // onboarded yet. Show the animated Coming Soon panel instead of the plain
+  // "no results" box. Any additional real filter (city/budget/rating/etc.)
+  // means this is a normal filter-combo miss, so that keeps the old behavior.
+  const activeCategory = categories.find((c) => c.slug === filters.category);
+  const hasNonCategoryFilters = NON_CATEGORY_FILTER_KEYS.some((k) => filters[k]);
+  const isCategoryComingSoon =
+    !loading && !error && result.total === 0 && !!filters.category && !hasNonCategoryFilters;
 
   return (
     <>
@@ -154,67 +172,72 @@ export default function SearchPage() {
                 <p className="text-sm text-gray-500 flex-shrink-0">
                   {!loading && (result.total > 0
                     ? <><span className="font-bold text-navy-900">{result.total}</span> vendors found</>
-                    : "No vendors found")}
+                    : isCategoryComingSoon ? "Launching soon" : "No vendors found")}
                 </p>
 
                 <div className="flex-1" />
 
-                {/* Sort */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setSortOpen((o) => !o)}
-                    className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3.5 py-2 rounded-lg text-navy-700 font-medium shadow-sm"
-                  >
-                    {activeSortLabel} <ChevronDown size={14} className="text-gray-400" />
-                  </button>
-                  <AnimatePresence>
-                    {sortOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-2 w-52 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 z-30"
+                {/* Sort + Grid/Map toggle don't make sense on the Coming Soon panel */}
+                {!isCategoryComingSoon && (
+                  <>
+                    {/* Sort */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSortOpen((o) => !o)}
+                        className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 px-3.5 py-2 rounded-lg text-navy-700 font-medium shadow-sm"
                       >
-                        {SORT_OPTIONS.map((opt) => (
-                          <button
-                            key={opt.value}
-                            onClick={() => { updateFilters({ ...filters, sort: opt.value }); setSortOpen(false); }}
-                            className={[
-                              "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors",
-                              activeSort === opt.value ? "text-accent-600 font-semibold" : "text-gray-600",
-                            ].join(" ")}
+                        {activeSortLabel} <ChevronDown size={14} className="text-gray-400" />
+                      </button>
+                      <AnimatePresence>
+                        {sortOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute right-0 mt-2 w-52 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 z-30"
                           >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                            {SORT_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                onClick={() => { updateFilters({ ...filters, sort: opt.value }); setSortOpen(false); }}
+                                className={[
+                                  "w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors",
+                                  activeSort === opt.value ? "text-accent-600 font-semibold" : "text-gray-600",
+                                ].join(" ")}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
 
-                {/* Grid / Map toggle - segmented control */}
-                <div className="flex bg-white border border-gray-200 rounded-lg p-1 shadow-sm flex-shrink-0">
-                  <button
-                    onClick={() => setShowMap(false)}
-                    className={[
-                      "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors",
-                      !showMap ? "bg-navy-900 text-white" : "text-gray-500",
-                    ].join(" ")}
-                  >
-                    <LayoutGrid size={13} /> List
-                  </button>
-                  <button
-                    onClick={() => setShowMap(true)}
-                    className={[
-                      "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors",
-                      showMap ? "bg-navy-900 text-white" : "text-gray-500",
-                    ].join(" ")}
-                  >
-                    <Map size={13} /> Map
-                  </button>
-                </div>
+                    {/* Grid / Map toggle - segmented control */}
+                    <div className="flex bg-white border border-gray-200 rounded-lg p-1 shadow-sm flex-shrink-0">
+                      <button
+                        onClick={() => setShowMap(false)}
+                        className={[
+                          "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors",
+                          !showMap ? "bg-navy-900 text-white" : "text-gray-500",
+                        ].join(" ")}
+                      >
+                        <LayoutGrid size={13} /> List
+                      </button>
+                      <button
+                        onClick={() => setShowMap(true)}
+                        className={[
+                          "flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors",
+                          showMap ? "bg-navy-900 text-white" : "text-gray-500",
+                        ].join(" ")}
+                      >
+                        <Map size={13} /> Map
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="mt-3">
@@ -247,6 +270,13 @@ export default function SearchPage() {
                   <div className="text-red-600 text-sm bg-red-50 border border-red-100 rounded-2xl px-5 py-4">
                     {error}
                   </div>
+                ) : isCategoryComingSoon ? (
+                  <CategoryComingSoon
+                    category={activeCategory || { slug: filters.category, label: filters.category }}
+                    categories={categories}
+                    onSelectCategory={(slug) => updateFilters({ ...filters, category: slug, page: undefined })}
+                    onBrowseAll={clearAllFilters}
+                  />
                 ) : (
                   <AnimatePresence mode="wait">
                     {showMap ? (
@@ -277,6 +307,7 @@ export default function SearchPage() {
                           totalPages={result.totalPages}
                           onPageChange={(p) => updateFilters({ ...filters, page: p })}
                           onClearFilters={clearAllFilters}
+                          activeCategoryLabel={activeCategory?.label}
                         />
                       </motion.div>
                     )}
