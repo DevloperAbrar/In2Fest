@@ -9,6 +9,7 @@ import PaymentList from "../features/superadmin/payments/PaymentList.jsx";
 import MessageComposer from "../features/superadmin/whatsapp-center/MessageComposer.jsx";
 import AdminAnalytics from "../features/superadmin/analytics/AdminAnalytics.jsx";
 import PlatformSettings from "../features/superadmin/settings/PlatformSettings.jsx";
+import AnnouncementManager from "../features/superadmin/discovery/AnnouncementManager.jsx";
 
 import FeaturedVendors from "../features/superadmin/discovery/FeaturedVendors.jsx";
 import ReviewModeration from "../features/superadmin/discovery/ReviewModeration.jsx";
@@ -30,6 +31,7 @@ export default function SuperAdminRoutes() {
       <Route path="whatsapp" element={<MessageComposer />} />
       <Route path="analytics" element={<AdminAnalytics />} />
       <Route path="settings" element={<PlatformSettings />} />
+      <Route path="announcements" element={<AnnouncementManager />} />
 
       <Route path="discovery/featured-vendors" element={<FeaturedVendors />} />
       <Route path="discovery/reviews" element={<ReviewModeration />} />

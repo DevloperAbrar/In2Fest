@@ -28,6 +28,8 @@ const reviewRoutes = require("../modules/reviews/review.routes");
 
 const adminDiscoveryRoutes = require("../modules/admin-discovery/adminDiscovery.routes");
 
+const announcementRoutes = require("../modules/announcements/announcement.routes");
+
 const router = express.Router();
 
 const packageRoutes = require("../modules/packages/package.routes");
@@ -66,5 +68,6 @@ router.use("/listing", listingRoutes);
 router.use("/reviews", reviewRoutes);
 
 router.use("/admin/discovery", adminDiscoveryRoutes);
+router.use("/announcements", announcementRoutes);
 
 module.exports = router;

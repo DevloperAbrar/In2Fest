@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Building2, CreditCard, MessageCircle, BarChart3,
-  Settings, ListTree, Star, Store, ShieldCheck, MapPin, LineChart, Layers, BellRing
+  Settings, ListTree, Star, Store, ShieldCheck, MapPin, LineChart, Layers, BellRing, Megaphone
 } from "lucide-react";
 
 export const adminSidebarItems = [
@@ -9,6 +9,7 @@ export const adminSidebarItems = [
   { path: "/admin/plans", label: "Plans", icon: ListTree },
   { path: "/admin/payments", label: "Payments", icon: CreditCard },
   { path: "/admin/whatsapp", label: "WhatsApp Center", icon: MessageCircle },
+  { path: "/admin/announcements", label: "Announcements", icon: Megaphone },
   { path: "/admin/discovery/featured-vendors", label: "Featured Vendors", icon: Store },
   { path: "/admin/discovery/reviews", label: "Review Moderation", icon: Star },
   { path: "/admin/discovery/free-listings", label: "Free Listings", icon: ListTree },

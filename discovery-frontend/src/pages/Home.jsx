@@ -14,6 +14,7 @@ import BuiltForVendors from "../components/home/BuiltForVendors";
 import WeddingBudgetPlanner from "../components/home/WeddingBudgetPlanner";
 import Testimonials from "../components/home/Testimonials";
 import VendorCTA from "../components/home/VendorCTA";
+import AnnouncementBanner from "../components/home/AnnouncementBanner";
 
 export default function Home() {
   const [homeData, setHomeData] = useState(null);
@@ -40,6 +41,9 @@ export default function Home() {
         />
         <link rel="canonical" href={`https://www.${BASE_DOMAIN}/`} />
       </Helmet>
+
+      {/* Announcement popup - shown once per session if active announcements exist */}
+      <AnnouncementBanner />
 
       {/* Ambient drifting brand-colour orbs behind the whole page */}
       <FloatingOrbs />

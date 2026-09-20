@@ -32,6 +32,7 @@ const PublicUser = require("./publicUser.model")(sequelize, DataTypes);
 const SavedVendor = require("./savedVendor.model")(sequelize, DataTypes);
 const CityRequest = require("./cityRequest.model")(sequelize, DataTypes);
 
+const Announcement = require("./announcement.model")(sequelize, DataTypes);
 // ---- Associations ----
 
 User.hasMany(Venue, { foreignKey: "owner_id", as: "venues" });
@@ -156,4 +157,5 @@ module.exports = {
   City, Category, VenueServiceArea,
   VendorListing, Review, ReviewRequest,
   PublicUser, SavedVendor, CityRequest,
+  Announcement,
 };
