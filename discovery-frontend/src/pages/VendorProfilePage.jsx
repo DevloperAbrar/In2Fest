@@ -59,7 +59,7 @@ export default function VendorProfilePage() {
   const { city, category, slug: vendorSlug } = useParams();
   const [data, setData] = useState(null);
   const [showInquiry, setShowInquiry] = useState(false);
-  const [inquiryDate, setInquiryDate] = useState("");   // 👈 add this line
+  const [inquiryDate, setInquiryDate] = useState("");
   const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
@@ -72,7 +72,6 @@ export default function VendorProfilePage() {
   const categoryLabel = category.replace(/-/g, " ");
   const videoEmbed = getVideoEmbed(venue.video_intro_url);
 
-  // ✅ single source of truth for the branded subdomain link
   const brandedWebsiteUrl = getVendorSiteUrl(venue.slug || vendorSlug);
 
   const stats = [
@@ -90,14 +89,47 @@ export default function VendorProfilePage() {
     },
   ];
 
+  // Clean "Open in Google Maps" URL — never pass raw internal Google embed links
+  const getCleanMapsUrl = () => {
+    const link = (venue.google_maps_link || "").trim();
+    const INTERNAL = /mapclient=embed|\/maps\?.*cid=|\/maps\?.*ll=.*mapclient/i;
+    if (link && /^https?:\/\//i.test(link) && !INTERNAL.test(link) && !/\/maps\/embed/i.test(link)) return link;
+    const pin = link.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+    if (pin) return `https://www.google.com/maps?q=${pin[1]},${pin[2]}`;
+    const at = link.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+    if (at) return `https://www.google.com/maps?q=${at[1]},${at[2]}`;
+    const qc = link.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    if (qc) return `https://www.google.com/maps?q=${qc[1]},${qc[2]}`;
+    const q = [venue.hall_name, venue.city].filter(Boolean).join(", ");
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  };
+
+  const getEmbedUrl = () => {
+    const link = (venue.google_maps_link || "").trim();
+    if (!link) {
+      const q = [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
+      return q ? `https://www.google.com/maps?q=${encodeURIComponent(q)}&z=15&output=embed` : null;
+    }
+    if (/^https:\/\/(www\.)?google\.(com|co\.in)\/maps\/embed/i.test(link)) return link;
+    const pin = link.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+    if (pin) return `https://www.google.com/maps?q=${pin[1]},${pin[2]}&z=16&output=embed`;
+    const at = link.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
+    if (at) return `https://www.google.com/maps?q=${at[1]},${at[2]}&z=16&output=embed`;
+    const qc = link.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    if (qc) return `https://www.google.com/maps?q=${qc[1]},${qc[2]}&z=16&output=embed`;
+    const q = [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
+    return q ? `https://www.google.com/maps?q=${encodeURIComponent(q)}&z=15&output=embed` : null;
+  };
+
+  const embedUrl = getEmbedUrl();
+  const mapsOpenUrl = getCleanMapsUrl();
+
   return (
     <>
       <Helmet>
         <title>{seo.title}</title>
         <meta name="description" content={seo.description} />
         <link rel="canonical" href={seo.canonical || window.location.href} />
-
-        {/* ✅ Yeh add karo */}
         <meta property="og:title" content={seo.title} />
         <meta property="og:description" content={seo.description} />
         <meta property="og:image" content={venue.hero_image_url || `https://www.in2fest.com/og-default.jpg`} />
@@ -107,7 +139,6 @@ export default function VendorProfilePage() {
         <meta name="twitter:image" content={venue.hero_image_url} />
       </Helmet>
 
-      {/* JSON-LD Schema for Google */}
       <VendorProfileSchema venue={venue} city={city} category={category} />
 
       <BreadcrumbNav items={[
@@ -116,12 +147,10 @@ export default function VendorProfilePage() {
         { label: venue.hall_name }
       ]} />
 
-      {/* Hero */}
       <HeroSection venue={venue} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
-        {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
           {stats.map(({ icon: Icon, label, value }) => (
             <div key={label} className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm">
@@ -134,7 +163,6 @@ export default function VendorProfilePage() {
           ))}
         </div>
 
-        {/* Specialty tagline */}
         {venue.specialty_tagline && (
           <div className="relative bg-navy-50/60 border-l-4 border-gold-500 rounded-r-xl px-5 py-4 mb-8">
             <Quote size={22} className="absolute top-3 right-4 text-navy-200" />
@@ -142,12 +170,10 @@ export default function VendorProfilePage() {
           </div>
         )}
 
-        {/* Contact buttons */}
         <div className="mb-8">
           <ContactButtons venue={venue} onSendInquiry={() => setShowInquiry(true)} />
         </div>
 
-        {/* Social links */}
         {(venue.instagram_handle || venue.youtube_channel_link || brandedWebsiteUrl || venue.video_intro_url) && (
           <div className="flex flex-wrap gap-2 mb-8">
             {venue.instagram_handle && (
@@ -187,15 +213,12 @@ export default function VendorProfilePage() {
           </div>
         )}
 
-        {/* Photo Gallery */}
         <div className="mb-8">
           <PhotoGallery gallery={venue.gallery} />
         </div>
 
-        {/* Two column layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* LEFT - main content */}
           <div className="lg:col-span-2 space-y-6">
 
             {venue.long_description && (
@@ -290,7 +313,6 @@ export default function VendorProfilePage() {
             <SimilarVendors vendors={similar_vendors} />
           </div>
 
-          {/* RIGHT - sidebar */}
           <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
 
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-3">
@@ -380,52 +402,23 @@ export default function VendorProfilePage() {
                 {venue.full_pincode && ` - ${venue.full_pincode}`}
               </p>
 
-              {/* Embedded Google Maps iframe */}
-              {(() => {
-                const embedUrl = (() => {
-                  const link = (venue.google_maps_link || "").trim();
-                  if (!link) {
-                    const q = [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
-                    return q ? `https://www.google.com/maps?q=${encodeURIComponent(q)}&z=15&output=embed` : null;
-                  }
-                  if (/^https:\/\/(www\.)?google\.(com|co\.in)\/maps\/embed/i.test(link)) return link;
-                  // extract !3d lat !4d lng
-                  const pin = link.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
-                  if (pin) return `https://www.google.com/maps?q=${pin[1]},${pin[2]}&z=16&output=embed`;
-                  // extract @lat,lng
-                  const at = link.match(/@(-?\d+\.?\d+),(-?\d+\.?\d+)/);
-                  if (at) return `https://www.google.com/maps?q=${at[1]},${at[2]}&z=16&output=embed`;
-                  // fallback: name search
-                  const q = [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
-                  return q ? `https://www.google.com/maps?q=${encodeURIComponent(q)}&z=15&output=embed` : null;
-                })();
+              {embedUrl && (
+                <div className="rounded-xl overflow-hidden border border-gray-100 mb-3">
+                  <iframe
+                    src={embedUrl}
+                    title={`${venue.hall_name} location`}
+                    className="w-full border-0 block"
+                    style={{ height: "180px" }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              )}
 
-                const openUrl = venue.google_maps_link ||
-                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    [venue.hall_name, venue.city].filter(Boolean).join(", ")
-                  )}`;
-
-                return embedUrl ? (
-                  <div className="rounded-xl overflow-hidden border border-gray-100 mb-3">
-                    <iframe
-                      src={embedUrl}
-                      title={`${venue.hall_name} location`}
-                      className="w-full border-0 block"
-                      style={{ height: "180px" }}
-                      allowFullScreen
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                  </div>
-                ) : null;
-              })()}
-
-
-              href={venue.google_maps_link ||
-                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  [venue.hall_name, venue.city].filter(Boolean).join(", ")
-                )}`}
-              <a target="_blank"
+              
+              <a  href={mapsOpenUrl}
+                target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs text-accent-600 hover:underline font-medium"
               >
@@ -453,7 +446,6 @@ export default function VendorProfilePage() {
         />
       )}
 
-      {/* Scroll-triggered "become a vendor" nudge - shows once per session */}
       <VendorCTAPrompt />
     </>
   );

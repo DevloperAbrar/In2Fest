@@ -14,5 +14,9 @@ export const venueService = {
 
   listAll: (params) => api.get("/venues", { params }),
   toggleActive: (id, is_active) => api.patch(`/venues/${id}/status`, { is_active }),
-  remove: (id) => api.delete(`/venues/${id}`)
+  remove: (id) => api.delete(`/venues/${id}`),
+
+  // Super Admin  - onboard a vendor by email only, then impersonate them.
+  adminCreate: (payload) => api.post("/venues/admin/create", payload),
+  impersonate: (id) => api.post(`/venues/${id}/impersonate`)
 };

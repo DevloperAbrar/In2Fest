@@ -4,8 +4,15 @@
 
 const EMBED_HOST_REGEX = /^https:\/\/(www\.)?google\.(com|co\.in)\/maps\/embed/i;
 
+// These are internal Google Maps URLs (embed internals, mapclient links, cid-only links).
+// They are NOT safe to use as "Open in Maps" hrefs — they render garbage in the browser.
+const INTERNAL_MAPS_REGEX = /mapclient=embed|\/maps\?.*cid=|\/maps\?.*ll=.*mapclient/i;
+
 const buildEmbed = (query) =>
   `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+
+const buildOpenUrl = (query) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
 const fallbackQuery = (venue) =>
   [venue.hall_name, venue.address, venue.city].filter(Boolean).join(", ");
@@ -44,10 +51,35 @@ export function getMapEmbedUrl(venue = {}) {
 // Link for the "Open in Google Maps" button under the map.
 export function getMapOpenUrl(venue = {}) {
   const link = (venue.google_maps_link || "").trim();
-  if (/^https?:\/\//i.test(link) && !/\/maps\/embed/i.test(link)) return link;
 
+  if (/^https?:\/\//i.test(link) && !/\/maps\/embed/i.test(link)) {
+    // Discard internal/embed-style Google URLs — they contain mapclient=embed,
+    // cid= params, or ll= with mapclient and render as broken href text in the browser.
+    if (!INTERNAL_MAPS_REGEX.test(link)) {
+      return link;
+    }
+
+    // It's an internal Google link — try to extract coords or place from it and build clean URL.
+    const pin = link.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    const at = link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    const qCoords = link.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    const coords = pin || at || qCoords;
+    if (coords) {
+      return `https://www.google.com/maps?q=${coords[1]},${coords[2]}`;
+    }
+
+    const place = link.match(/\/maps\/(?:place|search)\/([^/@?]+)/);
+    if (place) {
+      try {
+        const name = decodeURIComponent(place[1].replace(/\+/g, " ")).trim();
+        if (name) return buildOpenUrl(name);
+      } catch {
+        /* fall through */
+      }
+    }
+  }
+
+  // Fallback: clean search URL from venue details
   const query = fallbackQuery(venue);
-  return query
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
-    : null;
+  return query ? buildOpenUrl(query) : null;
 }

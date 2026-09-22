@@ -6,8 +6,13 @@ const axiosInstance = axios.create({
   withCredentials: true
 });
 
+// Impersonation tokens live in sessionStorage (tab-scoped), never
+// localStorage (shared across every tab of this origin). This is what
+// stops an admin opening "view as vendor" in a new tab from silently
+// swapping out their own logged-in session in the tab they started from.
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
+  const impersonationToken = sessionStorage.getItem("impersonationToken");
+  const token = impersonationToken || localStorage.getItem("accessToken");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,18 +28,38 @@ axiosInstance.interceptors.response.use(
     const originalRequest = error.config;
     const errorCode = error.response?.data?.errors?.code;
 
+    const isImpersonating = !!sessionStorage.getItem("impersonationToken");
+
     // Deactivation is not a token-expiry problem  - never attempt a refresh
     // for this, just send the user straight to a clear "deactivated" screen.
     if (
       error.response?.status === 403 &&
       (errorCode === "ACCOUNT_DEACTIVATED" || errorCode === "VENUE_DEACTIVATED")
     ) {
+      if (isImpersonating) {
+        sessionStorage.removeItem("impersonationToken");
+        sessionStorage.removeItem("authRole");
+        const message = error.response.data.message;
+        window.location.href = `/account-deactivated?msg=${encodeURIComponent(message)}&role=owner`;
+        return new Promise(() => {});
+      }
       const wasTeamMember = localStorage.getItem("authRole") === "team_member";
       localStorage.removeItem("accessToken");
       localStorage.removeItem("authRole");
       const message = error.response.data.message;
       window.location.href = `/account-deactivated?msg=${encodeURIComponent(message)}&role=${wasTeamMember ? "team_member" : "owner"}`;
       return new Promise(() => {}); // stop this request chain  - we're navigating away
+    }
+
+    // An impersonation token is short-lived on purpose and has no refresh
+    // token of its own (the browser's refreshToken cookie belongs to the
+    // admin's own session, not the impersonated vendor)  - so on 401 just
+    // end the impersonation view instead of trying to refresh with it.
+    if (error.response?.status === 401 && isImpersonating) {
+      sessionStorage.removeItem("impersonationToken");
+      sessionStorage.removeItem("authRole");
+      window.location.href = "/login?error=" + encodeURIComponent("Your admin preview session has expired.");
+      return new Promise(() => {});
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {

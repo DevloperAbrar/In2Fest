@@ -103,6 +103,110 @@ async function createVenue(payload) {
   return venue;
 }
 
+/**
+ * Finds an existing venue_owner account by email, or creates a new one.
+ * No password_hash and no google_id are set  - the account sits "unclaimed"
+ * until the real vendor signs in with Google using this same email, at
+ * which point google.strategy.js links it automatically (it already looks
+ * up by email when google_id isn't found).
+ */
+async function findOrCreateOwnerByEmail(email, name) {
+  const normalizedEmail = String(email).toLowerCase().trim();
+  let user = await User.findOne({ where: { email: normalizedEmail } });
+
+  if (user) {
+    if (user.role !== "venue_owner") {
+      throw new AppError("This email is already registered as a different type of account.", 409);
+    }
+    if (!user.is_active) {
+      throw new AppError("This email belongs to a deactivated account.", 409);
+    }
+    return user;
+  }
+
+  return User.create({
+    name: name && name.trim() ? name.trim() : normalizedEmail.split("@")[0],
+    email: normalizedEmail,
+    role: "venue_owner"
+  });
+}
+
+/**
+ * Super-admin creates a vendor + venue on the vendor's behalf, using only
+ * the vendor's email  - no password/Google login needed from the vendor at
+ * this point. Reuses the normal createVenue() so the resulting venue is
+ * identical (subdomain, default sections, free trial subscription) to one
+ * a vendor would have made themselves.
+ *
+ * Idempotent by email: if this vendor already has a venue (an earlier admin
+ * submission succeeded, or the vendor already signed up on their own),
+ * this does NOT error out  - it just hands back their existing venue so
+ * "Add Vendor" behaves like "Open vendor" instead of dead-ending.
+ */
+async function adminCreateVenue(payload) {
+  const { owner_email, owner_name, ...venuePayload } = payload;
+
+  if (!owner_email) {
+    throw new AppError("Vendor email is required", 400);
+  }
+  if (!venuePayload.hall_name) {
+    throw new AppError("Business/venue name is required", 400);
+  }
+
+  const owner = await findOrCreateOwnerByEmail(owner_email, owner_name);
+
+  const existingVenue = await Venue.findOne({ where: { owner_id: owner.id } });
+  if (existingVenue) {
+    return {
+      venue: existingVenue,
+      owner: { id: owner.id, name: owner.name, email: owner.email },
+      already_existed: true
+    };
+  }
+
+  const venue = await createVenue({
+    ...venuePayload,
+    owner_name: owner_name || venuePayload.owner_name,
+    owner_id: owner.id
+  });
+
+  return {
+    venue,
+    owner: { id: owner.id, name: owner.name, email: owner.email },
+    already_existed: false
+  };
+}
+
+/**
+ * Issues a short-lived access token for the venue's owner so a super_admin
+ * can open the vendor dashboard exactly as the vendor would see it, without
+ * ever having (or needing) the vendor's password.
+ */
+async function impersonateVenueOwner(venueId, adminUser) {
+  const venue = await Venue.findByPk(venueId, {
+    include: [{ model: User, as: "owner" }]
+  });
+  if (!venue) throw new AppError("Venue not found", 404);
+
+  const owner = venue.owner;
+  if (!owner) throw new AppError("This venue has no owner account", 404);
+  if (!owner.is_active) throw new AppError("This vendor's account is deactivated", 403);
+
+  const { generateImpersonationToken } = require("../auth/jwt.service");
+  const accessToken = generateImpersonationToken(owner, adminUser.id);
+
+  // Lightweight audit trail  - who impersonated whom, and when.
+  console.log(
+    `[IMPERSONATION] admin=${adminUser.email} (${adminUser.id}) -> owner=${owner.email} (${owner.id}) venue=${venue.id} at=${new Date().toISOString()}`
+  );
+
+  return {
+    accessToken,
+    venue: { id: venue.id, hall_name: venue.hall_name },
+    owner: { id: owner.id, name: owner.name, email: owner.email }
+  };
+}
+
 async function getVenueById(venueId) {
   const venue = await Venue.findByPk(venueId, {
     include: [
@@ -365,6 +469,8 @@ async function recalculateSetupChecklist(venue) {
 
 module.exports = {
   createVenue,
+  adminCreateVenue,
+  impersonateVenueOwner,
   getVenueById,
   getVenuesByOwner,
   updateVenue,

@@ -10,6 +10,28 @@ async function createVenue(req, res, next) {
   }
 }
 
+// Super Admin  - create a vendor + venue using just the vendor's email.
+// No password/Google login is needed from the vendor for this step.
+async function adminCreateVenue(req, res, next) {
+  try {
+    const result = await venueService.adminCreateVenue(req.body);
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// Super Admin  - get a short-lived token to open the dashboard as this
+// venue's owner (e.g. to finish setup for them, or to troubleshoot).
+async function impersonateVenue(req, res, next) {
+  try {
+    const result = await venueService.impersonateVenueOwner(req.params.id, req.user);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function getMyVenues(req, res, next) {
   try {
     const venues = await venueService.getVenuesByOwner(req.user.id);
@@ -132,6 +154,8 @@ async function uploadSectionImage(req, res, next) {
 
 module.exports = {
   createVenue,
+  adminCreateVenue,
+  impersonateVenue,
   getMyVenues,
   getVenue,
   updateVenue,

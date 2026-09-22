@@ -12,7 +12,7 @@ import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { venueService } from "../../../services/venueService";
 import { formatDate } from "../../../lib/formatters";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 
 export default function VenueList() {
   const navigate = useNavigate();
@@ -44,14 +44,19 @@ export default function VenueList() {
 
   return (
     <DashboardLayout sidebarItems={adminSidebarItems} pageTitle="Venues">
-      <div className="mb-4 max-w-sm relative">
-        <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-        <Input
-          placeholder="Search by name or city..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="max-w-sm relative flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+          <Input
+            placeholder="Search by name or city..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={() => navigate("/admin/venues/new")}>
+          <Plus size={16} /> Add Vendor
+        </Button>
       </div>
 
       {loading ? (

@@ -19,6 +19,11 @@ router.get("/preview/:subdomain", authenticate, controller.previewVenue);
 router.post("/", authenticate, requireRole("venue_owner"), controller.createVenue);
 router.get("/my", authenticate, requireRole("venue_owner"), controller.getMyVenues);
 
+// Super Admin  - onboard a vendor on their behalf (email only, no password),
+// then impersonate them to finish setup / view+update their dashboard.
+router.post("/admin/create", authenticate, requireRole("super_admin"), controller.adminCreateVenue);
+router.post("/:id/impersonate", authenticate, requireRole("super_admin"), controller.impersonateVenue);
+
 router.post(
   "/:id/hero-image",
   authenticate,

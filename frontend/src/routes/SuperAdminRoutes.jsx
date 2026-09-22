@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 
 import SuperAdminDashboard from "../features/superadmin/dashboard/SuperAdminDashboard.jsx";
 import VenueList from "../features/superadmin/venues/VenueList.jsx";
+import AddVendor from "../features/superadmin/venues/AddVendor.jsx";
 import VenueDetail from "../features/superadmin/venues/VenueDetail.jsx";
 import PlanList from "../features/superadmin/plans/PlanList.jsx";
 import PaymentList from "../features/superadmin/payments/PaymentList.jsx";
@@ -25,6 +26,7 @@ export default function SuperAdminRoutes() {
     <Routes>
       <Route index element={<SuperAdminDashboard />} />
       <Route path="venues" element={<VenueList />} />
+      <Route path="venues/new" element={<AddVendor />} />
       <Route path="venues/:id" element={<VenueDetail />} />
       <Route path="plans" element={<PlanList />} />
       <Route path="payments" element={<PaymentList />} />

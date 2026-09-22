@@ -6,9 +6,15 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // True only in a tab that opened an admin "view as vendor" session.
+  // Scoped via sessionStorage so it never leaks into the admin's other tabs.
+  const [isImpersonating, setIsImpersonating] = useState(
+    () => !!sessionStorage.getItem("impersonationToken")
+  );
 
   const fetchCurrentUser = async () => {
-    const token = localStorage.getItem("accessToken");
+    const impersonationToken = sessionStorage.getItem("impersonationToken");
+    const token = impersonationToken || localStorage.getItem("accessToken");
     if (!token) {
       setLoading(false);
       return;
@@ -16,10 +22,17 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await axiosInstance.get("/auth/me");
       setUser(data.data);
+      setIsImpersonating(!!impersonationToken);
     } catch {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("authRole");
+      if (impersonationToken) {
+        sessionStorage.removeItem("impersonationToken");
+        sessionStorage.removeItem("authRole");
+      } else {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("authRole");
+      }
       setUser(null);
+      setIsImpersonating(false);
     } finally {
       setLoading(false);
     }
@@ -67,7 +80,34 @@ export function AuthProvider({ children }) {
     await fetchCurrentUser();
   };
 
+  // Super-admin "view as vendor". Stored in sessionStorage (this tab only)
+  // so it can never overwrite a real login sitting in localStorage.
+  const startImpersonation = async (token) => {
+    sessionStorage.setItem("impersonationToken", token);
+    sessionStorage.setItem("authRole", "venue_owner");
+    await fetchCurrentUser();
+  };
+
+  // Ends the preview in this tab only. Deliberately does NOT call
+  // /auth/logout  - that would clear the refreshToken cookie, which is
+  // shared by the browser and belongs to the admin's own real session.
+  const exitImpersonation = () => {
+    sessionStorage.removeItem("impersonationToken");
+    sessionStorage.removeItem("authRole");
+    setUser(null);
+    setIsImpersonating(false);
+    if (window.opener) {
+      window.close();
+    } else {
+      window.location.href = "/login";
+    }
+  };
+
   const logout = async () => {
+    if (isImpersonating) {
+      exitImpersonation();
+      return;
+    }
     await axiosInstance.post("/auth/logout").catch(() => {});
     localStorage.removeItem("accessToken");
     localStorage.removeItem("authRole");
@@ -75,7 +115,19 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginAdmin, loginTeamMember, setTokenFromGoogleCallback, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        isImpersonating,
+        loginAdmin,
+        loginTeamMember,
+        setTokenFromGoogleCallback,
+        startImpersonation,
+        exitImpersonation,
+        logout
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
