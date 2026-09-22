@@ -1,9 +1,11 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import ProtectedRoute from "../components/layout/ProtectedRoute";
+import { ADMIN_LOGIN_PATH } from "../lib/constants";
 
 import LoginPage from "../features/auth/LoginPage.jsx";
 import TeamLoginPage from "../features/auth/TeamLoginPage.jsx";
+import SuperAdminLoginPage from "../features/auth/SuperAdminLoginPage.jsx";
 import AuthCallback from "../features/auth/AuthCallback.jsx";
 import AccountDeactivatedPage from "../features/auth/AccountDeactivatedPage.jsx";
 import SuperAdminRoutes from "./SuperAdminRoutes.jsx";
@@ -15,6 +17,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/team-login" element={<TeamLoginPage />} />
+      <Route path={ADMIN_LOGIN_PATH} element={<SuperAdminLoginPage />} />
       <Route path="/account-deactivated" element={<AccountDeactivatedPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
 

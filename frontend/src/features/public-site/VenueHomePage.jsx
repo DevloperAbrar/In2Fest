@@ -10,7 +10,7 @@ import TestimonialsSection from "./venue-home/TestimonialsSection.jsx";
 import ContactSection from "./venue-home/ContactSection.jsx";
 import AvailabilityCalendar from "./availability-calendar/AvailabilityCalendar.jsx";
 import DynamicSectionRenderer from "./venue-home/DynamicSectionRenderer.jsx";
-import PlatformHomePage from "../platform/PlatformHomePage.jsx";
+import LoginPage from "../auth/LoginPage.jsx";
 import { getTemplateSections } from "./templates/index.jsx";
 
 const DEFAULT_SECTIONS = {
@@ -67,7 +67,7 @@ export default function VenueHomePage() {
   );
 
   if (venueLoading) return <Loader fullScreen />;
-  if (!subdomain) return <PlatformHomePage />;
+  if (!subdomain) return <LoginPage />;
 
   if (!venue) {
     return (
