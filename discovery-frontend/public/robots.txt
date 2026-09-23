@@ -1,10 +1,26 @@
 User-agent: *
 Allow: /
 
+# Keep private/app routes out of index
 Disallow: /dashboard/
 Disallow: /api/
+Disallow: /auth/
+Disallow: /admin/
+Disallow: /*?*sort=
+Disallow: /*?*page=
+Allow: /*?*q=
 
+# Google specific
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+# Bing / Edge
+User-agent: Bingbot
+Allow: /
 Crawl-delay: 2
 
+# Sitemaps
 Sitemap: https://www.in2fest.com/sitemap.xml
 Sitemap: https://www.in2fest.com/sitemap-images.xml
+Sitemap: https://www.in2fest.com/sitemap-vendors.xml
