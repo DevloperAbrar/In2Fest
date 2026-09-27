@@ -91,8 +91,12 @@ async function createVenue(payload) {
     const plan = await Plan.findByPk(payload.plan_id);
     if (!plan) throw new AppError("Plan not found", 404);
 
-    if (Number(plan.monthly_price) > 0 && Number(plan.trial_days) === 0) {
-      // intentionally skipped — awaiting payment
+    if (Number(plan.monthly_price) > 0) {
+      // Paid plan — intentionally skip creating a subscription here.
+      // The vendor must complete Cashfree checkout first; the subscription
+      // is only created in payment.controller.verifyPayment after Cashfree
+      // confirms the order as PAID. This now matches the frontend's
+      // needsPayment check, which no longer looks at trial_days.
     } else {
       await createSubscription(venue.id, payload.plan_id);
     }

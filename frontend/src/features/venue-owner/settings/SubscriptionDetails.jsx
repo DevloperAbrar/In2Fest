@@ -12,7 +12,7 @@ import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatCurrency, formatDate } from "../../../lib/formatters";
 import { translatePlanName } from "../../../lib/i18nLabels";
 import { paymentService } from "../../../services/paymentService";
-import { openRazorpayCheckout } from "../../../lib/razorpay";
+import { openCashfreeCheckout } from "../../../lib/cashfree";
 import api from "../../../services/api";
 import {
   Check,
@@ -96,19 +96,18 @@ export default function SubscriptionDetails() {
       return;
     }
 
-    // ── Paid plan: must complete Razorpay payment before the switch applies ──
+    // ── Paid plan: must complete Cashfree payment before the switch applies ──
     try {
-      const { data } = await paymentService.createOrder(venue.id, upgradeTarget.id);
-      const { order, keyId } = data.data;
+      const { data } = await paymentService.createOrder(venue.id, upgradeTarget.id, "/dashboard/settings/subscription");
+      const { orderId, paymentSessionId, mode } = data.data;
 
-      openRazorpayCheckout({
-        order,
-        keyId,
-        description: `Switch to ${upgradeTarget.name} Plan`,
-        onSuccess: async (paymentPayload) => {
+      openCashfreeCheckout({
+        paymentSessionId,
+        mode,
+        onSuccess: async () => {
           try {
             await paymentService.verifyPayment({
-              ...paymentPayload,
+              orderId,
               venueId: venue.id,
               planId: upgradeTarget.id
             });

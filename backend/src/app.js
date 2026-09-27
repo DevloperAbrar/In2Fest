@@ -42,8 +42,8 @@ app.use(
 );
 
 app.use("/", sitemapRoutes);
-const razorpayWebhookRoutes = require("./modules/payments/razorpay.webhook");
-app.use("/api/webhooks", razorpayWebhookRoutes); // must be before express.json() for raw-body HMAC
+const cashfreeWebhookRoutes = require("./modules/payments/cashfree.webhook");
+app.use("/api/webhooks", cashfreeWebhookRoutes); // must be before express.json() for raw-body HMAC
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(cookieParser());

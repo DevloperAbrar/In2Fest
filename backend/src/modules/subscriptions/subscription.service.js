@@ -87,7 +87,7 @@ async function renewSubscription(venueId) {
 /**
  * FREE-PLAN SWITCH ONLY. Downgrading to a ₹0 plan needs no payment, so this
  * applies immediately. Any plan with monthly_price > 0 is rejected here —
- * the frontend must go through the Razorpay flow and hit
+ * the frontend must go through the Cashfree flow and hit
  * switchPlanAfterPayment() instead, via payment.controller.verifyPayment.
  */
 async function changePlan(venueId, newPlanId) {
@@ -117,7 +117,7 @@ async function changePlan(venueId, newPlanId) {
 
 /**
  * PAID-PLAN SWITCH. Only ever called from payment.controller.verifyPayment,
- * AFTER the Razorpay signature has been verified — never reachable directly
+ * AFTER Cashfree has confirmed the order as PAID — never reachable directly
  * from a client request. Locks in the new plan's price, clears any trial,
  * and starts a fresh billing period from the moment of payment.
  */

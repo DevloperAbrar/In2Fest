@@ -10,7 +10,7 @@ import Loader from "../../../components/common/Loader";
 import Button from "../../../components/common/Button";
 import { venueService } from "../../../services/venueService";
 import { paymentService } from "../../../services/paymentService";
-import { openRazorpayCheckout } from "../../../lib/razorpay";
+import { openCashfreeCheckout } from "../../../lib/cashfree";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import {
@@ -86,7 +86,7 @@ export default function VenueDetailsForm() {
   const location = useLocation();
   const plan = location.state?.plan;
   const planId = plan?.id;
-  const needsPayment = !!plan && Number(plan.monthly_price) > 0 && Number(plan.trial_days) === 0;
+  const needsPayment = !!plan && Number(plan.monthly_price) > 0;
   const { refetchVenue } = useVenue();
 
   const [step, setStep] = useState(1);
@@ -144,22 +144,21 @@ export default function VenueDetailsForm() {
     setStep(2);
   }
 
-  function startRazorpayPayment(venue) {
+  function startCashfreePayment(venue) {
     setPayingNow(true);
 
     paymentService
-      .createOrder(venue.id, planId)
+      .createOrder(venue.id, planId, "/dashboard")
       .then(({ data }) => {
-        const { order, keyId } = data.data;
+        const { orderId, paymentSessionId, mode } = data.data;
 
-        openRazorpayCheckout({
-          order,
-          keyId,
-          description: `${plan.name} Plan Subscription`,
-          onSuccess: async (paymentPayload) => {
+        openCashfreeCheckout({
+          paymentSessionId,
+          mode,
+          onSuccess: async () => {
             try {
               await paymentService.verifyPayment({
-                ...paymentPayload,
+                orderId,
                 venueId: venue.id,
                 planId
               });
@@ -202,7 +201,7 @@ export default function VenueDetailsForm() {
       const venue = data.data;
 
       if (needsPayment) {
-        startRazorpayPayment(venue);
+        startCashfreePayment(venue);
       } else {
         showSuccess("You're live! Let's finish setting up your page.");
         await refetchVenue();

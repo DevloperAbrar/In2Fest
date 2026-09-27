@@ -2,7 +2,6 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:50
 export const BACKEND_URL = API_BASE_URL.replace("/api", ""); // e.g. http://localhost:5000
 export const BASE_DOMAIN = import.meta.env.VITE_BASE_DOMAIN || "venuesafar.com";
 export const DISCOVERY_URL = import.meta.env.VITE_DISCOVERY_URL || "http://localhost:3001";
-export const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID;
 
 // Secret, unguessable path for the super-admin login screen.
 // Set VITE_ADMIN_LOGIN_PATH in your .env (no leading slash needed, it's added below).

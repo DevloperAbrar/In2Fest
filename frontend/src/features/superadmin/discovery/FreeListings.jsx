@@ -22,7 +22,7 @@ export default function FreeListings() {
   };
   const sendUpgrade = async (id) => {
     try { await adminDiscoveryService.sendUpgradeLink(id); showSuccess("Upgrade link sent"); }
-    catch { showError("Could not send upgrade link  - check Razorpay config"); }
+    catch { showError("Could not send upgrade link  - check Cashfree config"); }
   };
 
   if (loading) return <DashboardLayout sidebarItems={adminSidebarItems} pageTitle="Free Listings"><Loader fullScreen /></DashboardLayout>;

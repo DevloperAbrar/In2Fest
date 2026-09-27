@@ -164,7 +164,7 @@ async function getRevenueByPlan(req, res, next) {
   }
 }
 
-// NEW  - successful payments grouped by method (razorpay / upi_manual / cash_manual / bank_transfer)
+// NEW  - successful payments grouped by method (cashfree / upi_manual / cash_manual / bank_transfer)
 async function getPaymentMethodBreakdown(req, res, next) {
   try {
     const rows = await Payment.findAll({

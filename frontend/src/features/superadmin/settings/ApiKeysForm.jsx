@@ -14,8 +14,8 @@ export default function ApiKeysForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <Input label="Razorpay Key ID" {...register("razorpayKeyId")} />
-      <Input label="Razorpay Key Secret" type="password" {...register("razorpayKeySecret")} />
+      <Input label="Cashfree App ID" {...register("cashfreeAppId")} />
+      <Input label="Cashfree Secret Key" type="password" {...register("cashfreeSecretKey")} />
       <Input label="WhatsApp API Key" type="password" {...register("whatsappApiKey")} />
       <Button type="submit" loading={isSubmitting}>Save Keys</Button>
     </form>
