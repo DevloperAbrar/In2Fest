@@ -46,9 +46,18 @@ async function compressBuffer(buffer, mimetype, options = {}) {
   return pipeline.toBuffer();
 }
 
+// AFTER — replace with this:
 async function createVenue(payload) {
   const existingVenue = await Venue.findOne({ where: { owner_id: payload.owner_id } });
   if (existingVenue) {
+    // If venue exists but has NO subscription yet, it means a previous attempt
+    // created the venue but payment failed before verifyPayment could create
+    // the subscription. Allow the frontend to resume payment using the
+    // existing venue instead of dead-ending with a 409.
+    const existingSub = await Subscription.findOne({ where: { venue_id: existingVenue.id } });
+    if (!existingSub) {
+      return existingVenue;
+    }
     throw new AppError("You already have a business profile. Only one profile is allowed per account.", 409);
   }
 
