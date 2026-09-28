@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useVenue } from "../../../context/VenueContext.jsx";
@@ -10,13 +10,28 @@ import { showSuccess } from "../../../components/common/Toast";
 
 export default function ReferralsPage() {
   const { venue } = useVenue();
-  const { data, loading } = useFetch(venue ? "/referrals/me" : null, { skip: !venue });
+  // NOTE: useFetch already unwraps res.data.data, so `data` IS the referral object.
+  const { data: ref, loading, error } = useFetch(venue ? "/referrals/me" : null, { skip: !venue });
 
-  if (loading) return <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Referrals"><Loader fullScreen /></DashboardLayout>;
+  if (loading) {
+    return (
+      <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Referrals">
+        <Loader fullScreen />
+      </DashboardLayout>
+    );
+  }
 
-  const ref = data?.data;
+  if (error) {
+    return (
+      <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Referrals">
+        <div className="max-w-xl mx-auto mt-16 text-center bg-white rounded-2xl border border-red-100 p-10">
+          <p className="text-sm text-red-600">Could not load referrals: {error}</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  // Free plan / no referral code
+  // Free plan / no referral code yet
   if (!ref?.code) {
     return (
       <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Referrals">
@@ -26,7 +41,10 @@ export default function ReferralsPage() {
           <p className="text-sm text-navy-500">
             Upgrade to a paid plan to unlock your unique referral link and earn ₹ credit when friends join In2Fest.
           </p>
-          <a href="/dashboard/settings/subscription" className="inline-block mt-6 px-6 py-2.5 rounded-full bg-primary-600 text-white font-semibold text-sm hover:bg-primary-700 transition-colors">
+          
+         <a   href="/dashboard/settings/subscription"
+            className="inline-block mt-6 px-6 py-2.5 rounded-full bg-primary-600 text-white font-semibold text-sm hover:bg-primary-700 transition-colors"
+          >
             View Plans
           </a>
         </div>
@@ -48,7 +66,9 @@ export default function ReferralsPage() {
       {/* Link card */}
       <div className="bg-white rounded-2xl border border-navy-100 shadow-card p-5 mb-6">
         <h2 className="font-display font-semibold text-navy-800 mb-1">Your referral link</h2>
-        <p className="text-xs text-navy-400 mb-3">Share this link — your friend gets 12% off, you earn 25% credit when they pay.</p>
+        <p className="text-xs text-navy-400 mb-3">
+          Share this link — your friend gets 12% off, you earn 25% credit when they pay.
+        </p>
         <div className="flex gap-2">
           <input
             readOnly
@@ -62,7 +82,7 @@ export default function ReferralsPage() {
             <Copy size={14} /> Copy
           </button>
           
-           <a href={`https://wa.me/?text=${whatsappText}`}
+         <a   href={`https://wa.me/?text=${whatsappText}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 transition-colors"
@@ -70,6 +90,9 @@ export default function ReferralsPage() {
             <Share2 size={14} /> WhatsApp
           </a>
         </div>
+        <p className="text-xs text-navy-400 mt-3">
+          Your code: <span className="font-semibold text-navy-700">{ref.code}</span>
+        </p>
       </div>
 
       {/* Stats cards */}
@@ -101,7 +124,9 @@ export default function ReferralsPage() {
       <div className="bg-white rounded-2xl border border-navy-100 shadow-card p-5">
         <h2 className="font-display font-semibold text-navy-800 mb-4">Referral history</h2>
         {(ref.history || []).length === 0 ? (
-          <p className="text-sm text-navy-400 py-6 text-center">No referrals yet. Share your link to get started!</p>
+          <p className="text-sm text-navy-400 py-6 text-center">
+            No referrals yet. Share your link to get started!
+          </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -117,11 +142,13 @@ export default function ReferralsPage() {
                 <tr key={row.id} className="border-b border-navy-100/60 last:border-0">
                   <td className="py-2.5 text-navy-700">{row.friend_name}</td>
                   <td className="py-2.5">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      row.status === "Paid"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-navy-50 text-navy-600"
-                    }`}>
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        row.status === "Paid"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-navy-50 text-navy-600"
+                      }`}
+                    >
                       {row.status}
                     </span>
                   </td>

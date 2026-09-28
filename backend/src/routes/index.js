@@ -6,6 +6,7 @@ const venueRoutes = require("../modules/venues/venue.routes");
 const planRoutes = require("../modules/plans/plan.routes");
 const subscriptionRoutes = require("../modules/subscriptions/subscription.routes");
 const paymentRoutes = require("../modules/payments/payment.routes");
+const referralRoutes = require("../modules/referrals/referral.routes");
 const slotRoutes = require("../modules/slots/slot.routes");
 const inquiryRoutes = require("../modules/inquiries/inquiry.routes");
 const bookingRoutes = require("../modules/bookings/booking.routes");
@@ -39,7 +40,8 @@ router.use("/public-auth", publicAuthRoutes);
 router.use("/venues", venueRoutes);
 router.use("/plans", planRoutes);
 router.use("/subscriptions", subscriptionRoutes);
-router.use("/payments", paymentRoutes); 
+router.use("/payments", paymentRoutes);
+router.use("/referrals", referralRoutes);
 
 // Nested-by-venue resources (mergeParams routers)
 router.use("/venues/:venueId/slots", slotRoutes);

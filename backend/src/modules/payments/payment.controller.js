@@ -6,7 +6,27 @@ const subscriptionService = require("../subscriptions/subscription.service");
 const referralService = require("../referrals/referral.service");
 const { AppError } = require("../../middleware/error.middleware");
 const env = require("../../config/env");
-const { getAmountForCycle, normalizeCycle, computeQuote, roundRupee } = require("../plans/planPricing");
+const { normalizeCycle, computeQuote } = require("../plans/planPricing");
+
+/**
+ * Makes sure the logged-in owner really owns this venue.
+ * Prevents reading another venue's credit balance or paying for it.
+ */
+async function loadOwnedVenue(venueId, userId, options = {}) {
+  const venue = await Venue.findOne({ where: { id: venueId, owner_id: userId }, ...options });
+  if (!venue) throw new AppError("Venue not found or access denied", 404);
+  return venue;
+}
+
+/**
+ * Single place that builds a quote so create-order, verify and quote
+ * endpoints can never disagree.
+ */
+async function buildQuote(plan, cycle, venueId) {
+  const creditAvail = await referralService.getCreditBalance(venueId);
+  const friendPercent = await referralService.getFriendDiscountPercent(venueId);
+  return computeQuote(plan, cycle, creditAvail, env.gstRate, friendPercent);
+}
 
 /**
  * Creates a Cashfree order for a venue's subscription payment.
@@ -23,17 +43,14 @@ async function createOrder(req, res, next) {
     if (!plan) throw new AppError("Plan not found", 404);
     if (!plan.is_active) throw new AppError("This plan is no longer available", 400);
 
-    const venue = await Venue.findByPk(venueId, {
+    const venue = await loadOwnedVenue(venueId, req.user.id, {
       include: [{ model: User, as: "owner" }]
     });
-    if (!venue) throw new AppError("Venue not found", 404);
 
-    // Server-side quote (GST + credit)
-    const creditAvail = await referralService.getCreditBalance(venueId);
-    const quote = computeQuote(plan, cycle, creditAvail, env.gstRate, env.referral.friendPercent);
+    const quote = await buildQuote(plan, cycle, venueId);
 
     if (quote.is_free) {
-      // No Cashfree order needed — activate directly
+      // Credit covers everything - no Cashfree order needed
       return res.json({
         success: true,
         data: {
@@ -107,6 +124,8 @@ async function verifyPayment(req, res, next) {
 
     if (!venueId || !planId) throw new AppError("venueId and planId required", 400);
 
+    await loadOwnedVenue(venueId, req.user.id);
+
     const plan = await Plan.findByPk(planId);
     if (!plan) throw new AppError("Plan not found", 404);
 
@@ -115,17 +134,13 @@ async function verifyPayment(req, res, next) {
       let cycle, paidAmount, cfPaymentId = null;
 
       if (creditOnly) {
-        // Full credit cover — no Cashfree involved
-        const creditAvail = await referralService.getCreditBalance(venueId);
-        const quote = computeQuote(plan, req.body.billingCycle || "monthly", creditAvail, env.gstRate, env.referral.friendPercent);
+        // Full credit cover - no Cashfree involved
+        cycle = normalizeCycle(req.body.billingCycle);
+        const quote = await buildQuote(plan, cycle, venueId);
         if (!quote.is_free) {
-          await t.rollback();
           throw new AppError("Credit does not fully cover this order", 400);
         }
-        cycle = normalizeCycle(req.body.billingCycle);
-        paidAmount = 0;
 
-        // Deduct credit
         const dummyPaymentId = `credit_${venueId}_${Date.now()}`;
         await referralService.spendCredit(t, venueId, quote.credit_used, dummyPaymentId);
 
@@ -142,7 +157,7 @@ async function verifyPayment(req, res, next) {
           await subscription.save();
         }
 
-        const paymentRow = await Payment.create({
+        await Payment.create({
           venue_id: venueId,
           amount: 0,
           method: "credit",
@@ -159,42 +174,53 @@ async function verifyPayment(req, res, next) {
           notes: `Credit-only payment. Billing: ${cycle}`
         }, { transaction: t });
 
-        await referralService.maybeAssignReferralCode(venueId);
         await t.commit();
+
+        // After commit so the subscription is visible to the eligibility check
+        await referralService.maybeAssignReferralCode(venueId);
         return res.json({ success: true, data: subscription });
       }
 
       // Normal Cashfree payment
       if (!orderId) throw new AppError("orderId is required", 400);
       if (!orderId.startsWith(`order_${venueId}_`)) {
-        await t.rollback();
         throw new AppError("This order does not belong to this venue", 400);
       }
 
+      // Idempotency: same order verified twice (reload / double callback) must not renew twice
+      const alreadyRecorded = await Payment.findOne({ where: { cf_order_id: orderId }, transaction: t });
+      if (alreadyRecorded) {
+        await t.rollback();
+        const sub = await Subscription.findOne({ where: { venue_id: venueId } });
+        return res.json({ success: true, data: sub });
+      }
+
       const cashfree = getCashfreeClient();
-      if (!cashfree) { await t.rollback(); throw new AppError("Payment gateway not configured", 503); }
+      if (!cashfree) throw new AppError("Payment gateway not configured", 503);
 
       let cfOrder;
       try {
         const { data } = await cashfree.get(`/orders/${orderId}`);
         cfOrder = data;
       } catch (cashfreeError) {
-        await t.rollback();
         const description = cashfreeError?.response?.data?.message || cashfreeError?.message || "Could not verify the payment";
         throw new AppError(`Payment gateway error: ${description}`, 502);
       }
 
       if (cfOrder.order_status !== "PAID") {
-        await t.rollback();
         throw new AppError(`Payment not completed (status: ${cfOrder.order_status})`, 402);
       }
 
       cycle = normalizeCycle(cfOrder.order_tags?.billing_cycle);
       paidAmount = Number(cfOrder.order_amount);
 
-      // Re-compute server-side quote to get breakdown
-      const creditAvail = await referralService.getCreditBalance(venueId);
-      const quote = computeQuote(plan, cycle, creditAvail, env.gstRate, env.referral.friendPercent);
+      // Re-compute server-side quote to get the breakdown
+      const quote = await buildQuote(plan, cycle, venueId);
+      if (Math.abs(quote.total_payable - paidAmount) > 1) {
+        console.warn(
+          `[PAYMENT] Amount mismatch for ${orderId}: quote=${quote.total_payable} paid=${paidAmount}`
+        );
+      }
 
       try {
         const { data: attempts } = await cashfree.get(`/orders/${orderId}/payments`);
@@ -216,7 +242,7 @@ async function verifyPayment(req, res, next) {
         await subscription.save();
       }
 
-      // Spend credit (FIFO, row-locked) — only after payment confirmed
+      // Spend credit (FIFO, row-locked) - only after payment confirmed
       let actualCreditUsed = 0;
       if (quote.credit_used > 0) {
         actualCreditUsed = await referralService.spendCredit(t, venueId, quote.credit_used, orderId);
@@ -241,12 +267,12 @@ async function verifyPayment(req, res, next) {
         notes: `Billing: ${cycle}`
       }, { transaction: t });
 
-      // Handle referral reward for referrer (first payment of referred venue)
+      // Referral reward for the referrer (first payment of the referred venue)
       await referralService.handlePostPaymentReferral(t, paymentRow, venueId, quote.taxable_amount);
 
       await t.commit();
 
-      // Assign referral code now that venue is on a paid plan
+      // Venue is now on a paid plan - give it its own referral code
       await referralService.maybeAssignReferralCode(venueId);
 
       res.json({ success: true, data: subscription });
@@ -314,6 +340,7 @@ async function recordManualPayment(req, res, next) {
     });
 
     await subscriptionService.renewSubscription(venueId);
+    await referralService.maybeAssignReferralCode(venueId);
 
     res.status(201).json({ success: true, data: payment });
   } catch (error) {
@@ -325,7 +352,7 @@ async function listPayments(req, res, next) {
   try {
     const { venueId } = req.query;
     const where = venueId ? { venue_id: venueId } : {};
-    const payments = await Payment.findAll({ where, order: [["created_at", "DESC"]] });
+    const payments = await Payment.findAll({ where, order: [["createdAt", "DESC"]] });
     res.json({ success: true, data: payments });
   } catch (error) {
     next(error);
@@ -337,17 +364,12 @@ async function getQuote(req, res, next) {
     const { venueId, planId, billingCycle } = req.query;
     if (!venueId || !planId) throw new AppError("venueId and planId required", 400);
 
+    await loadOwnedVenue(venueId, req.user.id);
+
     const plan = await Plan.findByPk(planId);
     if (!plan) throw new AppError("Plan not found", 404);
 
-    const referralService = require("../referrals/referral.service");
-    const { computeQuote, normalizeCycle } = require("../plans/planPricing");
-    const env = require("../../config/env");
-
-    const cycle = normalizeCycle(billingCycle);
-    const creditAvail = await referralService.getCreditBalance(venueId);
-    const quote = computeQuote(plan, cycle, creditAvail, env.gstRate, env.referral.friendPercent);
-
+    const quote = await buildQuote(plan, normalizeCycle(billingCycle), venueId);
     res.json({ success: true, data: quote });
   } catch (err) {
     next(err);
@@ -360,5 +382,5 @@ module.exports = {
   handleWebhook,
   recordManualPayment,
   listPayments,
-  getQuote   
+  getQuote
 };
