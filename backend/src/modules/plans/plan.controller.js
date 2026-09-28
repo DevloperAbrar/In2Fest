@@ -22,7 +22,7 @@ async function getAllPlans(req, res, next) {
 async function getPlan(req, res, next) {
   try {
     const plan = await planService.getPlanById(req.params.id);
-    res.json({ success: true, data: plan });
+    res.json({ success: true, data: planService.withPricing(plan) });
   } catch (error) {
     next(error);
   }

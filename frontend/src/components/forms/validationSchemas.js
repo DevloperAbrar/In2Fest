@@ -46,10 +46,23 @@ export const teamLoginSchema = yup.object({
   password: yup.string().required("Password is required")
 });
 
+const optionalNumber = yup
+  .number()
+  .transform((value, original) => (original === "" || original === null || original === undefined ? null : value))
+  .nullable();
+
 export const planSchema = yup.object({
   name: yup.string().required("Plan name is required"),
   monthly_price: yup.number().min(0, "Price cannot be negative").required("monthly_price must be a positive number"),
-  trial_days: yup.number().min(0).required()
+  yearly_price: optionalNumber.min(0, "Yearly price cannot be negative"),
+  trial_days: yup.number().min(0).required(),
+  discount_percent: yup
+    .number()
+    .transform((value, original) => (original === "" || original === null || original === undefined ? 0 : value))
+    .min(0, "Discount cannot be negative")
+    .max(90, "Discount can't be more than 90%"),
+  offer_name: yup.string().nullable(),
+  offer_ends_at: yup.string().nullable()
 });
 
 export function getBusinessDetailsSchema(group) {

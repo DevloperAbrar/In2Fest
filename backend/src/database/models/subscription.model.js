@@ -12,6 +12,13 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       comment: "Price locked in at subscription time - never changes even if plan price changes later"
     },
+    billing_cycle: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: "monthly",
+      validate: { isIn: [["monthly", "yearly"]] },
+      comment: "monthly or yearly - locked_price is the amount charged per cycle"
+    },
     status: {
       type: DataTypes.ENUM("trial", "active", "expiring_soon", "expired", "suspended"),
       defaultValue: "trial"

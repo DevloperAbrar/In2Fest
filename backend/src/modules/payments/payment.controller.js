@@ -4,6 +4,7 @@ const { Payment, Subscription, Plan, Venue, User } = require("../../database/mod
 const subscriptionService = require("../subscriptions/subscription.service");
 const { AppError } = require("../../middleware/error.middleware");
 const env = require("../../config/env");
+const { getAmountForCycle, normalizeCycle } = require("../plans/planPricing");
 
 /**
  * Creates a Cashfree order for a venue's subscription payment.
@@ -12,7 +13,8 @@ const env = require("../../config/env");
  */
 async function createOrder(req, res, next) {
   try {
-    const { venueId, planId, returnPath } = req.body;
+    const { venueId, planId, returnPath, billingCycle } = req.body;
+    const cycle = normalizeCycle(billingCycle);
     const cashfree = getCashfreeClient();
     if (!cashfree) throw new AppError("Payment gateway not configured", 503);
 
@@ -20,14 +22,15 @@ async function createOrder(req, res, next) {
     if (!plan) throw new AppError("Plan not found", 404);
     if (!plan.is_active) throw new AppError("This plan is no longer available", 400);
 
+    // Price always computed server-side (yearly/monthly + active offer discount)
+    const amount = getAmountForCycle(plan, cycle);
+    if (!(amount >= 1)) throw new AppError("This plan does not require payment", 400);
+
     const venue = await Venue.findByPk(venueId, {
       include: [{ model: User, as: "owner" }]
     });
     if (!venue) throw new AppError("Venue not found", 404);
 
-    // Cashfree requires a 10-digit phone number — strip anything else out
-    // (country code, spaces, dashes) and fall back to a placeholder rather
-    // than letting a malformed number reject the whole order.
     const digitsOnly = (venue.phone || "").replace(/\D/g, "");
     const customerPhone = digitsOnly.slice(-10).padStart(10, "9");
 
@@ -38,7 +41,7 @@ async function createOrder(req, res, next) {
     try {
       const { data } = await cashfree.post("/orders", {
         order_id: orderId,
-        order_amount: Number(plan.monthly_price),
+        order_amount: amount,
         order_currency: "INR",
         customer_details: {
           customer_id: venueId,
@@ -49,17 +52,12 @@ async function createOrder(req, res, next) {
         order_meta: {
           return_url: `${env.clientUrl}${safeReturnPath}?cf_order_id={order_id}`
         },
-        order_note: `${plan.name} plan subscription for venue ${venueId}`
+        // Read back in verifyPayment so the cycle can't be tampered with client-side
+        order_tags: { billing_cycle: cycle },
+        order_note: `${plan.name} plan (${cycle}) subscription for venue ${venueId}`
       });
       cfOrder = data;
     } catch (cashfreeError) {
-      // Cashfree rejects with a normal axios error whose body carries the
-      // real reason (bad credentials, invalid amount, etc.) under
-      // response.data.message. Wrap it in our own AppError with a safe
-      // status code (502 = upstream gateway failure) rather than letting a
-      // raw upstream status code (401/403/...) reach res.status() — those
-      // have special meaning to our own auth middleware and the frontend's
-      // axios interceptor and would be misread as "your session expired".
       const description =
         cashfreeError?.response?.data?.message ||
         cashfreeError?.message ||
@@ -95,6 +93,9 @@ async function verifyPayment(req, res, next) {
   try {
     const { orderId, venueId, planId } = req.body;
     if (!orderId) throw new AppError("orderId is required", 400);
+    if (!venueId || !orderId.startsWith(`order_${venueId}_`)) {
+      throw new AppError("This order does not belong to this venue", 400);
+    }
 
     const cashfree = getCashfreeClient();
     if (!cashfree) throw new AppError("Payment gateway not configured", 503);
@@ -119,23 +120,29 @@ async function verifyPayment(req, res, next) {
     const plan = await Plan.findByPk(planId);
     if (!plan) throw new AppError("Plan not found", 404);
 
+    const cycle = normalizeCycle(cfOrder.order_tags?.billing_cycle);
+    // What the vendor was actually charged (offer discount already included)
+    const paidAmount = Number(cfOrder.order_amount);
+
     const existingSub = await Subscription.findOne({ where: { venue_id: venueId } });
     let subscription;
 
     if (existingSub) {
       subscription =
         existingSub.plan_id === planId
-          ? await subscriptionService.renewSubscription(venueId)
-          : await subscriptionService.switchPlanAfterPayment(venueId, planId);
+          ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: paidAmount })
+          : await subscriptionService.switchPlanAfterPayment(venueId, planId, { billingCycle: cycle, amount: paidAmount });
     } else {
-      subscription = await subscriptionService.createSubscription(venueId, planId);
+      // Already paid, so no trial period
+      subscription = await subscriptionService.createSubscription(venueId, planId, {
+        billingCycle: cycle,
+        skipTrial: true
+      });
+      subscription.locked_price = paidAmount;
       subscription.status = "active";
       await subscription.save();
     }
 
-    // Best-effort lookup of the underlying cf_payment_id for record-keeping.
-    // The order is already confirmed PAID above, so a failure here should
-    // never block activating the subscription the vendor already paid for.
     let cfPaymentId = null;
     try {
       const { data: attempts } = await cashfree.get(`/orders/${orderId}/payments`);
@@ -148,14 +155,15 @@ async function verifyPayment(req, res, next) {
 
     await Payment.create({
       venue_id: venueId,
-      amount: plan.monthly_price,
+      amount: paidAmount,
       method: "cashfree",
       status: "success",
       plan_name_snapshot: plan.name,
       period_covered_start: subscription.current_period_start,
       period_covered_end: subscription.current_period_end,
       cf_payment_id: cfPaymentId,
-      cf_order_id: orderId
+      cf_order_id: orderId,
+      notes: `Billing: ${cycle}`
     });
 
     res.json({ success: true, data: subscription });

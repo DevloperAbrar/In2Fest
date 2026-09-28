@@ -1,31 +1,33 @@
 const dayjs = require("dayjs");
 const { Subscription, Plan, Venue } = require("../../database/models");
+const { getAmountForCycle, normalizeCycle } = require("../plans/planPricing");
 const { AppError } = require("../../middleware/error.middleware");
 
 /**
  * Creates a subscription with locked_price = current plan price at signup time.
  * This locked price never changes even if the plan's price changes later.
  */
-async function createSubscription(venueId, planId) {
+async function createSubscription(venueId, planId, options = {}) {
   const plan = await Plan.findByPk(planId);
   if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
 
   const existing = await Subscription.findOne({ where: { venue_id: venueId } });
   if (existing) throw new AppError("Venue already has a subscription", 400);
 
-  const hasTrial = plan.trial_days > 0;
+  const cycle = normalizeCycle(options.billingCycle);
+  const hasTrial = plan.trial_days > 0 && !options.skipTrial;
   const now = dayjs();
+  const fullPeriodEnd = cycle === "yearly" ? now.add(1, "year") : now.add(1, "month");
 
   const subscription = await Subscription.create({
     venue_id: venueId,
     plan_id: plan.id,
-    locked_price: plan.monthly_price,
+    locked_price: getAmountForCycle(plan, cycle),
+    billing_cycle: cycle,
     status: hasTrial ? "trial" : "active",
     trial_ends_at: hasTrial ? now.add(plan.trial_days, "day").toDate() : null,
     current_period_start: now.toDate(),
-    current_period_end: hasTrial
-      ? now.add(plan.trial_days, "day").toDate()
-      : now.add(1, "month").toDate()
+    current_period_end: hasTrial ? now.add(plan.trial_days, "day").toDate() : fullPeriodEnd.toDate()
   });
 
   return subscription;
@@ -72,17 +74,24 @@ async function getSubscriptionByVenue(venueId) {
  * Renewal keeps the SAME locked_price the subscriber already had,
  * regardless of what the plan's current price is  - price protection rule.
  */
-async function renewSubscription(venueId) {
+async function renewSubscription(venueId, options = {}) {
   const subscription = await getSubscriptionByVenue(venueId);
   const now = dayjs();
 
+  const cycle = options.billingCycle
+    ? normalizeCycle(options.billingCycle)
+    : normalizeCycle(subscription.billing_cycle);
+
+  subscription.billing_cycle = cycle;
+  if (options.amount !== undefined) subscription.locked_price = options.amount;
   subscription.status = "active";
   subscription.current_period_start = now.toDate();
-  subscription.current_period_end = now.add(1, "month").toDate();
+  subscription.current_period_end = (cycle === "yearly" ? now.add(1, "year") : now.add(1, "month")).toDate();
   await subscription.save();
 
   return subscription;
 }
+
 
 /**
  * FREE-PLAN SWITCH ONLY. Downgrading to a ₹0 plan needs no payment, so this
@@ -106,6 +115,7 @@ async function changePlan(venueId, newPlanId) {
 
   subscription.plan_id = plan.id;
   subscription.locked_price = 0;
+  subscription.billing_cycle = "monthly";
   subscription.status = "active";
   subscription.trial_ends_at = null;
   subscription.current_period_start = now.toDate();
@@ -121,19 +131,21 @@ async function changePlan(venueId, newPlanId) {
  * from a client request. Locks in the new plan's price, clears any trial,
  * and starts a fresh billing period from the moment of payment.
  */
-async function switchPlanAfterPayment(venueId, newPlanId) {
+async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
   const plan = await Plan.findByPk(newPlanId);
   if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
 
   const subscription = await getSubscriptionByVenue(venueId);
   const now = dayjs();
+  const cycle = normalizeCycle(options.billingCycle);
 
   subscription.plan_id = plan.id;
-  subscription.locked_price = plan.monthly_price;
+  subscription.locked_price = options.amount !== undefined ? options.amount : getAmountForCycle(plan, cycle);
+  subscription.billing_cycle = cycle;
   subscription.status = "active";
   subscription.trial_ends_at = null;
   subscription.current_period_start = now.toDate();
-  subscription.current_period_end = now.add(1, "month").toDate();
+  subscription.current_period_end = (cycle === "yearly" ? now.add(1, "year") : now.add(1, "month")).toDate();
   await subscription.save();
 
   return subscription;

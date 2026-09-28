@@ -86,6 +86,7 @@ export default function VenueDetailsForm() {
   const location = useLocation();
   const plan = location.state?.plan;
   const planId = plan?.id;
+  const billingCycle = location.state?.billingCycle === "yearly" ? "yearly" : "monthly";
   const needsPayment = !!plan && Number(plan.monthly_price) > 0;
   const { refetchVenue } = useVenue();
 
@@ -148,7 +149,7 @@ export default function VenueDetailsForm() {
     setPayingNow(true);
 
     paymentService
-      .createOrder(venue.id, planId, "/dashboard")
+      .createOrder(venue.id, planId, "/dashboard", billingCycle)
       .then(({ data }) => {
         const { orderId, paymentSessionId, mode } = data.data;
 

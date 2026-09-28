@@ -42,7 +42,10 @@ export default function SubscriptionCard({ venue }) {
         <Badge status={sub.status} />
       </div>
 
-      <p className="text-2xl font-bold text-gray-900">{formatCurrency(sub.locked_price)}<span className="text-xs font-normal text-gray-400">/mo</span></p>
+      <p className="text-2xl font-bold text-gray-900">
+        {formatCurrency(sub.locked_price)}
+        <span className="text-xs font-normal text-gray-400">{sub.billing_cycle === "yearly" ? "/yr" : "/mo"}</span>
+      </p>
 
       {endDate && (
         <p className={`text-xs mt-2 ${urgent ? "text-amber-600 font-medium" : "text-gray-400"}`}>

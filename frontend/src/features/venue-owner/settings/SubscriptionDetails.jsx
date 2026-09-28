@@ -8,9 +8,13 @@ import Badge from "../../../components/common/Badge";
 import Loader from "../../../components/common/Loader";
 import Button from "../../../components/common/Button";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
+import BillingToggle from "../../../components/common/BillingToggle";
+import OfferBanner from "../../../components/common/OfferBanner";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatCurrency, formatDate } from "../../../lib/formatters";
 import { translatePlanName } from "../../../lib/i18nLabels";
+import { PLAN_FEATURES } from "../../../lib/planFeatures";
+import { getCyclePricing, getBestOffer, getMaxYearlySavings } from "../../../lib/planPricing";
 import { paymentService } from "../../../services/paymentService";
 import { openCashfreeCheckout } from "../../../lib/cashfree";
 import api from "../../../services/api";
@@ -26,20 +30,25 @@ import {
   CheckCircle2
 } from "lucide-react";
 
-// Map plan names to icons + accent colours
 const PLAN_STYLE = {
-  Free:    { icon: Zap,    color: "text-navy-400",   ring: "border-navy-200",    badge: "bg-navy-50 text-navy-600" },
-  Basic:   { icon: Star,   color: "text-sky-500",    ring: "border-sky-200",     badge: "bg-sky-50 text-sky-700" },
+  Free:    { icon: Zap,    color: "text-navy-400",    ring: "border-navy-200",    badge: "bg-navy-50 text-navy-600" },
+  Basic:   { icon: Star,   color: "text-sky-500",     ring: "border-sky-200",     badge: "bg-sky-50 text-sky-700" },
   Starter: { icon: Rocket, color: "text-primary-500", ring: "border-primary-200", badge: "bg-primary-50 text-primary-700" },
-  Growth:  { icon: Crown,  color: "text-gold-600",   ring: "border-gold-400",    badge: "bg-gold-50 text-gold-600" },
-  Pro:     { icon: Crown,  color: "text-emerald-500",ring: "border-emerald-400", badge: "bg-emerald-50 text-emerald-700" },
+  Growth:  { icon: Crown,  color: "text-gold-600",    ring: "border-gold-400",    badge: "bg-gold-50 text-gold-600" },
+  Pro:     { icon: Crown,  color: "text-emerald-500", ring: "border-emerald-400", badge: "bg-emerald-50 text-emerald-700" },
 };
 
 function getPlanStyle(name) {
   return PLAN_STYLE[name] || PLAN_STYLE.Basic;
 }
 
-// Days left helper
+// Plan.features stores keys like "website_builder" - show the readable label
+function featureLabel(key) {
+  const found = PLAN_FEATURES.find((f) => f.key === key);
+  if (found) return found.label;
+  return String(key).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function daysLeft(dateStr) {
   if (!dateStr) return null;
   const diff = Math.ceil((new Date(dateStr) - Date.now()) / 86400000);
@@ -59,17 +68,23 @@ export default function SubscriptionDetails() {
     { skip: !venue }
   );
 
-  const [upgradeTarget, setUpgradeTarget] = useState(null); // plan object user wants to switch to
+  const [upgradeTarget, setUpgradeTarget] = useState(null);
   const [switching, setSwitching] = useState(false);
+  const [cycleChoice, setCycleChoice] = useState(null);
 
   if (loading || plansLoading) return <Loader fullScreen />;
 
+  const planList = plans || [];
   const currentPlanId = subscription?.plan?.id;
+  const currentCycle = subscription?.billing_cycle === "yearly" ? "yearly" : "monthly";
+  const cycle = cycleChoice || currentCycle;
   const trialDays = daysLeft(subscription?.trial_ends_at);
   const isTrial = subscription?.status === "trial";
+  const bestOffer = getBestOffer(planList);
+  const maxSavings = getMaxYearlySavings(planList);
 
   const isFreeTarget = (plan) => Number(plan?.monthly_price) === 0;
-  const isDowngrade = (plan) => plan.monthly_price < (subscription?.plan?.monthly_price ?? 0);
+  const isDowngrade = (plan) => Number(plan.monthly_price) < Number(subscription?.plan?.monthly_price ?? 0);
 
   const finishSwitch = (planName) => {
     showSuccess(t("settings.subscription.switchedTo", { name: translatePlanName(planName, i18n.language) }));
@@ -84,7 +99,7 @@ export default function SubscriptionDetails() {
     if (!upgradeTarget || !venue) return;
     setSwitching(true);
 
-    // ── Free plan: no payment needed, switch immediately ──
+    // Free plan: no payment needed, switch immediately
     if (isFreeTarget(upgradeTarget)) {
       try {
         await api.patch(`/subscriptions/${venue.id}/change-plan`, { planId: upgradeTarget.id });
@@ -96,9 +111,14 @@ export default function SubscriptionDetails() {
       return;
     }
 
-    // ── Paid plan: must complete Cashfree payment before the switch applies ──
+    // Paid plan: complete Cashfree payment (price for selected cycle) before the switch applies
     try {
-      const { data } = await paymentService.createOrder(venue.id, upgradeTarget.id, "/dashboard/settings/subscription");
+      const { data } = await paymentService.createOrder(
+        venue.id,
+        upgradeTarget.id,
+        "/dashboard/settings/subscription",
+        cycle
+      );
       const { orderId, paymentSessionId, mode } = data.data;
 
       openCashfreeCheckout({
@@ -132,26 +152,36 @@ export default function SubscriptionDetails() {
     }
   };
 
+  const targetPrice = upgradeTarget ? getCyclePricing(upgradeTarget, cycle) : null;
+
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={t("settings.subscription.pageTitle")}>
 
-      {/* ── Current plan banner ── */}
       <CurrentPlanBanner subscription={subscription} trialDays={trialDays} isTrial={isTrial} />
 
-      {/* ── Plan grid ── */}
-      <div className="mb-8">
-        <h2 className="text-base font-display font-semibold text-navy-800 mb-1">{t("settings.subscription.allPlans")}</h2>
-        <p className="text-sm text-navy-400 mb-5">
-          {isTrial ? t("settings.subscription.trialHint") : t("settings.subscription.switchHint")}
-        </p>
+      <OfferBanner offer={bestOffer} className="mb-6" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {(plans || []).map((plan) => {
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-base font-display font-semibold text-navy-800 mb-1">{t("settings.subscription.allPlans")}</h2>
+            <p className="text-sm text-navy-400">
+              {isTrial ? t("settings.subscription.trialHint") : t("settings.subscription.switchHint")}
+            </p>
+          </div>
+          <BillingToggle value={cycle} onChange={setCycleChoice} savePercent={maxSavings} />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {planList.map((plan) => {
             const style = getPlanStyle(plan.name);
             const Icon = style.icon;
+            const price = getCyclePricing(plan, cycle);
             const isCurrent = plan.id === currentPlanId;
+            const sameCycle = currentCycle === cycle;
+            const isCurrentExact = isCurrent && (price.isFree || sameCycle);
             const down = isDowngrade(plan);
-            const paidSwitch = !isFreeTarget(plan);
+            const paidSwitch = !price.isFree;
 
             return (
               <div
@@ -165,35 +195,59 @@ export default function SubscriptionDetails() {
                     {t("settings.subscription.currentPlan")}
                   </span>
                 )}
+                {price.hasDiscount && !isCurrent && (
+                  <span className="absolute -top-3 right-4 bg-red-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow">
+                    {price.offer.percent}% OFF
+                  </span>
+                )}
 
                 <div className="flex items-center gap-2 mb-3">
                   <Icon size={18} className={style.color} />
                   <span className="font-display font-semibold text-navy-800">{translatePlanName(plan.name, i18n.language)}</span>
                 </div>
 
-                <div className="mb-1">
-                  <span className="text-2xl font-display font-bold text-navy-900">{formatCurrency(plan.monthly_price)}</span>
-                  <span className="text-sm text-navy-400">{t("settings.subscription.perMonth")}</span>
+                <div className="mb-1 min-h-[4.5rem]">
+                  {price.hasDiscount && (
+                    <p className="text-sm text-navy-300 line-through">{formatCurrency(price.original)}</p>
+                  )}
+                  <div>
+                    <span className="text-2xl font-display font-bold text-navy-900">{formatCurrency(price.final)}</span>
+                    {!price.isFree && <span className="text-sm text-navy-400">{price.cycleLabel}</span>}
+                  </div>
+                  {paidSwitch && cycle === "yearly" && (
+                    <p className="text-xs text-navy-500 mt-0.5">≈ {formatCurrency(price.perMonth)}/mo</p>
+                  )}
+                  {paidSwitch && cycle === "yearly" && price.savingsPercent > 0 && (
+                    <p className="text-xs font-semibold text-emerald-600 mt-0.5">Save {price.savingsPercent}% vs monthly</p>
+                  )}
+                  {price.isFree && <p className="text-xs text-navy-400 mt-0.5">Free forever</p>}
                 </div>
 
                 {plan.trial_days > 0 && (
                   <p className="text-xs text-sky-600 font-medium mb-3">{t("settings.subscription.trialDaysBadge", { days: plan.trial_days })}</p>
                 )}
-                {plan.trial_days === 0 && <p className="text-xs text-navy-400 mb-3">{t("settings.subscription.noTrial")}</p>}
+                {plan.trial_days === 0 && !price.isFree && (
+                  <p className="text-xs text-navy-400 mb-3">{t("settings.subscription.noTrial")}</p>
+                )}
 
-                <ul className="space-y-1.5 mb-5 flex-1">
+                <ul className="space-y-1.5 mb-5 mt-2 flex-1">
                   {(plan.features || []).map((f, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs text-navy-600">
                       <Check size={13} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span>{f}</span>
+                      <span>{featureLabel(f)}</span>
                     </li>
                   ))}
                 </ul>
 
-                {isCurrent ? (
+                {isCurrentExact ? (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium justify-center py-2">
                     <CheckCircle2 size={14} /> {t("settings.subscription.active")}
                   </div>
+                ) : isCurrent ? (
+                  <Button variant="outline" className="w-full text-sm" onClick={() => setUpgradeTarget(plan)}>
+                    {cycle === "yearly" ? "Switch to yearly" : "Switch to monthly"}
+                    <span className="ml-1 text-[10px] opacity-80">· {formatCurrency(price.final)}</span>
+                  </Button>
                 ) : (
                   <Button
                     variant={down ? "outline" : "primary"}
@@ -203,7 +257,7 @@ export default function SubscriptionDetails() {
                     {down ? t("settings.subscription.switch") : t("settings.subscription.upgrade")} <ArrowRight size={13} className="ml-1" />
                     {paidSwitch && (
                       <span className="ml-1 text-[10px] opacity-80">
-                        · {t("settings.subscription.payNow", "Pay")} {formatCurrency(plan.monthly_price)}
+                        · {t("settings.subscription.payNow", "Pay")} {formatCurrency(price.final)}
                       </span>
                     )}
                   </Button>
@@ -214,7 +268,7 @@ export default function SubscriptionDetails() {
         </div>
       </div>
 
-      {/* ── Payment history ── */}
+      {/* Payment history */}
       <div className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4 md:p-5">
         <div className="flex items-center gap-2 mb-4">
           <CreditCard size={16} className="text-navy-400" />
@@ -226,7 +280,6 @@ export default function SubscriptionDetails() {
           <p className="text-sm text-navy-400 py-4 text-center">{t("settings.subscription.noPayments")}</p>
         ) : (
           <>
-            {/* Mobile: stacked rows */}
             <div className="md:hidden divide-y divide-navy-100/60">
               {payments.map((p) => (
                 <div key={p.id} className="flex items-center justify-between py-3">
@@ -239,7 +292,6 @@ export default function SubscriptionDetails() {
               ))}
             </div>
 
-            {/* Desktop: table */}
             <table className="hidden md:table w-full text-sm">
               <thead>
                 <tr className="text-left text-navy-400 text-xs border-b border-navy-100/60">
@@ -262,7 +314,6 @@ export default function SubscriptionDetails() {
         )}
       </div>
 
-      {/* ── Confirm plan change dialog ── */}
       <ConfirmDialog
         isOpen={!!upgradeTarget}
         onClose={() => setUpgradeTarget(null)}
@@ -272,10 +323,11 @@ export default function SubscriptionDetails() {
         message={
           upgradeTarget
             ? !isFreeTarget(upgradeTarget)
-              ? t("settings.subscription.confirmPayMsg", {
-                  defaultValue: "You'll be charged {{price}} now to switch to the {{name}} plan.",
-                  price: formatCurrency(upgradeTarget.monthly_price),
-                  name: translatePlanName(upgradeTarget.name, i18n.language)
+              ? t("settings.subscription.confirmPayCycleMsg", {
+                  defaultValue: "You'll be charged {{price}} now for the {{name}} plan ({{cycle}}).",
+                  price: formatCurrency(targetPrice.final),
+                  name: translatePlanName(upgradeTarget.name, i18n.language),
+                  cycle: cycle === "yearly" ? "billed yearly" : "billed monthly"
                 })
               : t("settings.subscription.confirmDowngradeMsg", {
                   fromName: translatePlanName(subscription?.plan?.name, i18n.language),
@@ -301,6 +353,7 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial }) {
   const plan = subscription.plan;
   const style = getPlanStyle(plan?.name);
   const Icon = style.icon;
+  const isYearly = subscription.billing_cycle === "yearly";
 
   return (
     <div className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4 md:p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -313,9 +366,15 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial }) {
             {translatePlanName(plan?.name, i18n.language)} {t("settings.subscription.planLabel", "Plan")}
           </span>
           <Badge status={subscription.status} />
+          {Number(subscription.locked_price) > 0 && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-navy-50 text-navy-600">
+              {isYearly ? "Yearly" : "Monthly"}
+            </span>
+          )}
         </div>
         <p className="text-sm text-navy-500">
-          {formatCurrency(subscription.locked_price)}{t("settings.subscription.perMonth")}
+          {formatCurrency(subscription.locked_price)}
+          {isYearly ? "/yr" : t("settings.subscription.perMonth")}
           {isTrial && trialDays !== null && (
             <span className="ml-2 text-gold-600 font-medium">
               {trialDays === 1
