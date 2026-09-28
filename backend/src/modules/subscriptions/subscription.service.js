@@ -6,12 +6,15 @@ const { AppError } = require("../../middleware/error.middleware");
 /**
  * Creates a subscription with locked_price = current plan price at signup time.
  * This locked price never changes even if the plan's price changes later.
+ * Pass options.transaction to run inside an existing DB transaction.
  */
 async function createSubscription(venueId, planId, options = {}) {
-  const plan = await Plan.findByPk(planId);
+  const transaction = options.transaction;
+
+  const plan = await Plan.findByPk(planId, { transaction });
   if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
 
-  const existing = await Subscription.findOne({ where: { venue_id: venueId } });
+  const existing = await Subscription.findOne({ where: { venue_id: venueId }, transaction });
   if (existing) throw new AppError("Venue already has a subscription", 400);
 
   const cycle = normalizeCycle(options.billingCycle);
@@ -19,16 +22,19 @@ async function createSubscription(venueId, planId, options = {}) {
   const now = dayjs();
   const fullPeriodEnd = cycle === "yearly" ? now.add(1, "year") : now.add(1, "month");
 
-  const subscription = await Subscription.create({
-    venue_id: venueId,
-    plan_id: plan.id,
-    locked_price: getAmountForCycle(plan, cycle),
-    billing_cycle: cycle,
-    status: hasTrial ? "trial" : "active",
-    trial_ends_at: hasTrial ? now.add(plan.trial_days, "day").toDate() : null,
-    current_period_start: now.toDate(),
-    current_period_end: hasTrial ? now.add(plan.trial_days, "day").toDate() : fullPeriodEnd.toDate()
-  });
+  const subscription = await Subscription.create(
+    {
+      venue_id: venueId,
+      plan_id: plan.id,
+      locked_price: getAmountForCycle(plan, cycle),
+      billing_cycle: cycle,
+      status: hasTrial ? "trial" : "active",
+      trial_ends_at: hasTrial ? now.add(plan.trial_days, "day").toDate() : null,
+      current_period_start: now.toDate(),
+      current_period_end: hasTrial ? now.add(plan.trial_days, "day").toDate() : fullPeriodEnd.toDate()
+    },
+    { transaction }
+  );
 
   return subscription;
 }
@@ -59,10 +65,11 @@ async function createFreeSubscription(venueId) {
   return subscription;
 }
 
-async function getSubscriptionByVenue(venueId) {
+async function getSubscriptionByVenue(venueId, options = {}) {
   const subscription = await Subscription.findOne({
     where: { venue_id: venueId },
-    include: [{ model: Plan, as: "plan" }]
+    include: [{ model: Plan, as: "plan" }],
+    transaction: options.transaction
   });
   if (!subscription) throw new AppError("Subscription not found", 404);
   return subscription;
@@ -73,9 +80,11 @@ async function getSubscriptionByVenue(venueId) {
  * So paying early doesn't waste the remaining time — vendor gets a full
  * extra year/month stacked on top of their existing period.
  * Price is kept locked unless options.amount is explicitly passed (e.g. after payment).
+ * Pass options.transaction so a failed payment rolls the extension back too.
  */
 async function renewSubscription(venueId, options = {}) {
-  const subscription = await getSubscriptionByVenue(venueId);
+  const transaction = options.transaction;
+  const subscription = await getSubscriptionByVenue(venueId, { transaction });
 
   const cycle = options.billingCycle
     ? normalizeCycle(options.billingCycle)
@@ -91,7 +100,7 @@ async function renewSubscription(venueId, options = {}) {
   subscription.status = "active";
   subscription.current_period_start = extendFrom.toDate();
   subscription.current_period_end = newEnd.toDate();
-  await subscription.save();
+  await subscription.save({ transaction });
 
   return subscription;
 }
@@ -128,12 +137,15 @@ async function changePlan(venueId, newPlanId) {
 /**
  * PAID-PLAN SWITCH. Only ever called from payment.controller.verifyPayment,
  * AFTER Cashfree has confirmed the order as PAID.
+ * Pass options.transaction so it rolls back together with the payment.
  */
 async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
-  const plan = await Plan.findByPk(newPlanId);
+  const transaction = options.transaction;
+
+  const plan = await Plan.findByPk(newPlanId, { transaction });
   if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
 
-  const subscription = await getSubscriptionByVenue(venueId);
+  const subscription = await getSubscriptionByVenue(venueId, { transaction });
   const now = dayjs();
   const cycle = normalizeCycle(options.billingCycle);
 
@@ -144,7 +156,7 @@ async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
   subscription.trial_ends_at = null;
   subscription.current_period_start = now.toDate();
   subscription.current_period_end = (cycle === "yearly" ? now.add(1, "year") : now.add(1, "month")).toDate();
-  await subscription.save();
+  await subscription.save({ transaction });
 
   return subscription;
 }

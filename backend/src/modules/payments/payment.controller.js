@@ -174,6 +174,9 @@ async function verifyPayment(req, res, next) {
     try {
       let cycle, paidAmount, cfPaymentId = null;
 
+      // ─────────────────────────────────────────────
+      // CREDIT-ONLY ORDER (no gateway involved)
+      // ─────────────────────────────────────────────
       if (creditOnly) {
         cycle = normalizeCycle(req.body.billingCycle);
         const applyCredit = parseUseCredit(req.body.useCredit);
@@ -183,26 +186,39 @@ async function verifyPayment(req, res, next) {
         }
 
         const dummyPaymentId = `credit_${venueId}_${Date.now()}`;
-        await referralService.spendCredit(t, venueId, quote.credit_used, dummyPaymentId);
 
         const existingSub = await Subscription.findOne({ where: { venue_id: venueId }, transaction: t });
         let subscription;
         if (isRenewal) {
           subscription = await subscriptionService.renewSubscription(venueId, {
             billingCycle: cycle,
-            amount: quote.taxable_amount
+            amount: quote.taxable_amount,
+            transaction: t
           });
         } else if (existingSub) {
           subscription = existingSub.plan_id === resolvedPlanId
-            ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: quote.taxable_amount })
-            : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, { billingCycle: cycle, amount: quote.taxable_amount });
+            ? await subscriptionService.renewSubscription(venueId, {
+                billingCycle: cycle,
+                amount: quote.taxable_amount,
+                transaction: t
+              })
+            : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, {
+                billingCycle: cycle,
+                amount: quote.taxable_amount,
+                transaction: t
+              });
         } else {
-          subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, { billingCycle: cycle, skipTrial: true });
+          subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, {
+            billingCycle: cycle,
+            skipTrial: true,
+            transaction: t
+          });
           subscription.locked_price = quote.taxable_amount;
           subscription.status = "active";
-          await subscription.save();
+          await subscription.save({ transaction: t });
         }
 
+        // 1) Create the payment row FIRST so we have a real UUID
         const paymentRow = await Payment.create({
           venue_id: venueId,
           amount: 0,
@@ -215,12 +231,23 @@ async function verifyPayment(req, res, next) {
           cf_order_id: dummyPaymentId,
           base_amount: quote.plan_price,
           discount_amount: quote.discount_amount,
-          credit_used: quote.credit_used,
+          credit_used: 0,
           gst_rate: quote.gst_rate,
           gst_amount: 0,
           total_amount: 0,
           notes: `Credit-only ${isRenewal ? "renewal" : "switch"}: ${cycle}`
         }, { transaction: t });
+
+        // 2) Spend credit using the payment's UUID (NOT the order string)
+        const actualCreditUsed = await referralService.spendCredit(
+          t,
+          venueId,
+          quote.credit_used,
+          paymentRow.id
+        );
+
+        // 3) Save the real credit used on the payment row
+        await paymentRow.update({ credit_used: actualCreditUsed }, { transaction: t });
 
         await referralService.handlePostPaymentReferral(t, paymentRow, venueId, quote.taxable_amount);
         await t.commit();
@@ -228,8 +255,21 @@ async function verifyPayment(req, res, next) {
         return res.json({ success: true, data: subscription });
       }
 
-      // Cashfree payment — verify with gateway
+      // ─────────────────────────────────────────────
+      // CASHFREE PAYMENT — verify with gateway
+      // ─────────────────────────────────────────────
       if (!orderId) throw new AppError("orderId required for non-credit payments", 400);
+
+      // ★ NEW: idempotency — if this order was already processed, do NOT extend again
+      const alreadyProcessed = await Payment.findOne({
+        where: { cf_order_id: orderId, venue_id: venueId },
+        transaction: t
+      });
+      if (alreadyProcessed) {
+        await t.rollback();
+        const currentSub = await subscriptionService.getSubscriptionByVenue(venueId);
+        return res.json({ success: true, data: currentSub });
+      }
 
       const cashfree = getCashfreeClient();
       if (!cashfree) throw new AppError("Payment gateway not configured", 503);
@@ -264,27 +304,36 @@ async function verifyPayment(req, res, next) {
       if (isRenewal) {
         subscription = await subscriptionService.renewSubscription(venueId, {
           billingCycle: cycle,
-          amount: quote.taxable_amount
+          amount: quote.taxable_amount,
+          transaction: t
         });
       } else {
         const existingSub = await Subscription.findOne({ where: { venue_id: venueId }, transaction: t });
         if (existingSub) {
           subscription = existingSub.plan_id === resolvedPlanId
-            ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: quote.taxable_amount })
-            : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, { billingCycle: cycle, amount: quote.taxable_amount });
+            ? await subscriptionService.renewSubscription(venueId, {
+                billingCycle: cycle,
+                amount: quote.taxable_amount,
+                transaction: t
+              })
+            : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, {
+                billingCycle: cycle,
+                amount: quote.taxable_amount,
+                transaction: t
+              });
         } else {
-          subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, { billingCycle: cycle, skipTrial: true });
+          subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, {
+            billingCycle: cycle,
+            skipTrial: true,
+            transaction: t
+          });
           subscription.locked_price = quote.taxable_amount;
           subscription.status = "active";
-          await subscription.save();
+          await subscription.save({ transaction: t });
         }
       }
 
-      let actualCreditUsed = 0;
-      if (quote.credit_used > 0) {
-        actualCreditUsed = await referralService.spendCredit(t, venueId, quote.credit_used, orderId);
-      }
-
+      // 1) Create the payment row FIRST so we have a real UUID
       const paymentRow = await Payment.create({
         venue_id: venueId,
         amount: paidAmount,
@@ -297,12 +346,28 @@ async function verifyPayment(req, res, next) {
         cf_order_id: orderId,
         base_amount: quote.plan_price,
         discount_amount: quote.discount_amount,
-        credit_used: actualCreditUsed,
+        credit_used: 0,
         gst_rate: quote.gst_rate,
         gst_amount: quote.gst_amount,
         total_amount: paidAmount,
         notes: `${isRenewal ? "Renewal" : "Billing"}: ${cycle}`
       }, { transaction: t });
+
+      // 2) Spend referral credit using the payment's UUID (NOT orderId)
+      let actualCreditUsed = 0;
+      if (quote.credit_used > 0) {
+        actualCreditUsed = await referralService.spendCredit(
+          t,
+          venueId,
+          quote.credit_used,
+          paymentRow.id
+        );
+      }
+
+      // 3) Save the real credit used on the payment row
+      if (actualCreditUsed !== paymentRow.credit_used) {
+        await paymentRow.update({ credit_used: actualCreditUsed }, { transaction: t });
+      }
 
       await referralService.handlePostPaymentReferral(t, paymentRow, venueId, quote.taxable_amount);
       await t.commit();
