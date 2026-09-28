@@ -24,17 +24,12 @@ module.exports = (sequelize, DataTypes) => {
     address: DataTypes.TEXT,
     google_maps_link: DataTypes.STRING,
     capacity: DataTypes.INTEGER,
-    // Registration stores the vendor's picks in business_category + secondary_categories
-    // and leaves venue_type empty. When nothing is stored, fall back to those so every
-    // consumer (slots, clients, bookings, public calendar) sees what the vendor selected.
-    // The getter only affects reads/JSON output - it is never written back to the DB.
     venue_type: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       defaultValue: [],
       get() {
         const stored = this.getDataValue("venue_type");
         if (Array.isArray(stored) && stored.length > 0) return stored;
-
         const secondary = this.getDataValue("secondary_categories");
         return Array.from(
           new Set(
@@ -57,11 +52,6 @@ module.exports = (sequelize, DataTypes) => {
     gallery: { type: DataTypes.JSONB, defaultValue: [] },
     testimonials: { type: DataTypes.JSONB, defaultValue: [] },
     show_pricing_section: { type: DataTypes.BOOLEAN, defaultValue: true },
-
-    // Dynamic section library  - ordered array of { type, visible, config }.
-    // Core types (hero/about/services/gallery/testimonials/contact) reference
-    // the dedicated columns above; new pluggable types carry their own config.
-    // Nullable/additive  - legacy venues get a default computed on read.
     page_sections: { type: DataTypes.JSONB, defaultValue: null },
 
     // Payment/GST settings
@@ -76,76 +66,56 @@ module.exports = (sequelize, DataTypes) => {
 
     last_login_at: DataTypes.DATE,
 
-    // ===== V2  - Marketplace Profile fields (additive, all nullable) =====
-
-    // Identity and contact
+    // ===== V2 — Marketplace Profile fields =====
     business_category: DataTypes.STRING,
     secondary_categories: { type: DataTypes.ARRAY(DataTypes.STRING), defaultValue: [] },
-    whatsapp_number: DataTypes.STRING,
-    instagram_handle: DataTypes.STRING,
-    youtube_channel_link: DataTypes.STRING,
-    external_website: DataTypes.STRING,
-    video_intro_url: DataTypes.STRING,
 
-    // Location and service area
-    primary_locality: DataTypes.STRING,
-    full_pincode: DataTypes.STRING,
-    service_travel_note: DataTypes.TEXT,
-
-    // Business information
     year_established: DataTypes.INTEGER,
     total_events_completed: DataTypes.INTEGER,
     team_size: DataTypes.INTEGER,
     languages_spoken: { type: DataTypes.ARRAY(DataTypes.STRING), defaultValue: [] },
 
-    // Pricing
     starting_price: DataTypes.DECIMAL(10, 2),
     maximum_price: DataTypes.DECIMAL(10, 2),
     pricing_note: DataTypes.TEXT,
     advance_payment_percentage: DataTypes.INTEGER,
     cancellation_policy: DataTypes.TEXT,
 
-    // Extended description
     long_description: DataTypes.TEXT,
     specialty_tagline: DataTypes.STRING,
     famous_events_handled: DataTypes.TEXT,
     awards_recognition: DataTypes.TEXT,
 
-    // Availability
     booking_advance_notice_days: { type: DataTypes.INTEGER, defaultValue: 1 },
     peak_season_months: { type: DataTypes.ARRAY(DataTypes.INTEGER), defaultValue: [] },
     off_season_discount_enabled: { type: DataTypes.BOOLEAN, defaultValue: false },
 
-    // Flat list kept for search filtering (Op.contains) and per-service pricing keys.
-    // Auto-derived from marketplace_services_detail whenever the vendor saves the Services tab.
     marketplace_services: { type: DataTypes.JSONB, defaultValue: [] },
-
-    // Vendor-defined services with optional sub-items, e.g.
-    // [{ name: "Photography", options: ["Inhouse shoot", "Outdoor shoot"] }, { name: "Planning", options: [] }]
     marketplace_services_detail: { type: DataTypes.JSONB, defaultValue: [] },
-
     service_prices: { type: DataTypes.JSONB, defaultValue: {} },
-    pricing_mode: { type: DataTypes.STRING, defaultValue: "single" }, // "single" or "per_service"
+    pricing_mode: { type: DataTypes.STRING, defaultValue: "single" },
 
-    // Verification  - admin-controlled only, never editable by the owner
     badge_verified_business: { type: DataTypes.BOOLEAN, defaultValue: false },
     badge_documents_verified: { type: DataTypes.BOOLEAN, defaultValue: false },
     badge_premium_partner: { type: DataTypes.BOOLEAN, defaultValue: false },
 
-    // Marketplace visibility
     marketplace_profile_complete: { type: DataTypes.BOOLEAN, defaultValue: false },
     marketplace_listed: { type: DataTypes.BOOLEAN, defaultValue: false },
     featured_on_homepage: { type: DataTypes.BOOLEAN, defaultValue: false },
 
-    // Rating cache (kept updated by the review module in Phase 5)
     average_rating: { type: DataTypes.DECIMAL(3, 2), defaultValue: 0 },
-    review_count: { type: DataTypes.INTEGER, defaultValue: 0 }
+    review_count: { type: DataTypes.INTEGER, defaultValue: 0 },
+
+    // ===== Referral fields =====
+    referral_code: { type: DataTypes.STRING(20), unique: true },
+    referred_by: { type: DataTypes.UUID }
   }, {
     tableName: "venues",
     indexes: [
       { fields: ["subdomain"] },
       { fields: ["owner_id"] },
-      { fields: ["city"] }
+      { fields: ["city"] },
+      { fields: ["referral_code"] }
     ]
   });
 

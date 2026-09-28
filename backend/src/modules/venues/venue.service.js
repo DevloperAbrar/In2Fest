@@ -50,10 +50,6 @@ async function compressBuffer(buffer, mimetype, options = {}) {
 async function createVenue(payload) {
   const existingVenue = await Venue.findOne({ where: { owner_id: payload.owner_id } });
   if (existingVenue) {
-    // If venue exists but has NO subscription yet, it means a previous attempt
-    // created the venue but payment failed before verifyPayment could create
-    // the subscription. Allow the frontend to resume payment using the
-    // existing venue instead of dead-ending with a 409.
     const existingSub = await Subscription.findOne({ where: { venue_id: existingVenue.id } });
     if (!existingSub) {
       return existingVenue;
@@ -65,52 +61,34 @@ async function createVenue(payload) {
 
   const secondaryCategories = await sanitizeSecondaryCategories(payload.secondary_categories, payload.business_category);
 
-  // The registration flow only sends business_category + secondary_categories.
-  // Mirror them into venue_type (unless the client sent one explicitly) so the
-  // Venue Profile settings, slots, clients, bookings etc. all see what the vendor selected.
   const venueTypes =
     Array.isArray(payload.venue_type) && payload.venue_type.length > 0
       ? payload.venue_type
       : Array.from(new Set([payload.business_category, ...secondaryCategories].filter(Boolean)));
 
-  const venue = await Venue.create({
-    owner_id: payload.owner_id,
-    hall_name: payload.hall_name,
-    owner_name: payload.owner_name,
-    phone: payload.phone,
-    city: payload.city,
-    address: payload.address,
-    google_maps_link: payload.google_maps_link,
-    capacity: payload.capacity,
-    venue_type: venueTypes,
-    business_category: payload.business_category,
-    secondary_categories: secondaryCategories,
-    primary_locality: payload.primary_locality,
-    team_size: payload.team_size,
-    starting_price: payload.starting_price,
-    subdomain
-  });
-
-  venue.page_sections = buildDefaultSections(payload.business_category);
-  await venue.save();
-
-  const { createSubscription, createFreeSubscription } = require("../subscriptions/subscription.service");
-
-  if (payload.plan_id) {
-    const plan = await Plan.findByPk(payload.plan_id);
-    if (!plan) throw new AppError("Plan not found", 404);
-
-    if (Number(plan.monthly_price) > 0) {
-      // Paid plan — intentionally skip creating a subscription here.
-      // The vendor must complete Cashfree checkout first; the subscription
-      // is only created in payment.controller.verifyPayment after Cashfree
-      // confirms the order as PAID. This now matches the frontend's
-      // needsPayment check, which no longer looks at trial_days.
-    } else {
-      await createSubscription(venue.id, payload.plan_id);
-    }
-  } else {
-    await createFreeSubscription(venue.id);
+      const venue = await Venue.create({
+        owner_id: payload.owner_id,
+        hall_name: payload.hall_name,
+        subdomain,                      // <-- yeh missing tha
+        owner_name: payload.owner_name,
+        phone: payload.phone,
+        city: payload.city,
+        address: payload.address,
+        business_category: payload.business_category,
+        secondary_categories: secondaryCategories,
+        venue_type: venueTypes,
+        capacity: payload.capacity,
+        google_maps_link: payload.google_maps_link,
+        is_live: true,
+        is_active: true
+      });
+      
+  // Apply referral if code was sent from frontend (stored in localStorage)
+  if (payload.referral_code) {
+    const { User } = require("../../database/models");
+    const ownerUser = await User.findByPk(payload.owner_id);
+    const referralService = require("../referrals/referral.service");
+    await referralService.applyReferralAtSignup(venue, payload.referral_code, ownerUser);
   }
 
   return venue;

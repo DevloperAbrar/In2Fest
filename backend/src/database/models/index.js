@@ -7,8 +7,8 @@ const Plan = require("./plan.model")(sequelize, DataTypes);
 const Subscription = require("./subscription.model")(sequelize, DataTypes);
 const Payment = require("./payment.model")(sequelize, DataTypes);
 const Slot = require("./slot.model")(sequelize, DataTypes);
-const Package = require("./package.model")(sequelize, DataTypes);         // ADD
-const BookingUnit = require("./bookingUnit.model")(sequelize, DataTypes); // ADD
+const Package = require("./package.model")(sequelize, DataTypes);
+const BookingUnit = require("./bookingUnit.model")(sequelize, DataTypes);
 const Inquiry = require("./inquiry.model")(sequelize, DataTypes);
 const Booking = require("./booking.model")(sequelize, DataTypes);
 const Client = require("./client.model")(sequelize, DataTypes);
@@ -33,6 +33,11 @@ const SavedVendor = require("./savedVendor.model")(sequelize, DataTypes);
 const CityRequest = require("./cityRequest.model")(sequelize, DataTypes);
 
 const Announcement = require("./announcement.model")(sequelize, DataTypes);
+
+// New: Referral models
+const Referral = require("./referral.model")(sequelize, DataTypes);
+const ReferralCreditLedger = require("./referralCreditLedger.model")(sequelize, DataTypes);
+
 // ---- Associations ----
 
 User.hasMany(Venue, { foreignKey: "owner_id", as: "venues" });
@@ -67,18 +72,15 @@ Booking.belongsTo(Client, { foreignKey: "client_id", as: "client" });
 Slot.hasMany(Booking, { foreignKey: "slot_id", as: "bookings" });
 Booking.belongsTo(Slot, { foreignKey: "slot_id", as: "slot" });
 
-// Package associations
 Venue.hasMany(Package, { foreignKey: "venue_id", as: "packages" });
 Package.belongsTo(Venue, { foreignKey: "venue_id" });
 
-// BookingUnit associations
 Booking.hasMany(BookingUnit, { foreignKey: "booking_id", as: "units" });
 BookingUnit.belongsTo(Booking, { foreignKey: "booking_id" });
 Slot.hasMany(BookingUnit, { foreignKey: "slot_id", as: "units" });
 BookingUnit.belongsTo(Slot, { foreignKey: "slot_id" });
 Venue.hasMany(BookingUnit, { foreignKey: "venue_id", as: "bookingUnits" });
 
-// Package in booking
 Booking.belongsTo(Package, { foreignKey: "package_id", as: "package" });
 Package.hasMany(Booking, { foreignKey: "package_id", as: "bookings" });
 
@@ -107,7 +109,7 @@ TeamMember.belongsTo(Venue, { foreignKey: "venue_id" });
 Venue.hasMany(WhatsappMessage, { foreignKey: "venue_id", as: "whatsappMessages" });
 WhatsappMessage.belongsTo(Venue, { foreignKey: "venue_id" });
 
-// ---- V2 Marketplace associations ----
+// V2 Marketplace
 Venue.belongsToMany(City, {
   through: VenueServiceArea,
   foreignKey: "venue_id",
@@ -147,6 +149,16 @@ Review.belongsTo(PublicUser, { foreignKey: "reviewer_user_id", constraints: fals
 Venue.hasMany(SavedVendor, { foreignKey: "venue_id", as: "savedByUsers" });
 SavedVendor.belongsTo(Venue, { foreignKey: "venue_id", as: "venue" });
 
+// Referral associations
+Venue.hasMany(Referral, { foreignKey: "referrer_venue_id", as: "referralsGiven" });
+Referral.belongsTo(Venue, { foreignKey: "referrer_venue_id", as: "referrerVenue" });
+
+Venue.hasOne(Referral, { foreignKey: "referred_venue_id", as: "referralReceived" });
+Referral.belongsTo(Venue, { foreignKey: "referred_venue_id", as: "referredVenue" });
+
+Venue.hasMany(ReferralCreditLedger, { foreignKey: "venue_id", as: "creditLedger" });
+ReferralCreditLedger.belongsTo(Venue, { foreignKey: "venue_id" });
+
 module.exports = {
   sequelize,
   User, Venue, Plan, Subscription, Payment,
@@ -158,4 +170,5 @@ module.exports = {
   VendorListing, Review, ReviewRequest,
   PublicUser, SavedVendor, CityRequest,
   Announcement,
+  Referral, ReferralCreditLedger
 };

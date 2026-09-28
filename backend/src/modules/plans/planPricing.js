@@ -1,10 +1,10 @@
-// Single source of truth for plan pricing. Everything (plan API, checkout,
-// subscriptions) goes through here so displayed price === charged price.
+// Single source of truth for plan pricing + GST.
+// Everything (plan API, checkout, subscriptions) goes through here.
 
 const MAX_DISCOUNT = 90;
 
 function roundRupee(n) {
-  return Math.round(Number(n) || 0);
+  return Math.round((Number(n) || 0) * 100) / 100;
 }
 
 function normalizeCycle(cycle) {
@@ -60,4 +60,57 @@ function getAmountForCycle(plan, cycle) {
   return normalizeCycle(cycle) === "yearly" ? pricing.yearly.final : pricing.monthly.final;
 }
 
-module.exports = { MAX_DISCOUNT, normalizeCycle, isOfferActive, getPlanPricing, getAmountForCycle };
+/**
+ * Compute the full checkout quote with GST and referral credit.
+ *
+ * @param {object} plan         - Sequelize Plan instance
+ * @param {string} cycle        - "monthly"|"yearly"
+ * @param {number} creditAvail  - available referral credit (≥0)
+ * @param {number} gstRate      - e.g. 18
+ * @param {number} referralFriendPercent - e.g. 12
+ * @returns {object} quote
+ */
+function computeQuote(plan, cycle, creditAvail = 0, gstRate = 18, referralFriendPercent = 12) {
+  const pricing = getPlanPricing(plan);
+  const planPrice = normalizeCycle(cycle) === "yearly" ? pricing.yearly.final : pricing.monthly.final;
+
+  // Effective offer discount percent (plan offer or referral friend discount, whichever is bigger)
+  const offerPercent = pricing.offer.active ? pricing.offer.percent : 0;
+  const discountPercent = Math.max(offerPercent, referralFriendPercent);
+
+  // Base is plan raw (pre-discount) price for the cycle
+  const rawBase = normalizeCycle(cycle) === "yearly" ? pricing.yearly.original : pricing.monthly.original;
+  const discountAmount = roundRupee((rawBase * discountPercent) / 100);
+  const afterDiscount = roundRupee(rawBase - discountAmount);
+
+  // Credit: cannot exceed afterDiscount
+  const creditToUse = roundRupee(Math.min(Number(creditAvail) || 0, afterDiscount));
+  const taxableAmount = roundRupee(afterDiscount - creditToUse);
+
+  const gstAmount = roundRupee((taxableAmount * gstRate) / 100);
+  const totalPayable = roundRupee(taxableAmount + gstAmount);
+
+  return {
+    plan_price: rawBase,
+    offer_percent: discountPercent,
+    discount_amount: discountAmount,
+    after_discount: afterDiscount,
+    credit_available: creditAvail,
+    credit_used: creditToUse,
+    taxable_amount: taxableAmount,
+    gst_rate: gstRate,
+    gst_amount: gstAmount,
+    total_payable: totalPayable,
+    is_free: totalPayable === 0
+  };
+}
+
+module.exports = {
+  MAX_DISCOUNT,
+  normalizeCycle,
+  isOfferActive,
+  getPlanPricing,
+  getAmountForCycle,
+  roundRupee,
+  computeQuote
+};

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -20,50 +20,19 @@ import {
   getPrimaryCategory
 } from "../../../lib/vendorCategoryConfig";
 import {
-  Building2,
-  Trees,
-  Camera,
-  Video,
-  Palette,
-  UtensilsCrossed,
-  Music2,
-  Sparkles,
-  Tent,
-  Printer,
-  Flame,
-  Car,
-  ClipboardList,
-  Mic2,
-  Gem,
-  Cake,
-  Gift,
-  Store,
-  Search,
-  X,
-  ArrowLeft,
-  Check
+  Building2, Trees, Camera, Video, Palette, UtensilsCrossed,
+  Music2, Sparkles, Tent, Printer, Flame, Car, ClipboardList,
+  Mic2, Gem, Cake, Gift, Store, Search, X, ArrowLeft, Check
 } from "lucide-react";
 
-// Keyword -> icon lookup so every category gets something more specific
-// than a generic placeholder, without needing icon data from the backend.
 const ICON_RULES = [
-  [/hall/, Building2],
-  [/lawn|farmhouse/, Trees],
-  [/photo/, Camera],
-  [/video/, Video],
-  [/decor/, Palette],
-  [/cater/, UtensilsCrossed],
-  [/\bdj\b|band|sound/, Music2],
-  [/makeup|mehendi|bridal/, Sparkles],
-  [/tent/, Tent],
-  [/card|print/, Printer],
-  [/pandit|ritual/, Flame],
-  [/travel|transport|\bcar\b/, Car],
-  [/planner|event manager/, ClipboardList],
-  [/anchor|emcee|choreograph/, Mic2],
-  [/jewellery/, Gem],
-  [/cake|bakery/, Cake],
-  [/gift/, Gift]
+  [/hall/, Building2], [/lawn|farmhouse/, Trees], [/photo/, Camera],
+  [/video/, Video], [/decor/, Palette], [/cater/, UtensilsCrossed],
+  [/\bdj\b|band|sound/, Music2], [/makeup|mehendi|bridal/, Sparkles],
+  [/tent/, Tent], [/card|print/, Printer], [/pandit|ritual/, Flame],
+  [/travel|transport|\bcar\b/, Car], [/planner|event manager/, ClipboardList],
+  [/anchor|emcee|choreograph/, Mic2], [/jewellery/, Gem],
+  [/cake|bakery/, Cake], [/gift/, Gift]
 ];
 
 function getCategoryIcon(name = "") {
@@ -95,23 +64,26 @@ export default function VenueDetailsForm() {
   const [search, setSearch] = useState("");
   const [payingNow, setPayingNow] = useState(false);
 
-  // Live category list  - pulled from Category Manager via the DB, not
-  // hardcoded. Any category an admin adds/edits/deletes shows up here
-  // immediately without a frontend deploy.
+  // Referral code from URL or localStorage
+  const [referralCode, setReferralCode] = useState("");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlCode = params.get("ref");
+    const storedCode = localStorage.getItem("in2fest_referral_code");
+    const code = urlCode || storedCode || "";
+    if (urlCode) localStorage.setItem("in2fest_referral_code", urlCode);
+    setReferralCode(code);
+  }, []);
+
   const { data: categories, loading: categoriesLoading } = useFetch("/meta/categories");
 
   const group = getGroupForCategories(selectedCategories, categories || []);
   const groupConfig = CATEGORY_FIELD_CONFIG[group];
 
   const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
+    register, handleSubmit, setValue, watch,
     formState: { errors, isSubmitting }
-  } = useForm({
-    resolver: yupResolver(getBusinessDetailsSchema(group))
-  });
+  } = useForm({ resolver: yupResolver(getBusinessDetailsSchema(group)) });
 
   const [selectedStateIso, setSelectedStateIso] = useState("");
   const { data: states, loading: statesLoading } = useFetch("/meta/states");
@@ -145,47 +117,63 @@ export default function VenueDetailsForm() {
     setStep(2);
   }
 
-  function startCashfreePayment(venue) {
+  function startCashfreePayment(venue, quote) {
     setPayingNow(true);
+
+    // If credit covers everything
+    if (quote?.is_free) {
+      paymentService.verifyPayment({
+        venueId: venue.id,
+        planId,
+        billingCycle,
+        creditOnly: true
+      }).then(async () => {
+        localStorage.removeItem("in2fest_referral_code");
+        showSuccess("Payment successful! Your page is live.");
+        await refetchVenue();
+        navigate("/dashboard");
+      }).catch((err) => {
+        showError(err.response?.data?.message || "Activation failed");
+      }).finally(() => setPayingNow(false));
+      return;
+    }
 
     paymentService
       .createOrder(venue.id, planId, "/dashboard", billingCycle)
       .then(({ data }) => {
-        const { orderId, paymentSessionId, mode } = data.data;
+        const { orderId, paymentSessionId, mode, creditOnly: isCreditOnly, quote: serverQuote } = data.data;
 
-        openCashfreeCheckout({
-          paymentSessionId,
-          mode,
-          onSuccess: async () => {
-            try {
-              await paymentService.verifyPayment({
-                orderId,
-                venueId: venue.id,
-                planId
-              });
-              showSuccess("Payment successful! Your page is live.");
-              await refetchVenue();
-              navigate("/dashboard");
-            } catch (err) {
-              showError("Payment succeeded but verification failed. Please contact support.");
-            } finally {
-              setPayingNow(false);
-            }
-          },
-          onFailure: (err) => {
-            showError(err.message || "Payment failed. Please try again.");
-            setPayingNow(false);
-          },
-          onDismiss: () => {
-            showError("Payment cancelled. Your page won't go live until payment is completed.");
-            setPayingNow(false);
-          }
+        if (isCreditOnly) {
+          return paymentService.verifyPayment({ venueId: venue.id, planId, billingCycle, creditOnly: true });
+        }
+
+        return new Promise((resolve, reject) => {
+          openCashfreeCheckout({
+            paymentSessionId,
+            mode,
+            onSuccess: async () => {
+              try {
+                await paymentService.verifyPayment({ orderId, venueId: venue.id, planId });
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            },
+            onFailure: (err) => reject(new Error(err.message || "Payment failed")),
+            onDismiss: () => reject(new Error("Payment cancelled"))
+          });
         });
       })
+      .then(async () => {
+        localStorage.removeItem("in2fest_referral_code");
+        showSuccess("Payment successful! Your page is live.");
+        await refetchVenue();
+        navigate("/dashboard");
+      })
       .catch((err) => {
-        setPayingNow(false);
-        showError(err.response?.data?.message || "Could not start payment");
-      });
+        showError(err.response?.data?.message || err.message || "Could not start payment");
+      })
+      .finally(() => setPayingNow(false));
   }
 
   const onSubmit = async (values) => {
@@ -197,12 +185,13 @@ export default function VenueDetailsForm() {
         ...values,
         business_category: primaryCategory,
         secondary_categories: secondaryCategories,
-        plan_id: planId
+        plan_id: planId,
+        referral_code: referralCode || undefined
       });
       const venue = data.data;
 
       if (needsPayment) {
-        startCashfreePayment(venue);
+        startCashfreePayment(venue, null);
       } else {
         showSuccess("You're live! Let's finish setting up your page.");
         await refetchVenue();
@@ -221,10 +210,7 @@ export default function VenueDetailsForm() {
     return (
       <div className="min-h-screen bg-[#FBF7F1]">
         <style>{`
-          @keyframes stepIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
+          @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           .step-enter { animation: stepIn 0.35s ease-out; }
         `}</style>
 
@@ -289,21 +275,12 @@ export default function VenueDetailsForm() {
                         : "border-[#EBE5DA] bg-white hover:border-[#D8D2C6] hover:-translate-y-0.5"
                     }`}
                   >
-                    <span
-                      className={`flex items-center justify-center w-8 h-8 rounded-lg ${
-                        isSelected ? "bg-[#C1352B] text-white" : "bg-[#F5F1E9] text-[#6B6B76]"
-                      }`}
-                    >
+                    <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${isSelected ? "bg-[#C1352B] text-white" : "bg-[#F5F1E9] text-[#6B6B76]"}`}>
                       <Icon size={16} strokeWidth={2} />
                     </span>
-                    <span
-                      className={`text-sm font-medium ${
-                        isSelected ? "text-[#C1352B]" : "text-[#151626]"
-                      }`}
-                    >
+                    <span className={`text-sm font-medium ${isSelected ? "text-[#C1352B]" : "text-[#151626]"}`}>
                       {cat.name}
                     </span>
-
                     {isSelected && (
                       <span className="absolute top-3 right-3 w-4 h-4 rounded-full bg-[#C1352B] flex items-center justify-center">
                         <Check size={10} className="text-white" strokeWidth={3} />
@@ -312,7 +289,6 @@ export default function VenueDetailsForm() {
                   </button>
                 );
               })}
-
               {filteredCategories.length === 0 && (
                 <p className="col-span-full text-center text-sm text-[#9C978C] py-8">
                   No business type matches "{search}"
@@ -325,9 +301,7 @@ export default function VenueDetailsForm() {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#EBE5DA] px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between">
             <p className="text-sm text-[#6B6B76]">
-              {selectedCategories.length === 0
-                ? "Select at least one"
-                : `${selectedCategories.length} selected`}
+              {selectedCategories.length === 0 ? "Select at least one" : `${selectedCategories.length} selected`}
             </p>
             <Button
               type="button"
@@ -346,10 +320,7 @@ export default function VenueDetailsForm() {
   return (
     <div className="min-h-screen bg-[#FBF7F1]">
       <style>{`
-        @keyframes stepIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .step-enter { animation: stepIn 0.35s ease-out; }
       `}</style>
 
@@ -374,6 +345,12 @@ export default function VenueDetailsForm() {
               .filter(Boolean)
               .join(", ")}
           </p>
+
+          {referralCode && (
+            <div className="mb-4 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 font-medium">
+              🎉 Referral code applied: <strong>{referralCode}</strong> — you'll get 12% off your first plan!
+            </div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="grid sm:grid-cols-2 gap-4">

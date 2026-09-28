@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.post("/create-order", authenticate, requireRole("venue_owner"), controller.createOrder);
 router.post("/verify", authenticate, requireRole("venue_owner"), controller.verifyPayment);
-
+router.get("/quote", authenticate, requireRole("venue_owner"), controller.getQuote);
 router.post("/manual", authenticate, requireRole("super_admin"), controller.recordManualPayment);
 router.get("/", authenticate, requireRole("super_admin"), controller.listPayments);
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
@@ -19,15 +19,7 @@ import { paymentService } from "../../../services/paymentService";
 import { openCashfreeCheckout } from "../../../lib/cashfree";
 import api from "../../../services/api";
 import {
-  Check,
-  Zap,
-  Star,
-  Crown,
-  Rocket,
-  CalendarDays,
-  CreditCard,
-  ArrowRight,
-  CheckCircle2
+  Check, Zap, Star, Crown, Rocket, CalendarDays, CreditCard, ArrowRight, CheckCircle2
 } from "lucide-react";
 
 const PLAN_STYLE = {
@@ -38,11 +30,8 @@ const PLAN_STYLE = {
   Pro:     { icon: Crown,  color: "text-emerald-500", ring: "border-emerald-400", badge: "bg-emerald-50 text-emerald-700" },
 };
 
-function getPlanStyle(name) {
-  return PLAN_STYLE[name] || PLAN_STYLE.Basic;
-}
+function getPlanStyle(name) { return PLAN_STYLE[name] || PLAN_STYLE.Basic; }
 
-// Plan.features stores keys like "website_builder" - show the readable label
 function featureLabel(key) {
   const found = PLAN_FEATURES.find((f) => f.key === key);
   if (found) return found.label;
@@ -53,6 +42,43 @@ function daysLeft(dateStr) {
   if (!dateStr) return null;
   const diff = Math.ceil((new Date(dateStr) - Date.now()) / 86400000);
   return diff > 0 ? diff : 0;
+}
+
+// GST Breakdown box shown in confirm dialog
+function GstBreakdown({ quote }) {
+  if (!quote) return null;
+  return (
+    <div className="mt-3 bg-navy-50 rounded-xl p-3 text-sm space-y-1">
+      <div className="flex justify-between text-navy-700">
+        <span>Plan price</span>
+        <span>{formatCurrency(quote.plan_price)}</span>
+      </div>
+      {quote.discount_amount > 0 && (
+        <div className="flex justify-between text-red-600">
+          <span>— Discount ({quote.offer_percent}%)</span>
+          <span>− {formatCurrency(quote.discount_amount)}</span>
+        </div>
+      )}
+      {quote.credit_used > 0 && (
+        <div className="flex justify-between text-emerald-600">
+          <span>— Referral credit</span>
+          <span>− {formatCurrency(quote.credit_used)}</span>
+        </div>
+      )}
+      <div className="flex justify-between text-navy-700 border-t border-navy-200 pt-1 mt-1">
+        <span>= Taxable amount</span>
+        <span>{formatCurrency(quote.taxable_amount)}</span>
+      </div>
+      <div className="flex justify-between text-navy-500">
+        <span>+ GST {quote.gst_rate}%</span>
+        <span>+ {formatCurrency(quote.gst_amount)}</span>
+      </div>
+      <div className="flex justify-between font-bold text-navy-900 border-t border-navy-200 pt-1 mt-1">
+        <span>= Total payable</span>
+        <span>{formatCurrency(quote.total_payable)}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function SubscriptionDetails() {
@@ -71,6 +97,8 @@ export default function SubscriptionDetails() {
   const [upgradeTarget, setUpgradeTarget] = useState(null);
   const [switching, setSwitching] = useState(false);
   const [cycleChoice, setCycleChoice] = useState(null);
+  const [quote, setQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   if (loading || plansLoading) return <Loader fullScreen />;
 
@@ -86,9 +114,27 @@ export default function SubscriptionDetails() {
   const isFreeTarget = (plan) => Number(plan?.monthly_price) === 0;
   const isDowngrade = (plan) => Number(plan.monthly_price) < Number(subscription?.plan?.monthly_price ?? 0);
 
+  const handleSelectPlan = async (plan) => {
+    setUpgradeTarget(plan);
+    if (!isFreeTarget(plan) && venue) {
+      setQuoteLoading(true);
+      try {
+        const { data } = await paymentService.getQuote(venue.id, plan.id, cycle);
+        setQuote(data.data);
+      } catch (_) {
+        setQuote(null);
+      } finally {
+        setQuoteLoading(false);
+      }
+    } else {
+      setQuote(null);
+    }
+  };
+
   const finishSwitch = (planName) => {
     showSuccess(t("settings.subscription.switchedTo", { name: translatePlanName(planName, i18n.language) }));
     setUpgradeTarget(null);
+    setQuote(null);
     refetchSub();
     refetchPayments?.();
     refetchVenue?.();
@@ -99,7 +145,6 @@ export default function SubscriptionDetails() {
     if (!upgradeTarget || !venue) return;
     setSwitching(true);
 
-    // Free plan: no payment needed, switch immediately
     if (isFreeTarget(upgradeTarget)) {
       try {
         await api.patch(`/subscriptions/${venue.id}/change-plan`, { planId: upgradeTarget.id });
@@ -111,7 +156,6 @@ export default function SubscriptionDetails() {
       return;
     }
 
-    // Paid plan: complete Cashfree payment (price for selected cycle) before the switch applies
     try {
       const { data } = await paymentService.createOrder(
         venue.id,
@@ -119,18 +163,20 @@ export default function SubscriptionDetails() {
         "/dashboard/settings/subscription",
         cycle
       );
-      const { orderId, paymentSessionId, mode } = data.data;
+      const { orderId, paymentSessionId, mode, creditOnly: isCreditOnly } = data.data;
+
+      if (isCreditOnly) {
+        await paymentService.verifyPayment({ venueId: venue.id, planId: upgradeTarget.id, billingCycle: cycle, creditOnly: true });
+        finishSwitch(upgradeTarget.name);
+        return;
+      }
 
       openCashfreeCheckout({
         paymentSessionId,
         mode,
         onSuccess: async () => {
           try {
-            await paymentService.verifyPayment({
-              orderId,
-              venueId: venue.id,
-              planId: upgradeTarget.id
-            });
+            await paymentService.verifyPayment({ orderId, venueId: venue.id, planId: upgradeTarget.id });
             finishSwitch(upgradeTarget.name);
           } catch (err) {
             showError(t("settings.subscription.changeError"));
@@ -214,6 +260,9 @@ export default function SubscriptionDetails() {
                     <span className="text-2xl font-display font-bold text-navy-900">{formatCurrency(price.final)}</span>
                     {!price.isFree && <span className="text-sm text-navy-400">{price.cycleLabel}</span>}
                   </div>
+                  {paidSwitch && (
+                    <p className="text-xs text-navy-400 mt-0.5">+ 18% GST</p>
+                  )}
                   {paidSwitch && cycle === "yearly" && (
                     <p className="text-xs text-navy-500 mt-0.5">≈ {formatCurrency(price.perMonth)}/mo</p>
                   )}
@@ -244,7 +293,7 @@ export default function SubscriptionDetails() {
                     <CheckCircle2 size={14} /> {t("settings.subscription.active")}
                   </div>
                 ) : isCurrent ? (
-                  <Button variant="outline" className="w-full text-sm" onClick={() => setUpgradeTarget(plan)}>
+                  <Button variant="outline" className="w-full text-sm" onClick={() => handleSelectPlan(plan)}>
                     {cycle === "yearly" ? "Switch to yearly" : "Switch to monthly"}
                     <span className="ml-1 text-[10px] opacity-80">· {formatCurrency(price.final)}</span>
                   </Button>
@@ -252,7 +301,7 @@ export default function SubscriptionDetails() {
                   <Button
                     variant={down ? "outline" : "primary"}
                     className="w-full text-sm"
-                    onClick={() => setUpgradeTarget(plan)}
+                    onClick={() => handleSelectPlan(plan)}
                   >
                     {down ? t("settings.subscription.switch") : t("settings.subscription.upgrade")} <ArrowRight size={13} className="ml-1" />
                     {paidSwitch && (
@@ -284,7 +333,10 @@ export default function SubscriptionDetails() {
               {payments.map((p) => (
                 <div key={p.id} className="flex items-center justify-between py-3">
                   <div>
-                    <p className="font-medium text-navy-800 text-sm">{formatCurrency(p.amount)}</p>
+                    <p className="font-medium text-navy-800 text-sm">{formatCurrency(p.total_amount ?? p.amount)}</p>
+                    {p.gst_amount > 0 && (
+                      <p className="text-xs text-navy-400 mt-0.5">incl. GST ₹{Number(p.gst_amount).toFixed(2)}</p>
+                    )}
                     <p className="text-xs text-navy-400 mt-0.5">{formatDate(p.created_at)}</p>
                   </div>
                   <Badge status={p.status || "paid"} />
@@ -296,6 +348,9 @@ export default function SubscriptionDetails() {
               <thead>
                 <tr className="text-left text-navy-400 text-xs border-b border-navy-100/60">
                   <th className="pb-2 font-medium">{t("settings.subscription.colDate")}</th>
+                  <th className="pb-2 font-medium">Plan</th>
+                  <th className="pb-2 font-medium">Amount (excl. GST)</th>
+                  <th className="pb-2 font-medium">GST</th>
                   <th className="pb-2 font-medium">{t("settings.subscription.colAmount")}</th>
                   <th className="pb-2 font-medium">{t("settings.subscription.colStatus")}</th>
                 </tr>
@@ -304,7 +359,14 @@ export default function SubscriptionDetails() {
                 {payments.map((p) => (
                   <tr key={p.id} className="border-b border-navy-100/60 last:border-0">
                     <td className="py-2.5 text-navy-600">{formatDate(p.created_at)}</td>
-                    <td className="py-2.5 font-medium text-navy-900">{formatCurrency(p.amount)}</td>
+                    <td className="py-2.5 text-navy-600">{p.plan_name_snapshot || "—"}</td>
+                    <td className="py-2.5 text-navy-600">
+                      {p.base_amount ? formatCurrency(Number(p.base_amount) - Number(p.discount_amount || 0)) : "—"}
+                    </td>
+                    <td className="py-2.5 text-navy-600">
+                      {p.gst_amount ? formatCurrency(p.gst_amount) : "—"}
+                    </td>
+                    <td className="py-2.5 font-medium text-navy-900">{formatCurrency(p.total_amount ?? p.amount)}</td>
                     <td className="py-2.5"><Badge status={p.status || "paid"} /></td>
                   </tr>
                 ))}
@@ -316,19 +378,29 @@ export default function SubscriptionDetails() {
 
       <ConfirmDialog
         isOpen={!!upgradeTarget}
-        onClose={() => setUpgradeTarget(null)}
+        onClose={() => { setUpgradeTarget(null); setQuote(null); }}
         onConfirm={handleChangePlan}
-        loading={switching}
+        loading={switching || quoteLoading}
         title={t("settings.subscription.confirmSwitchTitle", { name: upgradeTarget ? translatePlanName(upgradeTarget.name, i18n.language) : "" })}
         message={
           upgradeTarget
             ? !isFreeTarget(upgradeTarget)
-              ? t("settings.subscription.confirmPayCycleMsg", {
-                  defaultValue: "You'll be charged {{price}} now for the {{name}} plan ({{cycle}}).",
-                  price: formatCurrency(targetPrice.final),
-                  name: translatePlanName(upgradeTarget.name, i18n.language),
-                  cycle: cycle === "yearly" ? "billed yearly" : "billed monthly"
-                })
+              ? (
+                <div>
+                  <p className="text-sm text-navy-600">
+                    {t("settings.subscription.confirmPayCycleMsg", {
+                      defaultValue: "Switching to {{name}} plan ({{cycle}}).",
+                      name: translatePlanName(upgradeTarget.name, i18n.language),
+                      cycle: cycle === "yearly" ? "billed yearly" : "billed monthly"
+                    })}
+                  </p>
+                  {quoteLoading ? (
+                    <p className="text-xs text-navy-400 mt-2">Loading price breakdown...</p>
+                  ) : (
+                    <GstBreakdown quote={quote} />
+                  )}
+                </div>
+              )
               : t("settings.subscription.confirmDowngradeMsg", {
                   fromName: translatePlanName(subscription?.plan?.name, i18n.language),
                   fromPrice: formatCurrency(subscription?.plan?.monthly_price),
@@ -375,6 +447,7 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial }) {
         <p className="text-sm text-navy-500">
           {formatCurrency(subscription.locked_price)}
           {isYearly ? "/yr" : t("settings.subscription.perMonth")}
+          {" + 18% GST"}
           {isTrial && trialDays !== null && (
             <span className="ml-2 text-gold-600 font-medium">
               {trialDays === 1

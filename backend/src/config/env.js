@@ -63,7 +63,7 @@ module.exports = {
   cashfree: {
     appId: process.env.CASHFREE_APP_ID,
     secretKey: process.env.CASHFREE_SECRET_KEY,
-    env: process.env.CASHFREE_ENV || "sandbox", // "sandbox" | "production"
+    env: process.env.CASHFREE_ENV || "sandbox",
     apiVersion: process.env.CASHFREE_API_VERSION || "2023-08-01"
   },
 
@@ -80,5 +80,14 @@ module.exports = {
   rateLimit: {
     windowMin: parseInt(process.env.RATE_LIMIT_WINDOW_MIN, 10) || 15,
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 200
-  }
+  },
+
+  // Referral & GST config — live in env, never hardcoded in logic
+  referral: {
+    referrerPercent:      parseFloat(process.env.REFERRAL_REFERRER_PERCENT)      || 25,
+    friendPercent:        parseFloat(process.env.REFERRAL_FRIEND_PERCENT)         || 12,
+    holdDays:             parseInt(process.env.REFERRAL_HOLD_DAYS, 10)            || 14,
+    creditExpiryMonths:   parseInt(process.env.REFERRAL_CREDIT_EXPIRY_MONTHS, 10) || 12
+  },
+  gstRate: parseFloat(process.env.GST_RATE) || 18
 };

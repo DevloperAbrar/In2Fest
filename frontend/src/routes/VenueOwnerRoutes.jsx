@@ -42,6 +42,9 @@ import MarketplaceProfilePage from "../features/venue-owner/marketplace-profile/
 
 import OwnerReviews from "../features/venue-owner/reviews/OwnerReviews.jsx";
 
+// ✅ NEW: Referrals page
+import ReferralsPage from "../features/venue-owner/referrals/ReferralsPage.jsx";
+
 export default function VenueOwnerRoutes() {
   return (
     <VenueProvider>
@@ -59,9 +62,7 @@ export default function VenueOwnerRoutes() {
         <Route path="website/contact" element={<RequireFeature feature="website_builder"><ContactEditor /></RequireFeature>} />
         <Route path="marketplace-profile" element={<RequireFeature feature="marketplace_profile"><MarketplaceProfilePage /></RequireFeature>} />
 
-        {/* Packages section gets its own editor with Slots import support */}
         <Route path="website/section/packages" element={<RequireFeature feature="website_builder"><PackagesSectionEditor /></RequireFeature>} />
-        {/* Generic section editor for all other pluggable section types */}
         <Route path="website/section/:type" element={<RequireFeature feature="website_builder"><SectionContentEditor /></RequireFeature>} />
 
         <Route path="slots" element={<RequireFeature feature="slots"><SlotList /></RequireFeature>} />
@@ -85,6 +86,9 @@ export default function VenueOwnerRoutes() {
         <Route path="settings/team" element={<RequireOwner><TeamMembers /></RequireOwner>} />
         <Route path="settings/subscription" element={<RequireOwner><SubscriptionDetails /></RequireOwner>} />
         <Route path="reviews" element={<RequireFeature feature="reviews"><OwnerReviews /></RequireFeature>} />
+
+        {/* ✅ NEW: Referrals route */}
+        <Route path="referrals" element={<RequireOwner><ReferralsPage /></RequireOwner>} />
       </Routes>
     </VenueProvider>
   );

@@ -5,6 +5,7 @@ const { startMessageScheduler } = require("../modules/whatsapp/message.scheduler
 const { startFreeListingNudge } = require("./freeListingNudge");
 const { startWeeklyStats } = require("./weeklyStats");
 const { startSitemapRebuilder } = require("./sitemapRebuilder");
+const { startReferralCron } = require("./referralCron");
 
 function startJobs() {
   startTrialExpiryChecker();
@@ -14,6 +15,7 @@ function startJobs() {
   startFreeListingNudge();
   startWeeklyStats();
   startSitemapRebuilder();
+  startReferralCron();
   console.log("[JOBS] All background jobs started.");
 }
 

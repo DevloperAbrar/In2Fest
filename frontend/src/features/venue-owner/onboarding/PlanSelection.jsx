@@ -97,87 +97,83 @@ export default function PlanSelection() {
           {planList.map((plan) => {
             const isSelected = selectedPlanId === plan.id;
             const price = getCyclePricing(plan, cycle);
+            const isFree = Number(plan.monthly_price) === 0;
 
             return (
-              <button
-                type="button"
+              <div
                 key={plan.id}
                 onClick={() => setSelectedPlanId(plan.id)}
-                className={`relative text-left rounded-2xl p-7 bg-white border transition-all duration-200 flex flex-col
-                  ${
-                    isSelected
-                      ? "border-[#C1352B] ring-2 ring-[#C1352B]/20 shadow-lg -translate-y-1"
-                      : "border-[#EBE5DA] hover:border-[#D8D2C6] hover:shadow-md"
-                  }`}
+                className={`relative cursor-pointer rounded-2xl border-2 p-6 flex flex-col transition-all ${
+                  isSelected
+                    ? "border-[#C1352B] bg-white shadow-lg"
+                    : "border-[#EBE5DA] bg-white hover:border-[#C1352B]/40 hover:shadow-md"
+                }`}
               >
                 {price.hasDiscount && (
-                  <span className="absolute -top-3 right-5 bg-[#C1352B] text-white text-[11px] font-bold px-3 py-1 rounded-full shadow">
+                  <span className="absolute -top-3 right-4 bg-red-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow">
                     {price.offer.percent}% OFF
                   </span>
                 )}
-
-                <h3 className="font-semibold text-lg text-[#151626]">{plan.name}</h3>
-                {plan.description && (
-                  <p className="text-xs text-[#9C978C] mt-1 line-clamp-2 min-h-[2rem]">{plan.description}</p>
+                {isSelected && (
+                  <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-[#C1352B] flex items-center justify-center">
+                    <Check size={12} className="text-white" strokeWidth={3} />
+                  </span>
                 )}
 
-                <div className="mt-4 min-h-[5.5rem]">
+                <h3 className="font-bold text-[#151626] text-lg mb-2">{plan.name}</h3>
+
+                <div className="mb-1">
                   {price.hasDiscount && (
-                    <p className="text-sm text-[#9C978C] line-through">{formatCurrency(price.original)}</p>
+                    <p className="text-sm text-gray-400 line-through">{formatCurrency(price.original)}</p>
                   )}
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-[#151626]">{formatCurrency(price.final)}</span>
-                    <span className="text-sm text-[#9C978C]">{price.isFree ? "" : price.cycleLabel}</span>
+                    <span className="text-2xl font-bold text-[#151626]">{formatCurrency(price.final)}</span>
+                    {!isFree && (
+                      <span className="text-sm text-gray-500">{price.cycleLabel}</span>
+                    )}
                   </div>
-
-                  {price.isFree ? (
-                    <p className="text-xs mt-1 text-[#9C978C]">Free forever</p>
-                  ) : cycle === "yearly" ? (
-                    <>
-                      <p className="text-xs mt-1 text-[#6B6B76]">
-                        Just {formatCurrency(price.perMonth)}/mo · billed yearly
-                      </p>
-                      {price.savingsPercent > 0 && (
-                        <p className="text-xs mt-1 font-semibold text-emerald-600">
-                          You save {price.savingsPercent}% vs monthly
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-xs mt-1 text-[#9C978C]">Billed monthly</p>
+                  {!isFree && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      + 18% GST applicable
+                    </p>
                   )}
+                  {isFree && <p className="text-xs text-gray-400 mt-0.5">Free forever</p>}
                 </div>
 
-                <ul className="space-y-3 my-6 flex-1">
-                  {(plan.features || []).map((f) => {
-                    const { label, icon: Icon } = getFeatureMeta(f);
+                {plan.trial_days > 0 && (
+                  <p className="text-xs text-sky-600 font-medium my-2">{plan.trial_days}-day free trial</p>
+                )}
+
+                <ul className="space-y-1.5 mt-3 flex-1">
+                  {(plan.features || []).map((f, i) => {
+                    const meta = getFeatureMeta(f);
+                    const Icon = meta.icon;
                     return (
-                      <li key={f} className="flex items-center gap-2.5 text-sm">
-                        <span className="flex items-center justify-center w-5 h-5 rounded-full shrink-0 bg-[#FBEAE7] text-[#C1352B]">
-                          <Icon size={12} strokeWidth={2.5} />
-                        </span>
-                        <span className="text-[#4B4A55]">{label}</span>
+                      <li key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                        <Icon size={13} className="text-emerald-500 flex-shrink-0" />
+                        <span>{meta.label}</span>
                       </li>
                     );
                   })}
                 </ul>
-
-                <div
-                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    isSelected ? "border-[#C1352B] bg-[#C1352B]" : "border-[#D8D2C6]"
-                  }`}
-                >
-                  {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
-                </div>
-              </button>
+              </div>
             );
           })}
         </div>
+      </div>
 
-        <div className="flex justify-center mt-12">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#EBE5DA] px-4 py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <p className="text-sm text-[#6B6B76]">
+            {selectedPlanId
+              ? `${planList.find((p) => p.id === selectedPlanId)?.name} plan selected`
+              : "Select a plan to continue"}
+          </p>
           <Button
+            type="button"
             onClick={handleContinue}
-            className="!bg-[#C1352B] hover:!bg-[#A82E25] !rounded-full !px-12 !py-3 !text-base"
+            disabled={!selectedPlanId}
+            className="!bg-[#C1352B] hover:!bg-[#A82E25] !rounded-full !px-8"
           >
             Continue
           </Button>
