@@ -41,7 +41,7 @@ function getFeatureMeta(key) {
 export default function PlanSelection() {
   const { data: plans, loading } = useFetch("/plans");
   const [selectedPlanId, setSelectedPlanId] = useState(null);
-  const [cycle, setCycle] = useState("monthly");
+  const [cycle, setCycle] = useState("yearly");
   const navigate = useNavigate();
 
   const planList = plans || [];
