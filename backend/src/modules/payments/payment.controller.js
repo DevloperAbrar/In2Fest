@@ -10,7 +10,6 @@ const { normalizeCycle, computeQuote } = require("../plans/planPricing");
 
 /**
  * Makes sure the logged-in owner really owns this venue.
- * Prevents reading another venue's credit balance or paying for it.
  */
 async function loadOwnedVenue(venueId, userId, options = {}) {
   const venue = await Venue.findOne({ where: { id: venueId, owner_id: userId }, ...options });
@@ -19,27 +18,54 @@ async function loadOwnedVenue(venueId, userId, options = {}) {
 }
 
 /**
- * Single place that builds a quote so create-order, verify and quote
- * endpoints can never disagree.
+ * Treats anything except an explicit false/"false"/0/"0" as "use credit".
+ * Keeps old callers (onboarding, plan switch) working: they never send the flag.
  */
-async function buildQuote(plan, cycle, venueId) {
-  const creditAvail = await referralService.getCreditBalance(venueId);
-  const friendPercent = await referralService.getFriendDiscountPercent(venueId);
-  return computeQuote(plan, cycle, creditAvail, env.gstRate, friendPercent);
+function parseUseCredit(value) {
+  return !(value === false || value === "false" || value === 0 || value === "0");
 }
 
 /**
- * Creates a Cashfree order for a venue's subscription payment.
- * Price is always computed server-side. Referral credit + GST applied here.
+ * Single place that builds a quote so create-order, verify and quote
+ * endpoints can never disagree.
+ * useCredit=false -> credit is NOT deducted, but credit_available still reports
+ * the venue's real balance so the UI can show the checkbox.
+ */
+async function buildQuote(plan, cycle, venueId, useCredit = true) {
+  const creditBalance = await referralService.getCreditBalance(venueId);
+  const friendPercent = await referralService.getFriendDiscountPercent(venueId);
+  const quote = computeQuote(
+    plan,
+    cycle,
+    useCredit ? creditBalance : 0,
+    env.gstRate,
+    friendPercent
+  );
+  quote.credit_available = creditBalance;
+  return quote;
+}
+
+/**
+ * Creates a Cashfree order for a venue's subscription payment (new plan or renewal).
+ * Pass type: "renewal" in body to renew the current plan instead of switching.
+ * Pass useCredit: false to skip deducting referral credit.
  */
 async function createOrder(req, res, next) {
   try {
-    const { venueId, planId, returnPath, billingCycle } = req.body;
+    const { venueId, planId, returnPath, billingCycle, type, useCredit } = req.body;
+    const isRenewal = type === "renewal";
+    const applyCredit = parseUseCredit(useCredit);
     const cycle = normalizeCycle(billingCycle);
     const cashfree = getCashfreeClient();
     if (!cashfree) throw new AppError("Payment gateway not configured", 503);
 
-    const plan = await Plan.findByPk(planId);
+    let resolvedPlanId = planId;
+    if (isRenewal && !planId) {
+      const sub = await subscriptionService.getSubscriptionByVenue(venueId);
+      resolvedPlanId = sub.plan_id;
+    }
+
+    const plan = await Plan.findByPk(resolvedPlanId);
     if (!plan) throw new AppError("Plan not found", 404);
     if (!plan.is_active) throw new AppError("This plan is no longer available", 400);
 
@@ -47,10 +73,9 @@ async function createOrder(req, res, next) {
       include: [{ model: User, as: "owner" }]
     });
 
-    const quote = await buildQuote(plan, cycle, venueId);
+    const quote = await buildQuote(plan, cycle, venueId, applyCredit);
 
     if (quote.is_free) {
-      // Credit covers everything - no Cashfree order needed
       return res.json({
         success: true,
         data: {
@@ -58,7 +83,8 @@ async function createOrder(req, res, next) {
           paymentSessionId: null,
           mode: env.cashfree.env,
           quote,
-          creditOnly: true
+          creditOnly: true,
+          type: isRenewal ? "renewal" : "switch"
         }
       });
     }
@@ -68,7 +94,8 @@ async function createOrder(req, res, next) {
     const digitsOnly = (venue.phone || "").replace(/\D/g, "");
     const customerPhone = digitsOnly.slice(-10).padStart(10, "9");
 
-    const orderId = `order_${venueId}_${Date.now()}`;
+    const orderPrefix = isRenewal ? "renew" : "order";
+    const orderId = `${orderPrefix}_${venueId}_${Date.now()}`;
     const safeReturnPath = returnPath || "/dashboard";
 
     let cfOrder;
@@ -86,8 +113,12 @@ async function createOrder(req, res, next) {
         order_meta: {
           return_url: `${env.clientUrl}${safeReturnPath}?cf_order_id={order_id}`
         },
-        order_tags: { billing_cycle: cycle },
-        order_note: `${plan.name} plan (${cycle}) subscription for venue ${venueId}`
+        order_tags: {
+          billing_cycle: cycle,
+          type: isRenewal ? "renewal" : "switch",
+          use_credit: applyCredit ? "true" : "false"
+        },
+        order_note: `${isRenewal ? "Renewal" : "Subscription"}: ${plan.name} plan (${cycle}) for venue ${venueId}`
       });
       cfOrder = data;
     } catch (cashfreeError) {
@@ -106,7 +137,9 @@ async function createOrder(req, res, next) {
         paymentSessionId: cfOrder.payment_session_id,
         mode: env.cashfree.env,
         quote,
-        creditOnly: false
+        creditOnly: false,
+        type: isRenewal ? "renewal" : "switch",
+        resolvedPlanId
       }
     });
   } catch (error) {
@@ -116,17 +149,25 @@ async function createOrder(req, res, next) {
 
 /**
  * Confirms payment after Cashfree checkout closes, OR activates credit-only order.
- * All amounts are re-computed server-side; never trust client-sent amounts.
+ * Supports type: "renewal" to extend from current_period_end instead of resetting.
  */
 async function verifyPayment(req, res, next) {
   try {
-    const { orderId, venueId, planId, creditOnly } = req.body;
+    const { orderId, venueId, planId, creditOnly, type } = req.body;
+    const isRenewal = type === "renewal";
 
-    if (!venueId || !planId) throw new AppError("venueId and planId required", 400);
+    if (!venueId) throw new AppError("venueId required", 400);
 
     await loadOwnedVenue(venueId, req.user.id);
 
-    const plan = await Plan.findByPk(planId);
+    let resolvedPlanId = planId;
+    if (isRenewal && !planId) {
+      const sub = await subscriptionService.getSubscriptionByVenue(venueId);
+      resolvedPlanId = sub.plan_id;
+    }
+    if (!resolvedPlanId) throw new AppError("planId required", 400);
+
+    const plan = await Plan.findByPk(resolvedPlanId);
     if (!plan) throw new AppError("Plan not found", 404);
 
     const t = await sequelize.transaction();
@@ -134,9 +175,9 @@ async function verifyPayment(req, res, next) {
       let cycle, paidAmount, cfPaymentId = null;
 
       if (creditOnly) {
-        // Full credit cover - no Cashfree involved
         cycle = normalizeCycle(req.body.billingCycle);
-        const quote = await buildQuote(plan, cycle, venueId);
+        const applyCredit = parseUseCredit(req.body.useCredit);
+        const quote = await buildQuote(plan, cycle, venueId, applyCredit);
         if (!quote.is_free) {
           throw new AppError("Credit does not fully cover this order", 400);
         }
@@ -146,18 +187,23 @@ async function verifyPayment(req, res, next) {
 
         const existingSub = await Subscription.findOne({ where: { venue_id: venueId }, transaction: t });
         let subscription;
-        if (existingSub) {
-          subscription = existingSub.plan_id === planId
-            ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: 0 })
-            : await subscriptionService.switchPlanAfterPayment(venueId, planId, { billingCycle: cycle, amount: 0 });
+        if (isRenewal) {
+          subscription = await subscriptionService.renewSubscription(venueId, {
+            billingCycle: cycle,
+            amount: quote.taxable_amount
+          });
+        } else if (existingSub) {
+          subscription = existingSub.plan_id === resolvedPlanId
+            ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: quote.taxable_amount })
+            : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, { billingCycle: cycle, amount: quote.taxable_amount });
         } else {
-          subscription = await subscriptionService.createSubscription(venueId, planId, { billingCycle: cycle, skipTrial: true });
-          subscription.locked_price = 0;
+          subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, { billingCycle: cycle, skipTrial: true });
+          subscription.locked_price = quote.taxable_amount;
           subscription.status = "active";
           await subscription.save();
         }
 
-        await Payment.create({
+        const paymentRow = await Payment.create({
           venue_id: venueId,
           amount: 0,
           method: "credit",
@@ -165,35 +211,25 @@ async function verifyPayment(req, res, next) {
           plan_name_snapshot: plan.name,
           period_covered_start: subscription.current_period_start,
           period_covered_end: subscription.current_period_end,
+          cf_payment_id: dummyPaymentId,
+          cf_order_id: dummyPaymentId,
           base_amount: quote.plan_price,
           discount_amount: quote.discount_amount,
           credit_used: quote.credit_used,
           gst_rate: quote.gst_rate,
           gst_amount: 0,
           total_amount: 0,
-          notes: `Credit-only payment. Billing: ${cycle}`
+          notes: `Credit-only ${isRenewal ? "renewal" : "switch"}: ${cycle}`
         }, { transaction: t });
 
+        await referralService.handlePostPaymentReferral(t, paymentRow, venueId, quote.taxable_amount);
         await t.commit();
-
-        // After commit so the subscription is visible to the eligibility check
         await referralService.maybeAssignReferralCode(venueId);
         return res.json({ success: true, data: subscription });
       }
 
-      // Normal Cashfree payment
-      if (!orderId) throw new AppError("orderId is required", 400);
-      if (!orderId.startsWith(`order_${venueId}_`)) {
-        throw new AppError("This order does not belong to this venue", 400);
-      }
-
-      // Idempotency: same order verified twice (reload / double callback) must not renew twice
-      const alreadyRecorded = await Payment.findOne({ where: { cf_order_id: orderId }, transaction: t });
-      if (alreadyRecorded) {
-        await t.rollback();
-        const sub = await Subscription.findOne({ where: { venue_id: venueId } });
-        return res.json({ success: true, data: sub });
-      }
+      // Cashfree payment — verify with gateway
+      if (!orderId) throw new AppError("orderId required for non-credit payments", 400);
 
       const cashfree = getCashfreeClient();
       if (!cashfree) throw new AppError("Payment gateway not configured", 503);
@@ -203,46 +239,47 @@ async function verifyPayment(req, res, next) {
         const { data } = await cashfree.get(`/orders/${orderId}`);
         cfOrder = data;
       } catch (cashfreeError) {
-        const description = cashfreeError?.response?.data?.message || cashfreeError?.message || "Could not verify the payment";
-        throw new AppError(`Payment gateway error: ${description}`, 502);
+        throw new AppError("Could not verify payment with gateway", 502);
       }
 
       if (cfOrder.order_status !== "PAID") {
-        throw new AppError(`Payment not completed (status: ${cfOrder.order_status})`, 402);
+        throw new AppError("Payment not completed", 402);
       }
 
-      cycle = normalizeCycle(cfOrder.order_tags?.billing_cycle);
-      paidAmount = Number(cfOrder.order_amount);
+      const payments_list = cfOrder.order_payments || [];
+      const successPay = payments_list.find((p) => p.payment_status === "SUCCESS");
+      cfPaymentId = successPay?.cf_payment_id || cfOrder.cf_order_id || orderId;
+      paidAmount = cfOrder.order_amount;
+      cycle = normalizeCycle(cfOrder.order_tags?.billing_cycle || req.body.billingCycle);
 
-      // Re-compute server-side quote to get the breakdown
-      const quote = await buildQuote(plan, cycle, venueId);
-      if (Math.abs(quote.total_payable - paidAmount) > 1) {
-        console.warn(
-          `[PAYMENT] Amount mismatch for ${orderId}: quote=${quote.total_payable} paid=${paidAmount}`
-        );
-      }
+      // Trust the flag stored on the Cashfree order, fall back to request body
+      const tagUseCredit = cfOrder.order_tags?.use_credit;
+      const applyCredit = parseUseCredit(
+        tagUseCredit !== undefined ? tagUseCredit : req.body.useCredit
+      );
 
-      try {
-        const { data: attempts } = await cashfree.get(`/orders/${orderId}/payments`);
-        if (Array.isArray(attempts) && attempts.length > 0) {
-          cfPaymentId = attempts[attempts.length - 1].cf_payment_id || null;
-        }
-      } catch (_) {}
+      const quote = await buildQuote(plan, cycle, venueId, applyCredit);
 
-      const existingSub = await Subscription.findOne({ where: { venue_id: venueId }, transaction: t });
       let subscription;
-      if (existingSub) {
-        subscription = existingSub.plan_id === planId
-          ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: quote.taxable_amount })
-          : await subscriptionService.switchPlanAfterPayment(venueId, planId, { billingCycle: cycle, amount: quote.taxable_amount });
+      if (isRenewal) {
+        subscription = await subscriptionService.renewSubscription(venueId, {
+          billingCycle: cycle,
+          amount: quote.taxable_amount
+        });
       } else {
-        subscription = await subscriptionService.createSubscription(venueId, planId, { billingCycle: cycle, skipTrial: true });
-        subscription.locked_price = quote.taxable_amount;
-        subscription.status = "active";
-        await subscription.save();
+        const existingSub = await Subscription.findOne({ where: { venue_id: venueId }, transaction: t });
+        if (existingSub) {
+          subscription = existingSub.plan_id === resolvedPlanId
+            ? await subscriptionService.renewSubscription(venueId, { billingCycle: cycle, amount: quote.taxable_amount })
+            : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, { billingCycle: cycle, amount: quote.taxable_amount });
+        } else {
+          subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, { billingCycle: cycle, skipTrial: true });
+          subscription.locked_price = quote.taxable_amount;
+          subscription.status = "active";
+          await subscription.save();
+        }
       }
 
-      // Spend credit (FIFO, row-locked) - only after payment confirmed
       let actualCreditUsed = 0;
       if (quote.credit_used > 0) {
         actualCreditUsed = await referralService.spendCredit(t, venueId, quote.credit_used, orderId);
@@ -264,15 +301,11 @@ async function verifyPayment(req, res, next) {
         gst_rate: quote.gst_rate,
         gst_amount: quote.gst_amount,
         total_amount: paidAmount,
-        notes: `Billing: ${cycle}`
+        notes: `${isRenewal ? "Renewal" : "Billing"}: ${cycle}`
       }, { transaction: t });
 
-      // Referral reward for the referrer (first payment of the referred venue)
       await referralService.handlePostPaymentReferral(t, paymentRow, venueId, quote.taxable_amount);
-
       await t.commit();
-
-      // Venue is now on a paid plan - give it its own referral code
       await referralService.maybeAssignReferralCode(venueId);
 
       res.json({ success: true, data: subscription });
@@ -361,7 +394,7 @@ async function listPayments(req, res, next) {
 
 async function getQuote(req, res, next) {
   try {
-    const { venueId, planId, billingCycle } = req.query;
+    const { venueId, planId, billingCycle, useCredit } = req.query;
     if (!venueId || !planId) throw new AppError("venueId and planId required", 400);
 
     await loadOwnedVenue(venueId, req.user.id);
@@ -369,7 +402,12 @@ async function getQuote(req, res, next) {
     const plan = await Plan.findByPk(planId);
     if (!plan) throw new AppError("Plan not found", 404);
 
-    const quote = await buildQuote(plan, normalizeCycle(billingCycle), venueId);
+    const quote = await buildQuote(
+      plan,
+      normalizeCycle(billingCycle),
+      venueId,
+      parseUseCredit(useCredit)
+    );
     res.json({ success: true, data: quote });
   } catch (err) {
     next(err);

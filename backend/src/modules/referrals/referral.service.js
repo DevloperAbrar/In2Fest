@@ -188,48 +188,54 @@ async function applyReferralAtSignup(newVenue, referralCode, ownerUser) {
 }
 
 async function handlePostPaymentReferral(t, paymentRow, venueId, baseAmountPaid) {
-  const { referral: refCfg } = env;
-  const { Plan } = require("../../database/models");
-
-  const venue = await Venue.findByPk(venueId, { transaction: t });
-  if (!venue?.referred_by) return;
-
-  const referral = await Referral.findOne({
-    where: { referred_venue_id: venueId, status: "pending", first_payment_id: null },
-    lock: t.LOCK.UPDATE,
-    transaction: t
-  });
-  if (!referral) return;
-
-  const refSub = await Subscription.findOne({
-    where: { venue_id: referral.referrer_venue_id },
-    include: [{ model: Plan, as: "plan" }],
-    transaction: t
-  });
-  if (!isPaidActivePlan(refSub)) return;
-
-  const rewardPercent = refCfg.referrerPercent;
-  const rewardAmount = round2((baseAmountPaid * rewardPercent) / 100);
-  const availableAt = dayjs().add(refCfg.holdDays, "day").toDate();
-  const expiresAt = dayjs(availableAt).add(refCfg.creditExpiryMonths, "month").toDate();
-
-  referral.first_payment_id = paymentRow.id;
-  referral.base_amount = baseAmountPaid;
-  referral.reward_percent = rewardPercent;
-  referral.reward_amount = rewardAmount;
-  referral.available_at = availableAt;
-  await referral.save({ transaction: t });
-
-  await ReferralCreditLedger.create({
-    venue_id: referral.referrer_venue_id,
-    type: "earn",
-    amount: rewardAmount,
-    referral_id: referral.id,
-    payment_id: paymentRow.id,
-    expires_at: expiresAt,
-    note: `Referral reward (hold until ${dayjs(availableAt).format("DD MMM YYYY")})`
-  }, { transaction: t });
-}
+    const { referral: refCfg } = env;
+    const { Plan } = require("../../database/models");
+  
+    const venue = await Venue.findByPk(venueId, { transaction: t });
+    if (!venue?.referred_by) return;
+  
+    const referral = await Referral.findOne({
+      where: { referred_venue_id: venueId, status: "pending", first_payment_id: null },
+      lock: t.LOCK.UPDATE,
+      transaction: t
+    });
+    if (!referral) return;
+  
+    const refSub = await Subscription.findOne({
+      where: { venue_id: referral.referrer_venue_id },
+      include: [{ model: Plan, as: "plan" }],
+      transaction: t
+    });
+    if (!isPaidActivePlan(refSub)) return;
+  
+    const rewardPercent = refCfg.referrerPercent;
+    const rewardAmount = round2((baseAmountPaid * rewardPercent) / 100);
+  
+    // holdDays <= 0 -> credit is usable immediately (no waiting for the cron)
+    const instantCredit = refCfg.holdDays <= 0;
+    const availableAt = dayjs().add(Math.max(0, refCfg.holdDays), "day").toDate();
+    const expiresAt = dayjs(availableAt).add(refCfg.creditExpiryMonths, "month").toDate();
+  
+    referral.first_payment_id = paymentRow.id;
+    referral.base_amount = baseAmountPaid;
+    referral.reward_percent = rewardPercent;
+    referral.reward_amount = rewardAmount;
+    referral.available_at = availableAt;
+    if (instantCredit) referral.status = "available";
+    await referral.save({ transaction: t });
+  
+    await ReferralCreditLedger.create({
+      venue_id: referral.referrer_venue_id,
+      type: "earn",
+      amount: rewardAmount,
+      referral_id: referral.id,
+      payment_id: paymentRow.id,
+      expires_at: expiresAt,
+      note: instantCredit
+        ? "Referral reward (available immediately)"
+        : `Referral reward (hold until ${dayjs(availableAt).format("DD MMM YYYY")})`
+    }, { transaction: t });
+  }
 
 async function spendCredit(t, venueId, amountToSpend, paymentId) {
   if (!(amountToSpend > 0)) return 0;

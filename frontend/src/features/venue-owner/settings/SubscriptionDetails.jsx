@@ -19,7 +19,7 @@ import { paymentService } from "../../../services/paymentService";
 import { openCashfreeCheckout } from "../../../lib/cashfree";
 import api from "../../../services/api";
 import {
-  Check, Zap, Star, Crown, Rocket, CalendarDays, CreditCard, ArrowRight, CheckCircle2
+  Check, Zap, Star, Crown, Rocket, CalendarDays, CreditCard, ArrowRight, CheckCircle2, RefreshCw
 } from "lucide-react";
 
 const PLAN_STYLE = {
@@ -100,6 +100,13 @@ export default function SubscriptionDetails() {
   const [quote, setQuote] = useState(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
+  // Renewal state
+  const [renewConfirmOpen, setRenewConfirmOpen] = useState(false);
+  const [renewQuote, setRenewQuote] = useState(null);
+  const [renewQuoteLoading, setRenewQuoteLoading] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const [renewUseCredit, setRenewUseCredit] = useState(true);
+
   if (loading || plansLoading) return <Loader fullScreen />;
 
   const planList = plans || [];
@@ -110,10 +117,116 @@ export default function SubscriptionDetails() {
   const isTrial = subscription?.status === "trial";
   const bestOffer = getBestOffer(planList);
   const maxSavings = getMaxYearlySavings(planList);
+  const isFree = Number(subscription?.plan?.monthly_price) === 0;
 
   const isFreeTarget = (plan) => Number(plan?.monthly_price) === 0;
   const isDowngrade = (plan) => Number(plan.monthly_price) < Number(subscription?.plan?.monthly_price ?? 0);
 
+  // ---------- Renewal handlers ----------
+  const loadRenewQuote = async (useCredit) => {
+    if (!venue || !subscription?.plan) return;
+    setRenewQuoteLoading(true);
+    try {
+      const { data } = await paymentService.getQuote(
+        venue.id,
+        subscription.plan.id,
+        currentCycle,
+        useCredit
+      );
+      setRenewQuote(data.data);
+    } catch (_) {
+      setRenewQuote(null);
+    } finally {
+      setRenewQuoteLoading(false);
+    }
+  };
+
+  const handleOpenRenew = async () => {
+    if (!venue || !subscription?.plan) return;
+    setRenewUseCredit(true);
+    setRenewConfirmOpen(true);
+    await loadRenewQuote(true);
+  };
+
+  const handleToggleRenewCredit = async (checked) => {
+    setRenewUseCredit(checked);
+    await loadRenewQuote(checked);
+  };
+
+  const finishRenew = () => {
+    showSuccess("Subscription renewed! Your new expiry date has been extended.");
+    setRenewConfirmOpen(false);
+    setRenewQuote(null);
+    setRenewUseCredit(true);
+    refetchSub();
+    refetchPayments?.();
+    refetchVenue?.();
+    setRenewing(false);
+  };
+
+  const handleConfirmRenew = async () => {
+    if (!venue || !subscription?.plan) return;
+    setRenewing(true);
+
+    try {
+      const { data } = await paymentService.createOrder(
+        venue.id,
+        subscription.plan.id,
+        "/dashboard/settings/subscription",
+        currentCycle,
+        "renewal",
+        renewUseCredit
+      );
+      const { orderId, paymentSessionId, mode, creditOnly: isCreditOnly } = data.data;
+
+      if (isCreditOnly) {
+        await paymentService.verifyPayment({
+          venueId: venue.id,
+          planId: subscription.plan.id,
+          billingCycle: currentCycle,
+          creditOnly: true,
+          type: "renewal",
+          useCredit: renewUseCredit
+        });
+        finishRenew();
+        return;
+      }
+
+      openCashfreeCheckout({
+        paymentSessionId,
+        mode,
+        onSuccess: async () => {
+          try {
+            await paymentService.verifyPayment({
+              orderId,
+              venueId: venue.id,
+              planId: subscription.plan.id,
+              billingCycle: currentCycle,
+              type: "renewal",
+              useCredit: renewUseCredit
+            });
+            finishRenew();
+          } catch (err) {
+            showError("Renewal payment failed. Please try again.");
+            setRenewing(false);
+          }
+        },
+        onFailure: (err) => {
+          showError(err.message || "Renewal payment failed.");
+          setRenewing(false);
+        },
+        onDismiss: () => {
+          showError("Renewal cancelled.");
+          setRenewing(false);
+        }
+      });
+    } catch (err) {
+      showError(err.response?.data?.message || "Could not initiate renewal.");
+      setRenewing(false);
+    }
+  };
+
+  // ---------- Plan switch handlers ----------
   const handleSelectPlan = async (plan) => {
     setUpgradeTarget(plan);
     if (!isFreeTarget(plan) && venue) {
@@ -200,10 +313,24 @@ export default function SubscriptionDetails() {
 
   const targetPrice = upgradeTarget ? getCyclePricing(upgradeTarget, cycle) : null;
 
+  // Compute new expiry after renewal (for display in confirm dialog)
+  const currentEnd = subscription?.current_period_end ? new Date(subscription.current_period_end) : null;
+  const renewedEnd = currentEnd
+    ? new Date(currentCycle === "yearly"
+        ? new Date(currentEnd).setFullYear(currentEnd.getFullYear() + 1)
+        : new Date(currentEnd).setMonth(currentEnd.getMonth() + 1))
+    : null;
+
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={t("settings.subscription.pageTitle")}>
 
-      <CurrentPlanBanner subscription={subscription} trialDays={trialDays} isTrial={isTrial} />
+      <CurrentPlanBanner
+        subscription={subscription}
+        trialDays={trialDays}
+        isTrial={isTrial}
+        isFree={isFree}
+        onRenew={handleOpenRenew}
+      />
 
       <OfferBanner offer={bestOffer} className="mb-6" />
 
@@ -376,6 +503,7 @@ export default function SubscriptionDetails() {
         )}
       </div>
 
+      {/* Plan switch confirm */}
       <ConfirmDialog
         isOpen={!!upgradeTarget}
         onClose={() => { setUpgradeTarget(null); setQuote(null); }}
@@ -415,17 +543,79 @@ export default function SubscriptionDetails() {
             : t("settings.subscription.confirmSwitchBtn")
         }
       />
+
+      {/* Renewal confirm dialog */}
+      <ConfirmDialog
+        isOpen={renewConfirmOpen}
+        onClose={() => { setRenewConfirmOpen(false); setRenewQuote(null); setRenewUseCredit(true); }}
+        onConfirm={handleConfirmRenew}
+        loading={renewing || renewQuoteLoading}
+        title={`Renew ${translatePlanName(subscription?.plan?.name, i18n.language)} Plan`}
+        message={
+          <div>
+            <p className="text-sm text-navy-600">
+              Your subscription will be extended by one {currentCycle === "yearly" ? "year" : "month"} from your
+              current expiry date.
+            </p>
+            {renewedEnd && (
+              <p className="text-sm font-semibold text-navy-800 mt-1">
+                New expiry: {formatDate(renewedEnd.toISOString())}
+              </p>
+            )}
+
+            {/* Referral credit option */}
+            {renewQuote && Number(renewQuote.credit_available) > 0 ? (
+              <label className="mt-3 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-emerald-600"
+                  checked={renewUseCredit}
+                  disabled={renewing || renewQuoteLoading}
+                  onChange={(e) => handleToggleRenewCredit(e.target.checked)}
+                />
+                <span className="text-sm text-emerald-800">
+                  Use referral credit{" "}
+                  <span className="font-semibold">
+                    ({formatCurrency(renewQuote.credit_available)} available)
+                  </span>
+                  {renewUseCredit && Number(renewQuote.credit_used) > 0 && (
+                    <span className="block text-xs text-emerald-700 mt-0.5">
+                      {formatCurrency(renewQuote.credit_used)} will be deducted from this renewal.
+                    </span>
+                  )}
+                </span>
+              </label>
+            ) : (
+              renewQuote && (
+                <p className="mt-3 text-xs text-navy-400">
+                  No referral credit available right now. Credit becomes usable after the 14-day hold.
+                </p>
+              )
+            )}
+
+            {renewQuoteLoading ? (
+              <p className="text-xs text-navy-400 mt-2">Loading price breakdown...</p>
+            ) : (
+              <GstBreakdown quote={renewQuote} />
+            )}
+          </div>
+        }
+        confirmText={renewQuote?.is_free ? "Renew with Credit" : "Pay & Renew"}
+      />
     </DashboardLayout>
   );
 }
 
-function CurrentPlanBanner({ subscription, trialDays, isTrial }) {
+function CurrentPlanBanner({ subscription, trialDays, isTrial, isFree, onRenew }) {
   const { t, i18n } = useTranslation();
   if (!subscription) return null;
   const plan = subscription.plan;
   const style = getPlanStyle(plan?.name);
   const Icon = style.icon;
   const isYearly = subscription.billing_cycle === "yearly";
+  const isExpired = subscription.status === "expired";
+  const isExpiringSoon = subscription.status === "expiring_soon";
+  const canRenew = !isFree && !isTrial && (isExpired || isExpiringSoon || subscription.status === "active");
 
   return (
     <div className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4 md:p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -457,11 +647,25 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial }) {
           )}
         </p>
       </div>
-      <div className="text-right flex-shrink-0">
+      <div className="flex flex-col items-end gap-2 flex-shrink-0">
         <div className="flex items-center gap-1.5 text-xs text-navy-400">
           <CalendarDays size={13} />
-          <span>{isTrial ? t("settings.subscription.trialEnds") : t("settings.subscription.renews")} {formatDate(subscription.current_period_end)}</span>
+          <span>
+            {isExpired ? "Expired" : isTrial ? t("settings.subscription.trialEnds") : t("settings.subscription.renews")}{" "}
+            {formatDate(subscription.current_period_end)}
+          </span>
         </div>
+        {canRenew && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            onClick={onRenew}
+          >
+            <RefreshCw size={12} />
+            {isExpired ? "Renew Now" : "Renew Early"}
+          </Button>
+        )}
       </div>
     </div>
   );

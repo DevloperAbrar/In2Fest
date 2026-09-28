@@ -55,11 +55,29 @@ async function reactivateSubscription(req, res, next) {
   }
 }
 
+/**
+ * GET /subscriptions/:venueId/renewal-quote
+ * Returns the price quote for renewing the current plan for another cycle.
+ * Used by frontend to show the amount before hitting Cashfree.
+ */
+async function getRenewalQuote(req, res, next) {
+  try {
+    const { venueId } = req.params;
+    // Delegate to payment controller logic via service - just return subscription info
+    // The actual quote is computed in payment.controller getQuote with type=renewal
+    const subscription = await subscriptionService.getSubscriptionByVenue(venueId);
+    res.json({ success: true, data: subscription });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   createSubscription,
   getMySubscription,
   changePlan,
   extendTrial,
   suspendSubscription,
-  reactivateSubscription
+  reactivateSubscription,
+  getRenewalQuote
 };

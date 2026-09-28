@@ -35,9 +35,7 @@ async function createSubscription(venueId, planId, options = {}) {
 
 /**
  * Auto-assigns the free-forever plan to a newly created venue that skipped
- * paid plan selection during onboarding. Used so vendors can get a live
- * public page + dashboard immediately, without choosing a paid plan or
- * waiting on any manual admin approval.
+ * paid plan selection during onboarding.
  */
 async function createFreeSubscription(venueId) {
   const existing = await Subscription.findOne({ where: { venue_id: venueId } });
@@ -55,7 +53,7 @@ async function createFreeSubscription(venueId) {
     status: "active",
     trial_ends_at: null,
     current_period_start: now.toDate(),
-    current_period_end: now.add(100, "year").toDate() // effectively never expires
+    current_period_end: now.add(100, "year").toDate()
   });
 
   return subscription;
@@ -71,33 +69,35 @@ async function getSubscriptionByVenue(venueId) {
 }
 
 /**
- * Renewal keeps the SAME locked_price the subscriber already had,
- * regardless of what the plan's current price is  - price protection rule.
+ * Renewal extends from current_period_end (not from now).
+ * So paying early doesn't waste the remaining time — vendor gets a full
+ * extra year/month stacked on top of their existing period.
+ * Price is kept locked unless options.amount is explicitly passed (e.g. after payment).
  */
 async function renewSubscription(venueId, options = {}) {
   const subscription = await getSubscriptionByVenue(venueId);
-  const now = dayjs();
 
   const cycle = options.billingCycle
     ? normalizeCycle(options.billingCycle)
     : normalizeCycle(subscription.billing_cycle);
 
+  // Extend from current_period_end (stack renewal), or from now if already expired
+  const base = dayjs(subscription.current_period_end);
+  const extendFrom = base.isAfter(dayjs()) ? base : dayjs();
+  const newEnd = cycle === "yearly" ? extendFrom.add(1, "year") : extendFrom.add(1, "month");
+
   subscription.billing_cycle = cycle;
   if (options.amount !== undefined) subscription.locked_price = options.amount;
   subscription.status = "active";
-  subscription.current_period_start = now.toDate();
-  subscription.current_period_end = (cycle === "yearly" ? now.add(1, "year") : now.add(1, "month")).toDate();
+  subscription.current_period_start = extendFrom.toDate();
+  subscription.current_period_end = newEnd.toDate();
   await subscription.save();
 
   return subscription;
 }
 
-
 /**
- * FREE-PLAN SWITCH ONLY. Downgrading to a ₹0 plan needs no payment, so this
- * applies immediately. Any plan with monthly_price > 0 is rejected here —
- * the frontend must go through the Cashfree flow and hit
- * switchPlanAfterPayment() instead, via payment.controller.verifyPayment.
+ * FREE-PLAN SWITCH ONLY.
  */
 async function changePlan(venueId, newPlanId) {
   const plan = await Plan.findByPk(newPlanId);
@@ -127,9 +127,7 @@ async function changePlan(venueId, newPlanId) {
 
 /**
  * PAID-PLAN SWITCH. Only ever called from payment.controller.verifyPayment,
- * AFTER Cashfree has confirmed the order as PAID — never reachable directly
- * from a client request. Locks in the new plan's price, clears any trial,
- * and starts a fresh billing period from the moment of payment.
+ * AFTER Cashfree has confirmed the order as PAID.
  */
 async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
   const plan = await Plan.findByPk(newPlanId);
@@ -176,7 +174,7 @@ async function reactivateSubscription(venueId) {
 }
 
 /**
- * Runs on a cron job  - recalculates status for all subscriptions based on dates.
+ * Runs on a cron job - recalculates status for all subscriptions based on dates.
  */
 async function recalculateAllStatuses() {
   const now = dayjs();

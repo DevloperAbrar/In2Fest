@@ -86,7 +86,7 @@ module.exports = {
   referral: {
     referrerPercent:      parseFloat(process.env.REFERRAL_REFERRER_PERCENT)      || 25,
     friendPercent:        parseFloat(process.env.REFERRAL_FRIEND_PERCENT)         || 12,
-    holdDays:             parseInt(process.env.REFERRAL_HOLD_DAYS, 10)            || 14,
+    holdDays:             Number.isNaN(parseInt(process.env.REFERRAL_HOLD_DAYS, 10)) ? 14 : parseInt(process.env.REFERRAL_HOLD_DAYS, 10),
     creditExpiryMonths:   parseInt(process.env.REFERRAL_CREDIT_EXPIRY_MONTHS, 10) || 12
   },
   gstRate: parseFloat(process.env.GST_RATE) || 18
