@@ -1,4 +1,4 @@
-const { Slot, Package } = require("../../database/models");
+const { Slot, Package, Venue } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 
 const NUMERIC_FIELDS = ["base_price", "weekend_price", "price_per_hour", "min_hours", "max_hours", "total_units"];
@@ -16,6 +16,20 @@ function sanitizeSlotData(data) {
     }
   });
   return cleaned;
+}
+
+// Keeps venue.setup_completed_steps in sync after any slot change, so the
+// dashboard checklist updates. Never lets a checklist failure break the
+// slot request itself.
+async function syncSetupChecklist(venueId) {
+  try {
+    // Lazy require avoids a circular import with venue.service
+    const { recalculateSetupChecklist } = require("../venues/venue.service");
+    const venue = await Venue.findByPk(venueId);
+    if (venue) await recalculateSetupChecklist(venue);
+  } catch (err) {
+    console.error("[slots] setup checklist sync failed:", err.message);
+  }
 }
 
 async function getSlotsByVenue(venueId, activeOnly = false) {
@@ -36,19 +50,25 @@ async function createSlot(venueId, data) {
     throw new AppError("Total units must be at least 1", 400);
   }
 
-  return Slot.create({ ...cleaned, name: String(cleaned.name).trim(), venue_id: venueId });
+  const slot = await Slot.create({ ...cleaned, name: String(cleaned.name).trim(), venue_id: venueId });
+  await syncSetupChecklist(venueId);
+  return slot;
 }
 
 async function updateSlot(slotId, venueId, data) {
   const slot = await Slot.findOne({ where: { id: slotId, venue_id: venueId } });
   if (!slot) throw new AppError("Slot not found", 404);
-  return slot.update(sanitizeSlotData(data));
+  const updated = await slot.update(sanitizeSlotData(data));
+  await syncSetupChecklist(venueId);
+  return updated;
 }
 
 async function toggleSlot(slotId, venueId) {
   const slot = await Slot.findOne({ where: { id: slotId, venue_id: venueId } });
   if (!slot) throw new AppError("Slot not found", 404);
-  return slot.update({ is_active: !slot.is_active });
+  const updated = await slot.update({ is_active: !slot.is_active });
+  await syncSetupChecklist(venueId);
+  return updated;
 }
 
 async function deleteSlot(slotId, venueId) {
@@ -78,6 +98,7 @@ async function deleteSlot(slotId, venueId) {
     }
   }
 
+  await syncSetupChecklist(venueId);
   return slot;
 }
 

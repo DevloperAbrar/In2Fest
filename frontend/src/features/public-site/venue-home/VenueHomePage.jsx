@@ -8,9 +8,10 @@ import ServicesSection from "./venue-home/ServicesSection.jsx";
 import GallerySection from "./venue-home/GallerySection.jsx";
 import TestimonialsSection from "./venue-home/TestimonialsSection.jsx";
 import ContactSection from "./venue-home/ContactSection.jsx";
+import SlotSection from "./venue-home/SlotSection.jsx";
 import AvailabilityCalendar from "./availability-calendar/AvailabilityCalendar.jsx";
 import DynamicSectionRenderer from "./venue-home/DynamicSectionRenderer.jsx";
-import PlatformHomePage from "../platform/PlatformHomePage.jsx";
+import LoginPage from "../auth/LoginPage.jsx";
 import { getTemplateSections } from "./templates/index.jsx";
 
 const DEFAULT_SECTIONS = {
@@ -58,16 +59,20 @@ export default function VenueHomePage() {
     subdomain ? `/venues/public/${subdomain}` : null
   );
 
-  // PUBLIC slots endpoint (no login needed). Only used to fill the
-  // "Select Slot" dropdown in the enquiry form - the availability
-  // calendar fetches its own data.
+  // PUBLIC slots + packages endpoints (no login needed). Used for the
+  // "Slots & Packages" section and the "Select Slot" dropdown in the
+  // enquiry form - the availability calendar fetches its own data.
   const { data: slots } = useFetch(
     venue ? `/venues/${venue.id}/slots/public` : null,
     { skip: !venue, deps: [venue?.id] }
   );
+  const { data: packages } = useFetch(
+    venue ? `/venues/${venue.id}/packages/public` : null,
+    { skip: !venue, deps: [venue?.id] }
+  );
 
   if (venueLoading) return <Loader fullScreen />;
-  if (!subdomain) return <PlatformHomePage />;
+  if (!subdomain) return <LoginPage />;
 
   if (!venue) {
     return (
@@ -104,11 +109,18 @@ export default function VenueHomePage() {
         if (section.type === "contact") {
           return (
             <React.Fragment key="contact">
+              {/* Live slots & packages from the Slots page */}
+              <SlotSection venue={venue} slots={slots} packages={packages} />
               <AvailabilityCalendar venue={venue} />
               <T.ContactSection venue={venue} slots={slots} />
             </React.Fragment>
           );
         }
+
+        // The manual "packages" website section is replaced by the live
+        // Slots & Packages section above, so don't render it twice.
+        if (section.type === "packages") return null;
+
         const CoreComponent = CORE_COMPONENTS[section.type];
         if (CoreComponent) return <CoreComponent key={section.type} venue={venue} />;
         const dIdx = dynamicIdx++;

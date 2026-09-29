@@ -30,6 +30,8 @@ function buildSteps(pageSections) {
   sections.forEach((section) => {
     const def = SECTION_TYPES[section.type];
     if (!def?.removable || section.visible === false) return;
+    // Packages are managed on the Slots page, not as a website section step
+    if (section.type === "packages") return;
     steps.push({
       key: section.type,
       label: `Fill in your ${def.label}`,

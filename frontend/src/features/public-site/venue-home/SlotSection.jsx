@@ -93,22 +93,82 @@ function PublicSlotCard({ slot, themeColor }) {
   );
 }
 
-export default function SlotSection({ venue, slots }) {
+function PublicPackageCard({ pkg, slots, themeColor }) {
+  const includedSlots = (pkg.slot_ids || [])
+    .map((id) => slots.find((s) => s.id === id))
+    .filter(Boolean);
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: themeColor + "18", color: themeColor }}>
+          <Package size={18} />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900 dark:text-white text-sm leading-tight">{pkg.name}</p>
+          <span className="text-[10px] font-medium text-gray-400">Package</span>
+        </div>
+      </div>
+
+      {pkg.price && <p className="text-xl font-bold text-gray-900 dark:text-white">{formatINR(pkg.price)}</p>}
+
+      {pkg.description && <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">{pkg.description}</p>}
+
+      {includedSlots.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Includes</p>
+          <ul className="space-y-1">
+            {includedSlots.map((s) => (
+              <li key={s.id} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                <CheckCircle2 size={12} className="flex-shrink-0" style={{ color: themeColor }} />{s.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function SlotSection({ venue, slots, packages }) {
   const activeSlots = (slots || []).filter((s) => s.is_active !== false);
-  if (!activeSlots.length) return null;
+  const activePackages = (packages || []).filter((p) => p.is_active !== false);
+  if (!activeSlots.length && !activePackages.length) return null;
+
   const themeColor = venue?.theme_color || "#7c3aed";
+  const showHeadings = activeSlots.length > 0 && activePackages.length > 0;
 
   return (
     <section id="pricing" className="py-24 bg-gray-50 dark:bg-gray-950 transition-colors">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-12">
           <p className="text-sm font-semibold uppercase tracking-widest mb-3" style={{ color: themeColor }}>Our Offerings</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">Slots & Packages</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+            {activeSlots.length && activePackages.length ? "Slots & Packages" : activePackages.length ? "Packages" : "Slots"}
+          </h2>
           <p className="text-gray-500 dark:text-gray-400 mt-3 max-w-xl mx-auto text-sm">Choose the option that suits your event. Contact us for custom requirements.</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {activeSlots.map((slot) => <PublicSlotCard key={slot.id} slot={slot} themeColor={themeColor} />)}
-        </div>
+
+        {activeSlots.length > 0 && (
+          <div className="mb-12">
+            {showHeadings && <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Slots</h3>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {activeSlots.map((slot) => <PublicSlotCard key={slot.id} slot={slot} themeColor={themeColor} />)}
+            </div>
+          </div>
+        )}
+
+        {activePackages.length > 0 && (
+          <div>
+            {showHeadings && <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Packages</h3>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {activePackages.map((pkg) => (
+                <PublicPackageCard key={pkg.id} pkg={pkg} slots={activeSlots} themeColor={themeColor} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

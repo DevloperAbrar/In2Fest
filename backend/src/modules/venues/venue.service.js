@@ -208,6 +208,9 @@ async function getVenueById(venueId) {
 
   if (!venue) throw new AppError("Venue not found", 404);
 
+  // Self-heal stale checklist data (only writes if something changed)
+  await recalculateSetupChecklist(venue);
+
   const { percentage, missing_fields } = calculateCompletion(venue);
   venue.setDataValue("marketplace_completion", { percentage, missing_fields });
   venue.setDataValue("page_sections", normalizeSections(venue));
@@ -223,7 +226,11 @@ async function getVenuesByOwner(ownerId) {
     ]
   });
 
-  venues.forEach((venue) => venue.setDataValue("page_sections", normalizeSections(venue)));
+  for (const venue of venues) {
+    // Self-heal stale checklist data (only writes if something changed)
+    await recalculateSetupChecklist(venue);
+    venue.setDataValue("page_sections", normalizeSections(venue));
+  }
   return venues;
 }
 
@@ -446,6 +453,9 @@ async function recalculateSetupChecklist(venue) {
   sections.forEach((section) => {
     const def = SECTION_TYPES[section.type];
     if (!def?.removable || section.visible === false) return;
+    // Slots & Packages are managed on the Slots page and shown automatically
+    // on the public site, so "packages" is not a checklist step.
+    if (section.type === "packages") return;
     if (section.config?.items?.length > 0) {
       steps.push(section.type);
       hasFilledPluggableSection = true;
@@ -454,8 +464,15 @@ async function recalculateSetupChecklist(venue) {
 
   if (hasFilledPluggableSection) steps.push("pluggable_section");
 
-  venue.setup_completed_steps = steps;
-  await venue.save();
+  const previous = Array.isArray(venue.setup_completed_steps) ? venue.setup_completed_steps : [];
+  const changed = previous.length !== steps.length || steps.some((s) => !previous.includes(s));
+
+  if (changed) {
+    await Venue.update({ setup_completed_steps: steps }, { where: { id: venue.id } });
+    venue.setDataValue("setup_completed_steps", steps);
+  }
+
+  return steps;
 }
 
 module.exports = {

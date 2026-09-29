@@ -46,11 +46,12 @@ export default function SlotList() {
       } else {
         await api.post(`/venues/${venue.id}/slots`, values);
         showSuccess("Slot added");
-        // Refresh venue context so setup_completed_steps updates on dashboard
-        await refetchVenue();
       }
       setSlotModalOpen(false);
       refetchSlots();
+      // Backend recalculates setup_completed_steps on every slot change,
+      // so refetch the venue to keep the dashboard checklist in sync.
+      await refetchVenue();
     } catch (err) {
       showError(err.response?.data?.message || "Failed to save slot");
     } finally { setSubmitting(false); }

@@ -8,6 +8,14 @@ async function getPackages(req, res, next) {
   } catch (e) { next(e); }
 }
 
+// Public - no auth. Always returns ACTIVE packages only.
+async function getPublicPackages(req, res, next) {
+  try {
+    const data = await packageService.getPackages(req.params.venueId, true);
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+}
+
 async function createPackage(req, res, next) {
   try {
     const data = await packageService.createPackage(req.params.venueId, req.body);
@@ -36,4 +44,4 @@ async function deletePackage(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { getPackages, createPackage, updatePackage, togglePackage, deletePackage };
+module.exports = { getPackages, getPublicPackages, createPackage, updatePackage, togglePackage, deletePackage };
