@@ -47,6 +47,37 @@ async function getPackageSlots(pkg, venueId, t) {
   return venueSlots.filter((s) => wanted.has(s.id));
 }
 
+
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2026-09-29" -> "29 Sep 2026" (string maths only, so no timezone shifts)
+function formatDateLabel(dateStr) {
+  const [y, m, d] = String(dateStr).split("-");
+  return `${parseInt(d, 10)} ${MONTHS[parseInt(m, 10) - 1]} ${y}`;
+}
+
+// "14:00" or "14:00:00" -> "2:00 PM"
+function formatTimeLabel(timeStr) {
+  const [h, m] = String(timeStr).split(":");
+  const hour = parseInt(h, 10);
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function buildConflictMessage(conflicts, startTime, endTime) {
+  const names = [...new Set(conflicts.map((c) => c.name))];
+  const dates = [...new Set(conflicts.map((c) => c.date))].map(formatDateLabel);
+
+  const namesText = names.map((n) => `"${n}"`).join(", ");
+  const verb = names.length > 1 ? "are" : "is";
+
+  return (
+    `${namesText} ${verb} already booked on ${dates.join(", ")} ` +
+    `(${formatTimeLabel(startTime)} – ${formatTimeLabel(endTime)}). ` +
+    `Please cancel the existing booking first, or book in the next free slot.`
+  );
+}
+
 async function createManualBooking(venueId, data) {
   const {
     client_name, phone, email,
@@ -69,16 +100,20 @@ async function createManualBooking(venueId, data) {
     const dateTo   = date_to || date_from;
     const dates    = getDateRange(dateFrom, dateTo);
 
+    // Every fully-booked slot/date found below is collected here, so the
+    // vendor sees ALL conflicts in one message instead of one at a time.
+    const conflicts = [];
+
     // 2. Validate unit availability for each slot item across all dates
     for (const item of booking_items) {
       if (item.type !== "slot") continue;
       const slot = await Slot.findOne({ where: { id: item.id, venue_id: venueId }, transaction: t });
-      if (!slot) throw new Error(`Slot not found: ${item.id}`);
+      if (!slot) throw new AppError("One of the selected slots no longer exists. Please refresh and try again.", 404);
 
       for (const date of dates) {
         const occupied = await getOccupiedUnits(venueId, slot.id, date, start_time, end_time);
         if (occupied >= slot.total_units) {
-          throw new Error(`Slot "${slot.name}" is fully booked on ${date} for ${start_time}–${end_time}`);
+          conflicts.push({ slot_id: slot.id, name: slot.name, date });
         }
       }
     }
@@ -90,7 +125,7 @@ async function createManualBooking(venueId, data) {
     for (const item of booking_items) {
       if (item.type !== "package") continue;
       const pkg = await Package.findOne({ where: { id: item.id, venue_id: venueId }, transaction: t });
-      if (!pkg) throw new Error(`Package not found: ${item.id}`);
+      if (!pkg) throw new AppError("One of the selected packages no longer exists. Please refresh and try again.", 404);
 
       const pkgSlots = await getPackageSlots(pkg, venueId, t);
       if (pkgSlots.length === 0) {
@@ -105,10 +140,19 @@ async function createManualBooking(venueId, data) {
         for (const date of dates) {
           const occupied = await getOccupiedUnits(venueId, slot.id, date, start_time, end_time);
           if (occupied >= slot.total_units) {
-            throw new Error(`Slot "${slot.name}" (in package "${pkg.name}") is fully booked on ${date}`);
+            conflicts.push({ slot_id: slot.id, name: slot.name, date, package: pkg.name });
           }
         }
       }
+    }
+
+    // Clear 409 message instead of a generic 500 "Something went wrong"
+    if (conflicts.length > 0) {
+      throw new AppError(
+        buildConflictMessage(conflicts, start_time, end_time),
+        409,
+        { code: "SLOT_CONFLICT", conflicts }
+      );
     }
 
     // 4. Create booking
