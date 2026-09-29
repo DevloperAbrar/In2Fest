@@ -67,9 +67,22 @@ module.exports = (sequelize, DataTypes) => {
     last_login_at: DataTypes.DATE,
 
     // ===== V2 — Marketplace Profile fields =====
+
+    // Identity and contact
     business_category: DataTypes.STRING,
     secondary_categories: { type: DataTypes.ARRAY(DataTypes.STRING), defaultValue: [] },
+    whatsapp_number: DataTypes.STRING,
+    instagram_handle: DataTypes.STRING,
+    youtube_channel_link: DataTypes.STRING,
+    external_website: DataTypes.STRING,
+    video_intro_url: DataTypes.STRING,
 
+    // Location and service area
+    primary_locality: DataTypes.STRING,
+    full_pincode: DataTypes.STRING,
+    service_travel_note: DataTypes.TEXT,
+
+    // Business information
     year_established: DataTypes.INTEGER,
     total_events_completed: DataTypes.INTEGER,
     team_size: DataTypes.INTEGER,
