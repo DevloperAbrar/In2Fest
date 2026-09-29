@@ -7,6 +7,7 @@ router.use(protect);
 router.get("/",                          ctrl.getBookings);
 router.post("/",                         ctrl.createManualBooking);
 router.get("/availability",              ctrl.checkAvailability);
+router.get("/availability/range",        ctrl.checkRangeAvailability);
 router.get("/:bookingId",                ctrl.getBooking);
 router.patch("/:bookingId",              ctrl.updateBooking);
 router.patch("/:bookingId/status",       ctrl.updateStatus);

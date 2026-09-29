@@ -348,6 +348,84 @@ async function getSlotAvailability(venueId, date, startTime, endTime) {
   return result;
 }
 
+// Availability of every slot and package for a date range + time window.
+// Used by the "New Booking" modal so the vendor only sees what is free.
+// One query for the whole range (not one per slot per date).
+async function getBookingAvailability(venueId, dateFrom, dateTo, startTime, endTime) {
+  if (!dateFrom || !startTime || !endTime) {
+    throw new AppError("date_from, start_time and end_time are required", 400);
+  }
+
+  const dates = getDateRange(dateFrom, dateTo || dateFrom);
+  if (dates.length === 0 || dates.length > 62) {
+    throw new AppError("Please choose a valid date range (maximum 62 days)", 400);
+  }
+
+  const [allSlots, packages, units] = await Promise.all([
+    Slot.findAll({ where: { venue_id: venueId } }),
+    Package.findAll({ where: { venue_id: venueId, is_active: true } }),
+    BookingUnit.findAll({
+      where: {
+        venue_id: venueId,
+        date: { [Op.in]: dates },
+        start_time: { [Op.lt]: endTime },
+        end_time:   { [Op.gt]: startTime }
+      },
+      include: [{
+        model: Booking,
+        attributes: [],
+        where: { status: { [Op.ne]: "cancelled" } },
+        required: true
+      }]
+    })
+  ]);
+
+  // occupied[slotId][date] = units already taken
+  const occupied = {};
+  for (const u of units) {
+    if (!occupied[u.slot_id]) occupied[u.slot_id] = {};
+    occupied[u.slot_id][u.date] = (occupied[u.slot_id][u.date] || 0) + u.units_used;
+  }
+
+  const slotResults = allSlots.map((slot) => {
+    let minAvailable = slot.total_units;
+    const bookedDates = [];
+
+    for (const date of dates) {
+      const used = occupied[slot.id]?.[date] || 0;
+      const available = Math.max(0, slot.total_units - used);
+      if (available < minAvailable) minAvailable = available;
+      if (available === 0) bookedDates.push(date);
+    }
+
+    return {
+      slot_id: slot.id,
+      name: slot.name,
+      is_active: slot.is_active,
+      total_units: slot.total_units,
+      available: minAvailable,
+      is_fully_booked: minAvailable === 0,
+      booked_dates: bookedDates
+    };
+  });
+
+  // A package is only free when EVERY slot inside it is free
+  const packageResults = packages.map((pkg) => {
+    const ids = new Set((pkg.slot_ids || []).filter(Boolean));
+    const included = slotResults.filter((s) => ids.has(s.slot_id));
+    const blockedBy = included.filter((s) => s.is_fully_booked).map((s) => s.name);
+
+    return {
+      package_id: pkg.id,
+      name: pkg.name,
+      is_fully_booked: blockedBy.length > 0,
+      blocked_by: blockedBy
+    };
+  });
+
+  return { slots: slotResults, packages: packageResults };
+}
+
 module.exports = {
   createManualBooking,
   getBookingsByVenue,
@@ -356,5 +434,6 @@ module.exports = {
   updateBooking,
   deleteBooking,
   getSlotAvailability,
+  getBookingAvailability,
   getOccupiedUnits,
 };

@@ -50,4 +50,18 @@ async function checkAvailability(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { createManualBooking, getBookings, getBooking, updateStatus, updateBooking, deleteBooking, checkAvailability };
+// Slots + packages availability for a date range and time window
+async function checkRangeAvailability(req, res, next) {
+  try {
+    const { date_from, date_to, start_time, end_time } = req.query;
+    const data = await bookingService.getBookingAvailability(
+      req.params.venueId, date_from, date_to, start_time, end_time
+    );
+    res.json({ success: true, data });
+  } catch (e) { next(e); }
+}
+
+module.exports = {
+  createManualBooking, getBookings, getBooking, updateStatus, updateBooking,
+  deleteBooking, checkAvailability, checkRangeAvailability
+};
