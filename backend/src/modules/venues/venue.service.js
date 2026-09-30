@@ -396,6 +396,38 @@ async function uploadSectionImage(venueId, ownerId, file) {
   return { url };
 }
 
+// async function getPublicVenueBySubdomain(subdomain) {
+//   const venue = await Venue.findOne({
+//     where: {
+//       subdomain,
+//       is_active: true
+//       // is_live check removed for dev; add back in production
+//     }
+//   });
+
+//   if (!venue) {
+//     throw new AppError("Venue not found", 404);
+//   }
+
+//   venue.setDataValue("page_sections", normalizeSections(venue));
+//   return venue;
+// }
+
+/**
+ * The branded public website (subdomain site) is a paid feature: only venues
+ * whose plan includes "website_builder" get one. Marketplace-only vendors are
+ * listed on the marketplace but have no website of their own.
+ * Looked up separately so plan/price data is never attached to the public payload.
+ */
+async function venueHasWebsiteFeature(venueId) {
+  const subscription = await Subscription.findOne({
+    where: { venue_id: venueId },
+    include: [{ model: Plan, as: "plan" }]
+  });
+  const features = subscription?.plan?.features;
+  return Array.isArray(features) && features.includes("website_builder");
+}
+
 async function getPublicVenueBySubdomain(subdomain) {
   const venue = await Venue.findOne({
     where: {
@@ -406,6 +438,11 @@ async function getPublicVenueBySubdomain(subdomain) {
   });
 
   if (!venue) {
+    throw new AppError("Venue not found", 404);
+  }
+
+  // Plan without a website  - behave exactly like a page that doesn't exist.
+  if (!(await venueHasWebsiteFeature(venue.id))) {
     throw new AppError("Venue not found", 404);
   }
 
@@ -541,9 +578,11 @@ module.exports = {
   deleteGalleryImage,
   uploadSectionImage,
   recalculateSetupChecklist,
-  getPublicVenueBySubdomain,
+  // getPublicVenueBySubdomain,
   getVenueBySubdomainForPreview,
   listAllVenues,
   toggleVenueActive,
-  deleteVenue
+  deleteVenue,
+  venueHasWebsiteFeature,
+  getPublicVenueBySubdomain
 };

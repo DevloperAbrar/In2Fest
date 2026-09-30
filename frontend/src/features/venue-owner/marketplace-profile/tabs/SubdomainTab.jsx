@@ -6,6 +6,7 @@ import Button from "../../../../components/common/Button";
 
 export default function SubdomainTab({ venue, onNext, onBack }) {
   const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const hasWebsite = (venue?.subscription?.plan?.features || []).includes("website_builder");
 
   const publicUrl = isDev
     ? `${window.location.protocol}//${venue.subdomain}.${window.location.host}`
@@ -26,25 +27,27 @@ export default function SubdomainTab({ venue, onNext, onBack }) {
 
   return (
     <div className="space-y-5">
-      <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
-        <p className="text-sm text-gray-600 mb-1">Your branded website (shareable link)</p>
-        <div className="flex items-center justify-between">
+      {hasWebsite && (
+        <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
+          <p className="text-sm text-gray-600 mb-1">Your branded website (shareable link)</p>
+          <div className="flex items-center justify-between">
 
-          <a href={publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium text-primary-700 flex items-center gap-1 hover:underline break-all"
-          >
-            {publicUrl} <ExternalLink size={14} />
-          </a>
-          <button
-            onClick={() => copy(publicUrl)}
-            className="text-sm text-primary-600 hover:underline flex items-center gap-1 flex-shrink-0"
-          >
-            <Copy size={14} /> Copy
-          </button>
+            <a href={publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary-700 flex items-center gap-1 hover:underline break-all"
+            >
+              {publicUrl} <ExternalLink size={14} />
+            </a>
+            <button
+              onClick={() => copy(publicUrl)}
+              className="text-sm text-primary-600 hover:underline flex items-center gap-1 flex-shrink-0"
+            >
+              <Copy size={14} /> Copy
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
         <p className="text-sm text-gray-600 mb-1">Your discovery marketplace listing</p>

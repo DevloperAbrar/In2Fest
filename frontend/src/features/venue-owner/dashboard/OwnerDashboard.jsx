@@ -43,6 +43,7 @@ function DashboardContent({ venue }) {
     : `https://${venue.subdomain}.${BASE_DOMAIN}`;
 
   const planFeatures = venue.subscription?.plan?.features || [];
+  const hasWebsite = planFeatures.includes("website_builder");
 
   const copyLink = () => {
     navigator.clipboard.writeText(publicUrl);
@@ -58,15 +59,17 @@ function DashboardContent({ venue }) {
       />
       <MarketplaceProfileChecklist percentage={marketplace?.percentage ?? 0} />
 
-      <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600">Your public website</p>
-          <p className="font-medium text-primary-700">{publicUrl}</p>
+      {hasWebsite && (
+        <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Your public website</p>
+            <p className="font-medium text-primary-700">{publicUrl}</p>
+          </div>
+          <button onClick={copyLink} className="flex items-center gap-2 text-sm text-primary-600 hover:underline">
+            <Copy size={14} /> Copy Link
+          </button>
         </div>
-        <button onClick={copyLink} className="flex items-center gap-2 text-sm text-primary-600 hover:underline">
-          <Copy size={14} /> Copy Link
-        </button>
-      </div>
+      )}
 
       <QuickActions planFeatures={planFeatures} />
 

@@ -97,7 +97,8 @@ export default function VenueProfileSettings() {
     }
   };
 
-  const subdomainUrl = venue?.subdomain ? getSubdomainUrl(venue.subdomain) : null;
+  const hasWebsite = (venue?.subscription?.plan?.features || []).includes("website_builder");
+  const subdomainUrl = venue?.subdomain && hasWebsite ? getSubdomainUrl(venue.subdomain) : null;
 
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={t("settings.venueProfile.pageTitle")}>
