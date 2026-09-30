@@ -7,6 +7,7 @@ const { SECTION_TYPES } = require("../../config/sectionLibrary");
 const { AppError } = require("../../middleware/error.middleware");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const sharp = require("sharp");
+const { createFreeSubscription } = require("../subscriptions/subscription.service");
 
 function slugify(text) {
   return text
@@ -46,15 +47,58 @@ async function compressBuffer(buffer, mimetype, options = {}) {
   return pipeline.toBuffer();
 }
 
-// AFTER — replace with this:
+/**
+ * Gives a new venue its starting subscription.
+ * - Free plan (or no plan chosen): subscription is created right away.
+ * - Paid plan: nothing is created here. The subscription is created only after
+ *   Cashfree confirms payment (payment.controller.verifyPayment).
+ */
+async function assignInitialSubscription(venueId, planId) {
+  if (planId) {
+    const plan = await Plan.findByPk(planId);
+    if (!plan || !plan.is_active) throw new AppError("Plan not found", 404);
+    if (Number(plan.monthly_price) > 0) return null;
+  }
+  return createFreeSubscription(venueId, planId || null);
+}
+
+/**
+ * Self-heal: a venue with no subscription gets the free plan, so its owner
+ * always gets the features of the plan they picked. verifyPayment switches an
+ * existing subscription to a paid plan, so this never blocks a later upgrade.
+ * Fixes accounts already broken by the missing-subscription bug.
+ */
+async function ensureSubscription(venue) {
+  if (venue.subscription) return venue;
+
+  try {
+    await createFreeSubscription(venue.id);
+  } catch (err) {
+    console.error("[VENUE] Could not auto-assign free subscription:", err.message);
+  }
+
+  const subscription = await Subscription.findOne({
+    where: { venue_id: venue.id },
+    include: [{ model: Plan, as: "plan" }]
+  });
+  if (subscription) {
+    venue.subscription = subscription;
+    venue.setDataValue("subscription", subscription);
+  }
+  return venue;
+}
+
 async function createVenue(payload) {
   const existingVenue = await Venue.findOne({ where: { owner_id: payload.owner_id } });
   if (existingVenue) {
     const existingSub = await Subscription.findOne({ where: { venue_id: existingVenue.id } });
-    if (!existingSub) {
-      return existingVenue;
+    if (existingSub) {
+      throw new AppError("You already have a business profile. Only one profile is allowed per account.", 409);
     }
-    throw new AppError("You already have a business profile. Only one profile is allowed per account.", 409);
+    // Venue exists but has no subscription (earlier attempt failed or payment was abandoned).
+    // Free plan: create the subscription now. Paid plan: frontend resumes payment.
+    await assignInitialSubscription(existingVenue.id, payload.plan_id);
+    return existingVenue;
   }
 
   const subdomain = await generateUniqueSubdomain(payload.hall_name);
@@ -66,26 +110,33 @@ async function createVenue(payload) {
       ? payload.venue_type
       : Array.from(new Set([payload.business_category, ...secondaryCategories].filter(Boolean)));
 
-      const venue = await Venue.create({
-        owner_id: payload.owner_id,
-        hall_name: payload.hall_name,
-        subdomain,                      // <-- yeh missing tha
-        owner_name: payload.owner_name,
-        phone: payload.phone,
-        city: payload.city,
-        address: payload.address,
-        business_category: payload.business_category,
-        secondary_categories: secondaryCategories,
-        venue_type: venueTypes,
-        capacity: payload.capacity,
-        google_maps_link: payload.google_maps_link,
-        is_live: true,
-        is_active: true
-      });
-      
+  const venue = await Venue.create({
+    owner_id: payload.owner_id,
+    hall_name: payload.hall_name,
+    subdomain,
+    owner_name: payload.owner_name,
+    phone: payload.phone,
+    city: payload.city,
+    address: payload.address,
+    google_maps_link: payload.google_maps_link,
+    capacity: payload.capacity,
+    venue_type: venueTypes,
+    business_category: payload.business_category,
+    secondary_categories: secondaryCategories,
+    primary_locality: payload.primary_locality,
+    team_size: payload.team_size,
+    starting_price: payload.starting_price,
+    is_live: true,
+    is_active: true
+  });
+
+  venue.page_sections = buildDefaultSections(payload.business_category);
+  await venue.save();
+
+  await assignInitialSubscription(venue.id, payload.plan_id);
+
   // Apply referral if code was sent from frontend (stored in localStorage)
   if (payload.referral_code) {
-    const { User } = require("../../database/models");
     const ownerUser = await User.findByPk(payload.owner_id);
     const referralService = require("../referrals/referral.service");
     await referralService.applyReferralAtSignup(venue, payload.referral_code, ownerUser);
@@ -208,6 +259,8 @@ async function getVenueById(venueId) {
 
   if (!venue) throw new AppError("Venue not found", 404);
 
+  await ensureSubscription(venue);
+
   // Self-heal stale checklist data (only writes if something changed)
   await recalculateSetupChecklist(venue);
 
@@ -227,6 +280,7 @@ async function getVenuesByOwner(ownerId) {
   });
 
   for (const venue of venues) {
+    await ensureSubscription(venue);
     // Self-heal stale checklist data (only writes if something changed)
     await recalculateSetupChecklist(venue);
     venue.setDataValue("page_sections", normalizeSections(venue));

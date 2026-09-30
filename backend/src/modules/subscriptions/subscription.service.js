@@ -43,12 +43,32 @@ async function createSubscription(venueId, planId, options = {}) {
  * Auto-assigns the free-forever plan to a newly created venue that skipped
  * paid plan selection during onboarding.
  */
-async function createFreeSubscription(venueId) {
+/**
+ * Assigns a free-forever plan to a venue.
+ * - If planId is given, that exact plan is used (it must be active and free).
+ * - Otherwise the first active plan with price 0 is used, whatever admin named it.
+ */
+async function createFreeSubscription(venueId, planId = null) {
   const existing = await Subscription.findOne({ where: { venue_id: venueId } });
   if (existing) throw new AppError("Venue already has a subscription", 400);
 
-  const freePlan = await Plan.findOne({ where: { name: "Free", is_active: true } });
-  if (!freePlan) throw new AppError("Free plan is not configured  - run the plans seeder", 500);
+  let freePlan;
+
+  if (planId) {
+    freePlan = await Plan.findByPk(planId);
+    if (!freePlan || !freePlan.is_active) throw new AppError("Plan not found or inactive", 404);
+    if (Number(freePlan.monthly_price) > 0) {
+      throw new AppError("This plan requires payment. Please complete checkout.", 402);
+    }
+  } else {
+    freePlan = await Plan.findOne({
+      where: { monthly_price: 0, is_active: true },
+      order: [["createdAt", "ASC"]]
+    });
+    if (!freePlan) {
+      throw new AppError("No free plan is configured. Create an active plan with price 0 in Admin > Plans.", 500);
+    }
+  }
 
   const now = dayjs();
 
@@ -56,6 +76,7 @@ async function createFreeSubscription(venueId) {
     venue_id: venueId,
     plan_id: freePlan.id,
     locked_price: 0,
+    billing_cycle: "monthly",
     status: "active",
     trial_ends_at: null,
     current_period_start: now.toDate(),
