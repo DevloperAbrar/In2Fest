@@ -8,6 +8,7 @@ import { showSuccess, showError } from "../../../components/common/Toast";
 import Button from "../../../components/common/Button";
 import { SECTION_TYPES } from "../../../lib/sectionLibrary";
 import SectionPickerModal from "./SectionPickerModal.jsx";
+import DisplayOptionsCard from "./DisplayOptionsCard.jsx";
 import { BASE_DOMAIN } from "../../../lib/constants";
 import { GripVertical, Eye, EyeOff, Trash2, Pencil, Plus, Layers } from "lucide-react";
 
@@ -21,7 +22,9 @@ export default function WebsiteBuilderHome() {
   const [dragIndex, setDragIndex] = useState(null);
 
   useEffect(() => {
-    if (venue?.page_sections) setSections(venue.page_sections);
+    // Don't overwrite unsaved layout changes when the venue refetches
+    // (e.g. after toggling a "Show on my website" option).
+    if (venue?.page_sections && !dirty) setSections(venue.page_sections);
   }, [venue]);
 
   const isDev = import.meta.env.DEV;
@@ -124,6 +127,8 @@ export default function WebsiteBuilderHome() {
             Change Template
           </button>
         </div>
+
+        <DisplayOptionsCard />
 
         <p className="text-gray-500 mb-6 text-sm">
           Drag sections to reorder, hide the ones you don't need, and add new ones from the library.

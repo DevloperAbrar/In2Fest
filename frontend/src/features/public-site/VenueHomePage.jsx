@@ -103,6 +103,10 @@ export default function VenueHomePage() {
   const visibleSections = sections.filter((s) => s.visible !== false);
   let dynamicIdx = 0;
 
+  // Vendor controls from Website Builder > "Show on my website"
+  const showAvailability = venue.show_availability !== false;
+  const showSlotsPackages = venue.show_slots_packages !== false;
+
   return (
     <PublicLayout venueName={venue.hall_name} venue={venue}>
       {visibleSections.map((section) => {
@@ -110,8 +114,10 @@ export default function VenueHomePage() {
           return (
             <React.Fragment key="contact">
               {/* Live slots & packages from the Slots page */}
-              <SlotSection venue={venue} slots={slots} packages={packages} />
-              <AvailabilityCalendar venue={venue} />
+              {showSlotsPackages && (
+                <SlotSection venue={venue} slots={slots} packages={packages} />
+              )}
+              {showAvailability && <AvailabilityCalendar venue={venue} />}
               <T.ContactSection venue={venue} slots={slots} />
             </React.Fragment>
           );
