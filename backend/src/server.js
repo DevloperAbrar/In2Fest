@@ -5,6 +5,7 @@ require("./database/models"); // ensures all models + associations are registere
 const { startJobs } = require("./jobs");
 const { getRedisClient } = require("./config/redis");
 const { syncSuperAdminFromEnv } = require("./database/superAdminSync");
+const { ensureSchema } = require("./database/startupMigrations");
 
 async function startServer() {
   await connectDatabase();
@@ -13,6 +14,14 @@ async function startServer() {
   if (env.nodeEnv === "development") {
     await sequelize.sync({ alter: true });
     console.log("[DB] Models synced (development mode).");
+  }
+
+  // Make sure new columns exist BEFORE the first request is served.
+  try {
+    await ensureSchema();
+    console.log("[MIGRATE] Startup migrations applied.");
+  } catch (err) {
+    console.error("[MIGRATE] Startup migrations failed:", err.message);
   }
 
   try {
@@ -51,7 +60,6 @@ async function startServer() {
       process.exit(0);
     });
 
-    // Force-exit if something hangs and never closes cleanly.
     setTimeout(() => {
       console.error("[SERVER] Forced shutdown after 10s timeout.");
       process.exit(1);

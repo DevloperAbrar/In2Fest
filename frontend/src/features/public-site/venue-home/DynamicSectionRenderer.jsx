@@ -1,4 +1,5 @@
 import React from "react";
+import BusinessHoursDisplay from "./BusinessHoursDisplay.jsx";
 import { ChevronDown } from "lucide-react";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
 
@@ -379,24 +380,35 @@ function Menu({ config, theme, toneIdx }) {
 }
 
 /* ─── Opening hours ─── */
-function Hours({ config, theme, toneIdx }) {
+function Hours({ config, venue, theme, toneIdx }) {
+  const bh = venue?.business_hours;
+  if (bh && bh.enabled === false) return null;
+
+  const hasStructured = bh && typeof bh === "object" && bh.days;
   const items = config?.items || [];
-  if (!items.length) return null;
+  if (!hasStructured && !items.length) return null;
+
   return (
-    <SectionShell title={config.title} toneIdx={toneIdx} theme={theme} subtitle="Timings">
-      <Reveal>
-        <div className="max-w-md mx-auto bg-white dark:bg-stone-800 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-700 p-6">
-          {items.map((it) => (
-            <div
-              key={it.id}
-              className="flex items-center justify-between py-3 border-b border-stone-100 dark:border-stone-700 last:border-0"
-            >
-              <span className="font-semibold text-stone-900 dark:text-white">{it.title}</span>
-              <span className="text-sm font-medium" style={{ color: theme }}>{it.description}</span>
-            </div>
-          ))}
-        </div>
-      </Reveal>
+    <SectionShell title={config?.title || "Opening Hours"} toneIdx={toneIdx} theme={theme} subtitle="Timings">
+      {hasStructured ? (
+        <Reveal>
+          <BusinessHoursDisplay hours={bh} theme={theme} />
+        </Reveal>
+      ) : (
+        <Reveal>
+          <div className="max-w-md mx-auto bg-white dark:bg-stone-800 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-700 p-6">
+            {items.map((it) => (
+              <div
+                key={it.id}
+                className="flex items-center justify-between py-3 border-b border-stone-100 dark:border-stone-700 last:border-0"
+              >
+                <span className="font-semibold text-stone-900 dark:text-white">{it.title}</span>
+                <span className="text-sm font-medium" style={{ color: theme }}>{it.description}</span>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+      )}
     </SectionShell>
   );
 }

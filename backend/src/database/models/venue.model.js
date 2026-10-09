@@ -52,6 +52,9 @@ module.exports = (sequelize, DataTypes) => {
     gallery: { type: DataTypes.JSONB, defaultValue: [] },
     testimonials: { type: DataTypes.JSONB, defaultValue: [] },
     show_pricing_section: { type: DataTypes.BOOLEAN, defaultValue: true },
+    show_availability: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    show_slots_packages: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    business_hours: { type: DataTypes.JSONB, defaultValue: null },
     page_sections: { type: DataTypes.JSONB, defaultValue: null },
 
     // Payment/GST settings

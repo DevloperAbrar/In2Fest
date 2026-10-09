@@ -23,7 +23,6 @@ const SCHEMA_STATEMENTS = [
      ADD COLUMN IF NOT EXISTS notes TEXT,
      ADD COLUMN IF NOT EXISTS custom_fields JSONB NOT NULL DEFAULT '{}'::jsonb,
      ADD COLUMN IF NOT EXISTS converted_to UUID`,
-  // legacy rows: already-paid invoices become fully paid, everything else owes its total
   `UPDATE invoices SET amount_paid = total, balance_due = 0, payment_status = 'paid'
      WHERE status = 'paid' AND type <> 'quotation' AND payment_status = 'unpaid' AND amount_paid = 0`,
   `UPDATE invoices SET balance_due = total
@@ -49,10 +48,15 @@ const SCHEMA_STATEMENTS = [
      fy VARCHAR(4) NOT NULL,
      last_value INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (venue_id, doc_type, fy)
-   )`
+   )`,
+
+  // ---- website display options + opening hours ----
+  `ALTER TABLE venues
+     ADD COLUMN IF NOT EXISTS show_availability BOOLEAN NOT NULL DEFAULT true,
+     ADD COLUMN IF NOT EXISTS show_slots_packages BOOLEAN NOT NULL DEFAULT true,
+     ADD COLUMN IF NOT EXISTS business_hours JSONB`
 ];
 
-// ENUM additions can't run inside a transaction on older Postgres; run individually, tolerate failure.
 const ENUM_STATEMENTS = [
   `ALTER TYPE "enum_invoices_type" ADD VALUE IF NOT EXISTS 'proforma'`,
   `ALTER TYPE "enum_invoices_type" ADD VALUE IF NOT EXISTS 'credit_note'`
@@ -69,7 +73,7 @@ async function applyAll() {
     try {
       await sequelize.query(sql);
     } catch (e) {
-      if (errCode(e) === "42P01") missingTable = true; // table not created by sync() yet
+      if (errCode(e) === "42P01") missingTable = true;
       else console.error("[MIGRATE] statement failed:", e.message);
     }
   }
@@ -104,7 +108,7 @@ async function applyAll() {
 async function runWithRetry() {
   for (let attempt = 0; attempt < 20; attempt++) {
     if (await applyAll()) return true;
-    await sleep(3000); // wait for sequelize.sync() to create base tables on a fresh database
+    await sleep(3000);
   }
   throw new Error("Startup migrations could not complete: base tables are missing");
 }
@@ -113,7 +117,7 @@ let pending = null;
 function ensureSchema() {
   if (!pending) {
     pending = runWithRetry().catch((err) => {
-      pending = null; // allow a later request to retry
+      pending = null;
       throw err;
     });
   }
@@ -124,10 +128,8 @@ function kickoff() {
   ensureSchema().catch((e) => console.error("[MIGRATE]", e.message));
 }
 
-// Strict: used by billing routes (a missing schema must not silently corrupt data).
 const schemaReady = (req, res, next) => ensureSchema().then(() => next()).catch(next);
 
-// Soft: used by public meta routes, never blocks for long and never fails the request.
 const schemaReadySoft = (req, res, next) => {
   Promise.race([ensureSchema(), sleep(4000)]).then(() => next()).catch(() => next());
 };

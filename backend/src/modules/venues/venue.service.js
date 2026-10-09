@@ -8,6 +8,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const sharp = require("sharp");
 const { createFreeSubscription } = require("../subscriptions/subscription.service");
+const { sanitizeBusinessHours, sanitizeServices } = require("../../utils/venueContentSanitizer");
 
 function slugify(text) {
   return text
@@ -292,10 +293,12 @@ async function updateVenue(venueId, ownerId, updates) {
   const venue = await Venue.findOne({ where: { id: venueId, owner_id: ownerId } });
   if (!venue) throw new AppError("Venue not found or access denied", 404);
 
+  // NOTE: "services", "business_hours", "show_availability" and "show_slots_packages"
+  // are handled separately below so they get validated.
   const allowedFields = [
     "hall_name", "owner_name", "phone", "city", "address", "google_maps_link",
     "capacity", "venue_type", "business_category", "secondary_categories",
-    "primary_locality", "team_size", "starting_price", "about_text", "services",
+    "primary_locality", "team_size", "starting_price", "about_text",
     "gst_enabled", "gst_number", "upi_id", "bank_details", "page_sections",
     "gallery", "custom_domain", "whatsapp_token", "whatsapp_phone_number_id",
     "lead_notify_email", "lead_notify_whatsapp", "primary_color",
@@ -313,6 +316,20 @@ async function updateVenue(venueId, ownerId, updates) {
 
   allowedFields.forEach((field) => {
     if (updates[field] !== undefined) venue[field] = updates[field];
+  });
+
+  if (updates.services !== undefined) {
+    venue.services = sanitizeServices(updates.services);
+  }
+
+  if (updates.business_hours !== undefined) {
+    venue.business_hours = sanitizeBusinessHours(updates.business_hours);
+  }
+
+  ["show_availability", "show_slots_packages"].forEach((field) => {
+    if (updates[field] !== undefined) {
+      venue[field] = updates[field] === true || updates[field] === "true";
+    }
   });
 
   if (updates.page_sections !== undefined) {

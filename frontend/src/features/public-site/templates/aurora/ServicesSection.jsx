@@ -1,5 +1,6 @@
 import React from "react";
 import { useScrollReveal } from "../../../../hooks/useScrollReveal";
+import ServiceIcon from "../../../../components/common/ServiceIcon.jsx";
 
 function Reveal({ children, delay = 0, className = "" }) {
   const [ref, visible] = useScrollReveal();
@@ -56,7 +57,11 @@ export default function ServicesSection({ venue }) {
                 >
                   {String(idx + 1).padStart(2, "0")}
                 </div>
-                {s.icon && <div className="text-2xl mb-3">{s.icon}</div>}
+                {s.icon && (
+                  <div className="mb-3" style={{ color: theme }}>
+                    <ServiceIcon name={s.icon} size={26} />
+                  </div>
+                )}
                 <h3 className="font-bold text-white text-base mb-3">{s.name}</h3>
                 {s.description && <p className="text-sm text-white/45 leading-relaxed">{s.description}</p>}
                 <div className="absolute bottom-0 left-6 right-6 h-px transition-all duration-500 opacity-0 group-hover:opacity-100" style={{ backgroundColor: theme }} />

@@ -1,4 +1,5 @@
 import React from "react";
+import ServiceIcon from "../../../components/common/ServiceIcon.jsx";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
 
 function Reveal({ children, delay = 0, className = "" }) {
@@ -58,11 +59,11 @@ export default function ServicesSection({ venue }) {
                     className="flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg"
                     style={{ background: `linear-gradient(135deg, ${theme}, ${theme}cc)` }}
                   >
-                    {s.icon ? (
-                      <span className="text-xl">{s.icon}</span>
-                    ) : (
-                      <span className="text-sm font-bold">{String(idx + 1).padStart(2, "0")}</span>
-                    )}
+                    <ServiceIcon
+                      name={s.icon}
+                      size={22}
+                      fallback={<span className="text-sm font-bold">{String(idx + 1).padStart(2, "0")}</span>}
+                    />
                   </div>
                   <div>
                     <h3 className="font-bold text-stone-900 dark:text-white mb-2 text-base">

@@ -12,6 +12,7 @@ import TemplatePicker from "../features/venue-owner/website-builder/TemplatePick
 import HeroEditor from "../features/venue-owner/website-builder/HeroEditor.jsx";
 import AboutEditor from "../features/venue-owner/website-builder/AboutEditor.jsx";
 import ServicesEditor from "../features/venue-owner/website-builder/ServicesEditor.jsx";
+import BusinessHoursEditor from "../features/venue-owner/website-builder/BusinessHoursEditor.jsx";
 import GalleryEditor from "../features/venue-owner/website-builder/GalleryEditor.jsx";
 import ContactEditor from "../features/venue-owner/website-builder/ContactEditor.jsx";
 import WebsiteBuilderHome from "../features/venue-owner/website-builder/WebsiteBuilderHome.jsx";
@@ -58,6 +59,8 @@ export default function VenueOwnerRoutes() {
         <Route path="website/hero" element={<RequireFeature feature="website_builder"><HeroEditor /></RequireFeature>} />
         <Route path="website/about" element={<RequireFeature feature="website_builder"><AboutEditor /></RequireFeature>} />
         <Route path="website/services" element={<RequireFeature feature="website_builder"><ServicesEditor /></RequireFeature>} />
+        <Route path="website/hours" element={<RequireFeature feature="website_builder"><BusinessHoursEditor /></RequireFeature>} />
+        <Route path="website/section/hours" element={<RequireFeature feature="website_builder"><BusinessHoursEditor /></RequireFeature>} />
         <Route path="website/gallery" element={<RequireFeature feature="website_builder"><GalleryEditor /></RequireFeature>} />
         <Route path="website/contact" element={<RequireFeature feature="website_builder"><ContactEditor /></RequireFeature>} />
         <Route path="marketplace-profile" element={<RequireFeature feature="marketplace_profile"><MarketplaceProfilePage /></RequireFeature>} />
