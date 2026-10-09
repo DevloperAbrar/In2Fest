@@ -4,6 +4,7 @@ const { connectDatabase, sequelize } = require("./config/database");
 require("./database/models"); // ensures all models + associations are registered
 const { startJobs } = require("./jobs");
 const { getRedisClient } = require("./config/redis");
+const { syncSuperAdminFromEnv } = require("./database/superAdminSync");
 
 async function startServer() {
   await connectDatabase();
@@ -12,6 +13,12 @@ async function startServer() {
   if (env.nodeEnv === "development") {
     await sequelize.sync({ alter: true });
     console.log("[DB] Models synced (development mode).");
+  }
+
+  try {
+    await syncSuperAdminFromEnv();
+  } catch (err) {
+    console.error("[ADMIN] Super admin sync failed:", err.message);
   }
 
   const server = app.listen(env.port, () => {

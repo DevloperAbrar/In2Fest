@@ -303,6 +303,184 @@ function Process({ config, theme, toneIdx }) {
   );
 }
 
+/* ─── Courses ─── */
+function Courses({ config, theme, toneIdx }) {
+  const items = config?.items || [];
+  if (!items.length) return null;
+  return (
+    <SectionShell title={config.title} toneIdx={toneIdx} theme={theme} subtitle="Programs">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {items.map((it, idx) => (
+          <Reveal key={it.id} delay={idx * 80}>
+            <div className="h-full rounded-3xl border border-stone-100 dark:border-stone-700 overflow-hidden bg-white dark:bg-stone-800 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col">
+              {it.image_url && (
+                <div className="h-44 overflow-hidden">
+                  <img src={it.image_url} alt={it.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="p-6 flex flex-col flex-1">
+                {it.subtitle && (
+                  <span
+                    className="self-start text-[11px] font-bold text-white px-3 py-1 rounded-full mb-3"
+                    style={{ backgroundColor: theme }}
+                  >
+                    {it.subtitle}
+                  </span>
+                )}
+                <h3 className="font-bold text-lg text-stone-900 dark:text-white">{it.title}</h3>
+                {it.description && (
+                  <p className="text-sm text-stone-500 dark:text-stone-400 mt-2 leading-relaxed flex-1">{it.description}</p>
+                )}
+                {it.price && (
+                  <p className="text-2xl font-extrabold mt-4" style={{ color: theme }}>{it.price}</p>
+                )}
+              </div>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </SectionShell>
+  );
+}
+
+/* ─── Menu / Price list ─── */
+function Menu({ config, theme, toneIdx }) {
+  const items = config?.items || [];
+  if (!items.length) return null;
+  return (
+    <SectionShell title={config.title} toneIdx={toneIdx} theme={theme} subtitle="Menu">
+      <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+        {items.map((it, idx) => (
+          <Reveal key={it.id} delay={idx * 40}>
+            <div className="border-b border-dashed border-stone-200 dark:border-stone-700 pb-4">
+              <div className="flex items-baseline justify-between gap-4">
+                <h3 className="font-bold text-stone-900 dark:text-white">
+                  {it.title}
+                  {it.tag && (
+                    <span
+                      className="ml-2 align-middle text-[10px] font-bold text-white px-2 py-0.5 rounded-full uppercase tracking-wider"
+                      style={{ backgroundColor: theme }}
+                    >
+                      {it.tag}
+                    </span>
+                  )}
+                </h3>
+                {it.price && <span className="font-extrabold whitespace-nowrap" style={{ color: theme }}>{it.price}</span>}
+              </div>
+              {it.description && (
+                <p className="text-sm text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">{it.description}</p>
+              )}
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </SectionShell>
+  );
+}
+
+/* ─── Opening hours ─── */
+function Hours({ config, theme, toneIdx }) {
+  const items = config?.items || [];
+  if (!items.length) return null;
+  return (
+    <SectionShell title={config.title} toneIdx={toneIdx} theme={theme} subtitle="Timings">
+      <Reveal>
+        <div className="max-w-md mx-auto bg-white dark:bg-stone-800 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-700 p-6">
+          {items.map((it) => (
+            <div
+              key={it.id}
+              className="flex items-center justify-between py-3 border-b border-stone-100 dark:border-stone-700 last:border-0"
+            >
+              <span className="font-semibold text-stone-900 dark:text-white">{it.title}</span>
+              <span className="text-sm font-medium" style={{ color: theme }}>{it.description}</span>
+            </div>
+          ))}
+        </div>
+      </Reveal>
+    </SectionShell>
+  );
+}
+
+/* ─── Results & achievements ─── */
+function Results({ config, theme, toneIdx }) {
+  const items = config?.items || [];
+  if (!items.length) return null;
+  return (
+    <SectionShell title={config.title} toneIdx={toneIdx} theme={theme} subtitle="Achievements">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {items.map((it, idx) => (
+          <Reveal key={it.id} delay={idx * 70} className="text-center">
+            <div
+              className="w-28 h-28 rounded-full mx-auto mb-4 overflow-hidden border-4 shadow-lg"
+              style={{ borderColor: `${theme}40` }}
+            >
+              {it.image_url ? (
+                <img src={it.image_url} alt={it.title} className="w-full h-full object-cover" />
+              ) : (
+                <div
+                  className="w-full h-full flex items-center justify-center text-white text-2xl font-bold"
+                  style={{ backgroundColor: theme }}
+                >
+                  {it.title?.[0]}
+                </div>
+              )}
+            </div>
+            <p className="font-bold text-stone-900 dark:text-white text-sm">{it.title}</p>
+            {it.subtitle && (
+              <p className="text-xs font-semibold mt-1" style={{ color: theme }}>{it.subtitle}</p>
+            )}
+          </Reveal>
+        ))}
+      </div>
+    </SectionShell>
+  );
+}
+
+/* ─── CTA banner (first entry) ─── */
+function CtaBanner({ config, theme, venue }) {
+  const first = (config?.items || [])[0];
+  const headline = first?.title || config?.title;
+  if (!headline) return null;
+
+  const rawPhone = String(venue?.whatsapp_number || venue?.phone || "").replace(/\D/g, "");
+  const waNumber = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+
+  return (
+    <section className="px-6 py-16 bg-white dark:bg-stone-950">
+      <Reveal>
+        <div
+          className="max-w-4xl mx-auto rounded-3xl p-10 md:p-14 text-center text-white shadow-2xl"
+          style={{ background: `linear-gradient(135deg, ${theme}, ${theme}bb)` }}
+        >
+          <h2 className="text-3xl md:text-4xl font-extrabold" style={{ letterSpacing: "-0.02em" }}>{headline}</h2>
+          {first?.description && <p className="mt-3 text-white/90 text-lg">{first.description}</p>}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {rawPhone && (
+              <a
+                href={`tel:+${waNumber}`}
+                className="px-7 py-3 rounded-full bg-white font-bold text-sm shadow-lg hover:-translate-y-0.5 transition-transform"
+                style={{ color: theme }}
+              >
+                Call Now
+              </a>
+            )}
+            {waNumber && (
+              <a
+                href={`https://wa.me/${waNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-7 py-3 rounded-full border-2 border-white font-bold text-sm hover:bg-white/10 transition-colors"
+              >
+                WhatsApp Us
+              </a>
+            )}
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
 /* ─── Registry ─── */
 const RENDERERS = {
   portfolio: Portfolio,
@@ -312,6 +490,11 @@ const RENDERERS = {
   product_catalog: ProductCatalog,
   team: Team,
   occasions: Occasions,
+  courses: Courses,
+  menu: Menu,
+  hours: Hours,
+  results: Results,
+  cta_banner: CtaBanner
 };
 
 export default function DynamicSectionRenderer({ type, config, venue, index = 0 }) {
@@ -322,6 +505,7 @@ export default function DynamicSectionRenderer({ type, config, venue, index = 0 
       config={config}
       theme={venue.theme_color || "#7c3aed"}
       toneIdx={index}
+      venue={venue}
     />
   );
 }

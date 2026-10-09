@@ -128,8 +128,14 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
   }
 
   return new Promise((resolve, reject) => {
-    const isInvoice = invoice.type === "invoice";
-    const docLabel = isInvoice ? "TAX INVOICE" : "QUOTATION";
+    const isInvoice = invoice.type !== "quotation";
+    const DOC_LABELS = {
+      quotation: "QUOTATION",
+      proforma: "PROFORMA INVOICE",
+      credit_note: "CREDIT NOTE",
+      invoice: invoice.gst_enabled ? "TAX INVOICE" : "INVOICE"
+    };
+    const docLabel = DOC_LABELS[invoice.type] || "INVOICE";
 
     const doc = new PDFDocument({
       size: "A4",
@@ -214,8 +220,9 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
 
       // right side: document title + number
       const rightW = 210;
-      setText("Helvetica-Bold", 24, C.brand)
-        .text(docLabel, MX + CW - rightW, headTop - 2, { width: rightW, align: "right", lineBreak: false });
+      const docTitleSize = docLabel.length > 12 ? 17 : 24;
+      setText("Helvetica-Bold", docTitleSize, C.brand)
+        .text(docLabel, MX + CW - rightW, headTop - 2 + (24 - docTitleSize) / 2, { width: rightW, align: "right", lineBreak: false });
       setText("Helvetica", 10, C.muted)
         .text(`No. ${invoice.invoice_number}`, MX + CW - rightW, headTop + 32, { width: rightW, align: "right", lineBreak: false });
 
@@ -242,7 +249,13 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
           cells.push({ label: "EVENT TIME", value: `${fmtTime(booking.start_time)} - ${fmtTime(booking.end_time)}` });
         }
       }
-      cells.push({ label: isInvoice ? "AMOUNT PAYABLE" : "ESTIMATED TOTAL", value: money(invoice.total), accent: true });
+      if (isInvoice && invoice.due_date) cells.push({ label: "DUE DATE", value: fmtDate(invoice.due_date) });
+      const hasPayments = Number(invoice.amount_paid) > 0;
+      cells.push({
+        label: !isInvoice ? "ESTIMATED TOTAL" : invoice.type === "credit_note" ? "CREDIT AMOUNT" : hasPayments ? "BALANCE DUE" : "AMOUNT PAYABLE",
+        value: money(hasPayments ? invoice.balance_due : invoice.total),
+        accent: true
+      });
 
       const cellW = CW / cells.length;
       const valueH = Math.max(...cells.map((c) => textH(c.value, cellW - 20, "Helvetica-Bold", 9.5)));
@@ -270,6 +283,10 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
       const guests = booking?.guest_count || client?.guest_count;
       if (eventType) detailRows.push(["Event Type", String(eventType)]);
       if (guests) detailRows.push(["Expected Guests", String(guests)]);
+      const profileFields = invoice.custom_fields && typeof invoice.custom_fields === "object" ? invoice.custom_fields : {};
+      Object.entries(profileFields).forEach(([k, v]) => {
+        if (v) detailRows.push([k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), String(v).slice(0, 40)]);
+      });
 
       const hasDetails = detailRows.length > 0;
       const cardGap = 14;
@@ -277,10 +294,13 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
       const pad = 14;
 
       // Bill To content
-      const clientName = client?.name || "Client";
+      const clientName = client?.name || "Customer";
       const billLines = [];
+      if (client?.address) billLines.push(String(client.address));
       if (client?.phone) billLines.push(`Phone: ${client.phone}`);
       if (client?.email) billLines.push(`Email: ${client.email}`);
+      if (client?.gstin) billLines.push(`GSTIN: ${client.gstin}`);
+      if (invoice.gst_enabled && invoice.place_of_supply) billLines.push(`Place of Supply: ${invoice.place_of_supply}`);
 
       let billH = 12 + 8 + 12 + textH(clientName, cardW - pad * 2, "Helvetica-Bold", 12) + 6;
       billLines.forEach((l) => { billH += textH(l, cardW - pad * 2, "Helvetica", 9) + 3; });
@@ -320,13 +340,14 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
       /* ============================================================ */
       /*  4. LINE ITEMS TABLE                                          */
       /* ============================================================ */
+      const QTYW = 56;
       const col = {
-        no:   { x: MX,                              w: 26 },
-        desc: { x: MX + 26,                         w: CW - (26 + 38 + 88 + 78 + 95) },
-        qty:  { x: MX + CW - (38 + 88 + 78 + 95),   w: 38 },
-        rate: { x: MX + CW - (88 + 78 + 95),        w: 88 },
-        disc: { x: MX + CW - (78 + 95),             w: 78 },
-        amt:  { x: MX + CW - 95,                    w: 95 }
+        no: { x: MX, w: 26 },
+        desc: { x: MX + 26, w: CW - (26 + QTYW + 88 + 78 + 95) },
+        qty: { x: MX + CW - (QTYW + 88 + 78 + 95), w: QTYW },
+        rate: { x: MX + CW - (88 + 78 + 95), w: 88 },
+        disc: { x: MX + CW - (78 + 95), w: 78 },
+        amt: { x: MX + CW - 95, w: 95 }
       };
 
       function drawTableHeader(top) {
@@ -347,7 +368,7 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
 
       const items = invoice.line_items || [];
       items.forEach((item, idx) => {
-        const desc = item.description || "-";
+        const desc = [item.description || "-", item.hsn_sac ? `(${item.hsn_sac})` : ""].filter(Boolean).join(" ");
         const descH = textH(desc, col.desc.w - 8, "Helvetica-Bold", 9.5);
         const rowH = Math.max(descH, 12) + 18;
 
@@ -357,13 +378,13 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
           item.discount_type === "percentage" && Number(item.discount_value) > 0
             ? `${item.discount_value}%`
             : item.discount_type === "flat" && Number(item.discount_value) > 0
-            ? money(item.discount_value)
-            : "-";
+              ? money(item.discount_value)
+              : "-";
 
         const ty = y + 9;
         setText("Helvetica", 9, C.muted).text(String(idx + 1), col.no.x, ty, { width: col.no.w, align: "center", lineBreak: false });
         setText("Helvetica-Bold", 9.5, C.ink).text(desc, col.desc.x + 4, ty, { width: col.desc.w - 8 });
-        setText("Helvetica", 9.5, C.text).text(String(item.quantity), col.qty.x, ty, { width: col.qty.w, align: "center", lineBreak: false });
+        setText("Helvetica", 9.5, C.text).text(`${item.quantity}${item.unit ? " " + String(item.unit).slice(0, 4) : ""}`, col.qty.x, ty, { width: col.qty.w, align: "center", lineBreak: false });
         doc.text(money(item.rate), col.rate.x, ty, { width: col.rate.w - 8, align: "right", lineBreak: false });
         setText("Helvetica", 9.5, C.muted).text(discountLabel, col.disc.x, ty, { width: col.disc.w - 8, align: "right", lineBreak: false });
         setText("Helvetica-Bold", 9.5, C.ink).text(money(item.amount), col.amt.x, ty, { width: col.amt.w - 10, align: "right", lineBreak: false });
@@ -383,18 +404,46 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
 
       const totalRows = [];
       totalRows.push({ label: "Subtotal", value: money(invoice.subtotal) });
-      if (invoice.discount_type && invoice.discount_type !== "none" && Number(invoice.discount_amount) > 0) {
+
+      const hasDiscount = invoice.discount_type && invoice.discount_type !== "none" && Number(invoice.discount_amount) > 0;
+      if (hasDiscount) {
         const dLabel = invoice.discount_type === "percentage" ? `Discount (${Number(invoice.discount_value)}%)` : "Discount";
         totalRows.push({ label: dLabel, value: `-${money(invoice.discount_amount)}`, muted: true });
-        totalRows.push({ label: "Taxable Amount", value: money(invoice.taxable_amount) });
-      }
-      if (invoice.gst_enabled) {
-        const half = Number(invoice.gst_rate) / 2;
-        totalRows.push({ label: `CGST (${half}%)`, value: money(invoice.cgst_amount), muted: true });
-        totalRows.push({ label: `SGST (${half}%)`, value: money(invoice.sgst_amount), muted: true });
       }
 
-      const totalsBlockH = totalRows.length * 19 + 10 + 36;
+      if (invoice.gst_enabled) {
+        totalRows.push({ label: invoice.price_includes_tax ? "Taxable Value (excl. tax)" : "Taxable Amount", value: money(invoice.taxable_amount) });
+        const breakup = Array.isArray(invoice.tax_breakup) ? invoice.tax_breakup : [];
+        if (breakup.length > 0) {
+          breakup.forEach((g) => {
+            if (invoice.supply_type === "inter" || Number(g.igst) > 0) {
+              totalRows.push({ label: `IGST (${Number(g.rate)}%)`, value: money(g.igst), muted: true });
+            } else {
+              const half = Number(g.rate) / 2;
+              totalRows.push({ label: `CGST (${half}%)`, value: money(g.cgst), muted: true });
+              totalRows.push({ label: `SGST (${half}%)`, value: money(g.sgst), muted: true });
+            }
+          });
+        } else {
+          // documents created before tax_breakup existed
+          const half = Number(invoice.gst_rate) / 2;
+          totalRows.push({ label: `CGST (${half}%)`, value: money(invoice.cgst_amount), muted: true });
+          totalRows.push({ label: `SGST (${half}%)`, value: money(invoice.sgst_amount), muted: true });
+        }
+      }
+
+      if (Number(invoice.round_off) !== 0 && invoice.round_off !== null && invoice.round_off !== undefined) {
+        const ro = Number(invoice.round_off);
+        totalRows.push({ label: "Round Off", value: `${ro > 0 ? "+" : "-"}${money(Math.abs(ro))}`, muted: true });
+      }
+
+      const paidRows = [];
+      if (isInvoice && invoice.type !== "credit_note" && Number(invoice.amount_paid) > 0) {
+        paidRows.push({ label: "Amount Paid", value: `-${money(invoice.amount_paid)}`, muted: true });
+        paidRows.push({ label: "Balance Due", value: money(invoice.balance_due), bold: true });
+      }
+
+      const totalsBlockH = totalRows.length * 19 + 10 + 36 + paidRows.length * 19;
       ensure(totalsBlockH + 10);
 
       // totals (right)
@@ -408,11 +457,21 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
       });
       ty += 4;
       doc.roundedRect(totalsX, ty, totalsW, 34, 4).fill(C.brand);
+      const grandLabel = !isInvoice ? "TOTAL ESTIMATE" : invoice.type === "credit_note" ? "CREDIT TOTAL" : "GRAND TOTAL";
       setText("Helvetica-Bold", 9, C.white)
-        .text(isInvoice ? "GRAND TOTAL" : "TOTAL ESTIMATE", totalsX + 14, ty + 12, { characterSpacing: 0.6, lineBreak: false });
+        .text(grandLabel, totalsX + 14, ty + 12, { characterSpacing: 0.6, lineBreak: false });
       setText("Helvetica-Bold", 13, C.white)
         .text(money(invoice.total), totalsX + 100, ty + 10, { width: totalsW - 114, align: "right", lineBreak: false });
-      const totalsBottom = ty + 34;
+
+      let py = ty + 34 + 8;
+      paidRows.forEach((r) => {
+        setText(r.bold ? "Helvetica-Bold" : "Helvetica", 9.5, r.muted ? C.muted : C.ink)
+          .text(r.label, totalsX, py, { width: totalsW - 120, lineBreak: false });
+        setText(r.bold ? "Helvetica-Bold" : "Helvetica", 9.5, r.muted ? C.muted : C.ink)
+          .text(r.value, totalsX + totalsW - 120, py, { width: 120, align: "right", lineBreak: false });
+        py += 19;
+      });
+      const totalsBottom = paidRows.length ? py : ty + 34;
 
       // amount in words (left)
       const words = amountInWords(invoice.total);
@@ -487,7 +546,7 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
       /* ============================================================ */
       /*  7. TERMS  |  THANK YOU  |  VERIFICATION                      */
       /* ============================================================ */
-      const termLines = String(invoice.terms || "")
+      const termLines = String([invoice.terms, invoice.notes].filter(Boolean).join("\n"))
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean)
