@@ -1,8 +1,18 @@
 const service = require("./adminDiscovery.service");
+const { uploadToR2 } = require("../../middleware/upload.middleware");
+const { AppError } = require("../../middleware/error.middleware");
 
 const wrap = (fn) => async (req, res, next) => {
   try { await fn(req, res, next); } catch (err) { next(err); }
 };
+
+// Uploads the optional category image to R2 and returns its public URL (or undefined if none sent).
+async function categoryImageFromRequest(req) {
+  if (!req.file) return undefined;
+  const url = await uploadToR2(req.file.buffer, req.file.originalname, "categories", req.file.mimetype);
+  if (!url) throw new AppError("Image storage (R2) is not configured on the server", 500);
+  return url;
+}
 
 module.exports = {
   getFeaturedVendors: wrap(async (req, res) => {
@@ -27,10 +37,12 @@ module.exports = {
     res.json({ success: true, data: await service.listAllCategories() });
   }),
   createCategory: wrap(async (req, res) => {
-    res.status(201).json({ success: true, data: await service.createCategory(req.body) });
+    const imageUrl = await categoryImageFromRequest(req);
+    res.status(201).json({ success: true, data: await service.createCategory(req.body, imageUrl) });
   }),
   updateCategory: wrap(async (req, res) => {
-    res.json({ success: true, data: await service.updateCategory(req.params.categoryId, req.body) });
+    const imageUrl = await categoryImageFromRequest(req);
+    res.json({ success: true, data: await service.updateCategory(req.params.categoryId, req.body, imageUrl) });
   }),
   deleteCategory: wrap(async (req, res) => {
     res.json({ success: true, data: await service.deleteCategory(req.params.categoryId) });

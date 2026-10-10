@@ -8,13 +8,13 @@ export default function VendorCTA() {
       <div className="max-w-3xl mx-auto px-4 text-center">
         <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-widest uppercase text-white bg-white/10 border border-white/15 px-4 py-1.5 rounded-full mb-5">
           <TrendingUp size={12} style={{ color: "#f5a623" }} />
-          Own a wedding or event business?
+          Own a business?
         </span>
         <h2 className="font-display font-extrabold text-white mb-4" style={{ fontSize: "clamp(1.5rem,3.5vw,2.25rem)" }}>
           List free & get your own website
         </h2>
         <p className="text-white/70 text-sm md:text-base mb-7 max-w-xl mx-auto">
-          Get discovered by couples searching right now, plus a free branded website and booking calendar.
+          Get found by customers searching in your city right now, plus a free branded website, booking calendar and billing.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link

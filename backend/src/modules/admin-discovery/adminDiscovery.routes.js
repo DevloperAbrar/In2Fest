@@ -2,6 +2,7 @@ const express = require("express");
 const controller = require("./adminDiscovery.controller");
 const { authenticate } = require("../../middleware/auth.middleware");
 const { requireRole } = require("../../middleware/role.middleware");
+const { upload } = require("../../middleware/upload.middleware");
 
 const router = express.Router();
 router.use(authenticate, requireRole("super_admin"));
@@ -21,10 +22,10 @@ router.put("/city-requests/bulk-status", controller.bulkUpdateCityRequests);
 router.put("/city-requests/:id", controller.updateCityRequest);
 router.delete("/city-requests/:id", controller.deleteCityRequest);
 
-// Category CRUD  - admin-only, DB-driven
+// Category CRUD - admin-only, DB-driven. Accepts an optional "image" file (multipart).
 router.get("/categories", controller.listAllCategories);
-router.post("/categories", controller.createCategory);
-router.put("/categories/:categoryId", controller.updateCategory);
+router.post("/categories", upload.single("image"), controller.createCategory);
+router.put("/categories/:categoryId", upload.single("image"), controller.updateCategory);
 router.delete("/categories/:categoryId", controller.deleteCategory);
 
 router.get("/analytics", controller.getAnalytics);

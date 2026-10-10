@@ -14,20 +14,25 @@ function normalize(raw) {
     label: raw.name || raw.label,
     icon: raw.icon || "sparkles",
     isVenue: raw.is_venue_type != null ? !!raw.is_venue_type : KNOWN_VENUE_SLUGS.includes(raw.slug),
+    businessType: raw.business_type || "general",
+    businessTypeLabel: raw.business_type_label || "Popular categories",
+    businessTypeOrder: raw.business_type_order ?? 0,
+    imageUrl: raw.image_url || null,
+    tagline: raw.tagline || "",
+    showOnHome: raw.show_on_home !== false,
   };
 }
 
 /**
  * useCategories
  *
- * Single source of truth for "which categories exist" on every search-page
- * component. Pulls live, super-admin-managed categories from
- * GET /meta/categories (same endpoint the homepage uses) so a category
- * added/renamed/hidden in the admin panel shows up here automatically -
- * no more hardcoded list going stale.
+ * Single source of truth for "which categories exist". Pulls live,
+ * super-admin-managed categories from GET /meta/categories so a category
+ * added/renamed/hidden (or given a new image) in the admin panel shows up
+ * everywhere automatically.
  *
  * Falls back to the local CATEGORIES constant only if the API call fails,
- * so the filter UI never renders empty.
+ * so the UI never renders empty.
  */
 export default function useCategories() {
   const [categories, setCategories] = useState(() => FALLBACK_CATEGORIES.map(normalize));

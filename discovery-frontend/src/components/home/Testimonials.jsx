@@ -4,59 +4,52 @@ import { motion } from "framer-motion";
 
 const TESTIMONIALS = [
   {
-    name: "Priya & Rohan",
-    role: "Booked their wedding hall & catering",
+    name: "Priya Sharma",
+    role: "Found a coaching institute",
     city: "Indore",
-    quote: "We compared three halls and booked catering, all without a single confusing phone call. Seeing the actual calendar before deciding made this so much easier.",
+    quote: "I compared three coaching centres, saw fees and batch timings upfront, and messaged the one I liked on WhatsApp. No running around.",
     rating: 5,
   },
   {
     name: "Ankit Sharma",
-    role: "Decorator, Early Vendor Partner",
+    role: "Decorator, Vendor Partner",
     city: "Indore",
     quote: "My own website went live in a day. Inquiries now come straight to my dashboard instead of missed calls.",
     rating: 5,
   },
   {
     name: "Meera Joshi",
-    role: "Booked photography & makeup",
+    role: "Booked a photographer",
     city: "Bhopal",
     quote: "Being able to see real packages and pricing upfront saved us so many awkward negotiation calls.",
     rating: 5,
   },
   {
-    name: "Sunita & Vikram",
-    role: "Booked full wedding package",
-    city: "Indore",
-    quote: "From hall to mehndi artist — we found everything on one platform. The vendor verification badge gave us confidence to book without second-guessing.",
+    name: "Dr. Rakesh Jain",
+    role: "Clinic owner, Vendor Partner",
+    city: "Gwalior",
+    quote: "Patients find the clinic, see timings and book without calling the front desk. Billing from the same dashboard is a bonus.",
     rating: 5,
   },
   {
     name: "Rahul Verma",
-    role: "Photographer, Vendor Partner",
+    role: "Gym owner, Vendor Partner",
     city: "Bhopal",
-    quote: "The free website feature brought me 3 new inquiries within the first week. I didn't have to spend anything to get started.",
+    quote: "The free website brought me 3 new inquiries in the first week. I did not have to spend anything to get started.",
     rating: 5,
   },
   {
-    name: "Kavita & Suresh",
-    role: "Booked banquet hall & DJ",
+    name: "Kavita Singh",
+    role: "Hired a home cleaning service",
     city: "Ujjain",
-    quote: "Direct WhatsApp contact meant no middleman drama. We got a quote in minutes and confirmed the booking the same evening.",
+    quote: "Direct WhatsApp contact meant no middleman drama. We got a quote in minutes and confirmed the same evening.",
     rating: 5,
   },
   {
-    name: "Deepak Events",
-    role: "Event Manager, Vendor Partner",
-    city: "Indore",
-    quote: "Having a live booking calendar visible to clients has completely changed how I manage my schedule. Zero double bookings since joining.",
-    rating: 5,
-  },
-  {
-    name: "Nisha & Amit",
-    role: "Booked photographer & caterer",
+    name: "Nisha Agarwal",
+    role: "Bought from a local store",
     city: "Jabalpur",
-    quote: "The reviews on each vendor profile are from real bookings — that's what sold us. No fake ratings, just honest feedback.",
+    quote: "Reviews on each profile are from real customers, and that is what sold me. No fake ratings, just honest feedback.",
     rating: 5,
   },
 ];
@@ -299,7 +292,7 @@ export default function Testimonials() {
           </h2>
 
           <p style={{ color: "#6b7280", fontSize: "0.88rem", margin: 0 }}>
-            From real couples and vendors — every review is from a verified booking.
+            From real customers and vendors, every review comes from a verified booking.
           </p>
         </motion.div>
 

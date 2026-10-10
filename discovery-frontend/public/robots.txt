@@ -1,26 +1,17 @@
+# One group for everyone. Do not add separate Googlebot/Bingbot groups:
+# a bot only follows its own group and would ignore the rules below.
 User-agent: *
 Allow: /
 
-# Keep private/app routes out of index
+# Private and app routes
 Disallow: /dashboard/
-Disallow: /api/
-Disallow: /auth/
 Disallow: /admin/
+Disallow: /auth/
+Disallow: /api/
+
+# Parameter URLs that only create duplicates
 Disallow: /*?*sort=
 Disallow: /*?*page=
-Allow: /*?*q=
 
-# Google specific
-User-agent: Googlebot
-Allow: /
-Crawl-delay: 1
-
-# Bing / Edge
-User-agent: Bingbot
-Allow: /
-Crawl-delay: 2
-
-# Sitemaps
-Sitemap: https://www.in2fest.com/sitemap.xml
-Sitemap: https://www.in2fest.com/sitemap-images.xml
-Sitemap: https://www.in2fest.com/sitemap-vendors.xml
+# Sitemap index (lists the main and image sitemaps)
+Sitemap: https://www.in2fest.com/sitemap-index.xml

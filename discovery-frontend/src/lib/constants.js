@@ -13,7 +13,7 @@ export function getImageUrl(path) {
 }
 
 export const BRAND_NAME = "In2Fest";
-export const BRAND_TAGLINE = "Find Verified Wedding and Event Vendors Near You";
+export const BRAND_TAGLINE = "Find Verified Local Businesses and Vendors Near You";
 
 // Alternate spellings people actually type into Google for this brand.
 // Used in Organization schema (alternateName) and in a small piece of

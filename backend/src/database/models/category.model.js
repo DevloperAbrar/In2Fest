@@ -14,7 +14,13 @@ module.exports = (sequelize, DataTypes) => {
     // Which business type (events, education, retail ...) this category belongs to.
     // Controlled by Super Admin. Drives the labels, questions and modules a vendor sees.
     // NULL is allowed on purpose: it is resolved to a default at read time.
-    business_type: { type: DataTypes.STRING(30), allowNull: true }
+    business_type: { type: DataTypes.STRING(30), allowNull: true },
+    // Tile image shown on the discovery home page (uploaded by Super Admin to R2).
+    image_url: { type: DataTypes.TEXT, allowNull: true },
+    // Short line shown under the category name on the home page.
+    tagline: { type: DataTypes.STRING(160), allowNull: true },
+    // Super Admin can hide a category from the home page without deactivating it.
+    show_on_home: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
   }, {
     tableName: "categories",
     timestamps: false

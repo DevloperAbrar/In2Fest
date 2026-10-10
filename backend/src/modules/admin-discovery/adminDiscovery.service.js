@@ -86,8 +86,16 @@ async function syncCategoryTypes() {
   }
 }
 
-async function createCategory(payload) {
-  const { name, slug, icon, display_order, is_venue_type, business_type } = payload;
+
+
+// Multipart bodies arrive as strings ("true", "5"), JSON bodies as real booleans/numbers.
+const asBool = (v, fallback) => {
+  if (v === undefined || v === null || v === "") return fallback;
+  return v === true || v === "true" || v === "1" || v === 1;
+};
+
+async function createCategory(payload, imageUrl) {
+  const { name, slug, icon, display_order, is_venue_type, business_type, tagline, show_on_home } = payload;
   if (!name || !name.trim()) throw new AppError("Category name is required", 400);
 
   const autoSlug = slug ? slug.trim() : slugify(name);
@@ -113,33 +121,41 @@ async function createCategory(payload) {
       ? Number(display_order)
       : maxOrder + 1,
     active: true,
-    is_venue_type: !!is_venue_type,
-    business_type: resolvedType
+    is_venue_type: asBool(is_venue_type, false),
+    business_type: resolvedType,
+    image_url: imageUrl || null,
+    tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null,
+    show_on_home: asBool(show_on_home, true)
   });
 
   await syncCategoryTypes();
   return created;
 }
 
-async function updateCategory(categoryId, payload) {
+async function updateCategory(categoryId, payload, imageUrl) {
   const cat = await Category.findByPk(categoryId);
   if (!cat) throw new AppError("Category not found", 404);
 
-  // Slug is immutable once set  - changing it breaks every live URL for that
-  // category. If someone tries to change it, silently ignore the new value
-  // rather than erroring, so the rest of the update still goes through.
-  const { name, icon, display_order, active, is_venue_type, business_type } = payload;
+  // Slug is immutable once set - changing it breaks every live URL for that category.
+  const { name, icon, display_order, active, is_venue_type, business_type, tagline, show_on_home, remove_image } = payload;
 
   const hasBusinessType = business_type !== undefined && business_type !== null && business_type !== "";
 
-  await cat.update({
-    ...(name != null && { name: name.trim() }),
-    ...(icon != null && { icon }),
-    ...(display_order != null && { display_order }),
-    ...(active != null && { active }),
-    ...(is_venue_type != null && { is_venue_type }),
+  const patch = {
+    ...(name != null && name !== "" && { name: String(name).trim() }),
+    ...(icon != null && icon !== "" && { icon }),
+    ...(display_order != null && display_order !== "" && { display_order: Number(display_order) }),
+    ...(active != null && active !== "" && { active: asBool(active, cat.active) }),
+    ...(is_venue_type != null && is_venue_type !== "" && { is_venue_type: asBool(is_venue_type, cat.is_venue_type) }),
+    ...(show_on_home != null && show_on_home !== "" && { show_on_home: asBool(show_on_home, cat.show_on_home) }),
+    ...(tagline !== undefined && { tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null }),
     ...(hasBusinessType && { business_type: resolveBusinessType(business_type) })
-  });
+  };
+
+  if (imageUrl) patch.image_url = imageUrl;
+  else if (asBool(remove_image, false)) patch.image_url = null;
+
+  await cat.update(patch);
 
   await syncCategoryTypes();
   return cat;

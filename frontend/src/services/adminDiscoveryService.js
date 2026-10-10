@@ -1,5 +1,16 @@
 import api from "./api";
 
+// Category create/update can carry an image file, so it is sent as multipart form data.
+const toFormData = (payload = {}) => {
+  const fd = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    fd.append(key, typeof value === "boolean" ? String(value) : value);
+  });
+  return fd;
+};
+const MULTIPART = { headers: { "Content-Type": "multipart/form-data" } };
+
 export const adminDiscoveryService = {
   getFeaturedVendors: () => api.get("/admin/discovery/featured-vendors"),
   setFeaturedVendors: (venueIds) => api.put("/admin/discovery/featured-vendors", { venue_ids: venueIds }),
@@ -17,8 +28,8 @@ export const adminDiscoveryService = {
 
   // Category CRUD
   listAllCategories: () => api.get("/admin/discovery/categories"),
-  createCategory: (payload) => api.post("/admin/discovery/categories", payload),
-  updateCategory: (categoryId, payload) => api.put(`/admin/discovery/categories/${categoryId}`, payload),
+  createCategory: (payload) => api.post("/admin/discovery/categories", toFormData(payload), MULTIPART),
+  updateCategory: (categoryId, payload) => api.put(`/admin/discovery/categories/${categoryId}`, toFormData(payload), MULTIPART),
   deleteCategory: (categoryId) => api.delete(`/admin/discovery/categories/${categoryId}`),
 
   getAnalytics: () => api.get("/admin/discovery/analytics"),

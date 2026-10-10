@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Search, ShieldCheck, MessageCircle, Star, ChevronRight, Globe, CalendarCheck } from "lucide-react";
 import { CATEGORIES, BRAND_NAME } from "../../lib/constants";
+import useCategories from "../search/useCategories";
+import { pickMixed } from "../../lib/categoryMedia";
 import api from "../../lib/api";
 import CitySelect from "../common/CitySelect";
 
@@ -109,8 +111,8 @@ function PetalCanvas() {
 
 // ─── Word-by-word clip-path reveal ──────────────────────────────────────────
 function AnimatedHeadline() {
-  const line1 = ["Find", "the", "perfect", "vendor"];
-  const line2 = ["for", "your", "wedding", "&", "events"];
+  const line1 = ["Find", "the", "right", "local"];
+  const line2 = ["business", "near", "you"];
 
   return (
     <h1
@@ -139,7 +141,7 @@ function AnimatedHeadline() {
             className="inline-block word-reveal"
             style={{
               animationDelay: `${0.3 + (line1.length + i) * 0.12}s`,
-              color: w === "wedding" ? "#f5a623" : undefined,
+              color: w === "business" ? "#f5a623" : undefined,
             }}
           >
             {w}&nbsp;
@@ -188,14 +190,14 @@ function TiltCard({ children, className, style }) {
 
 // ─── Inline autocomplete search bar ─────────────────────────────────────────
 function HeroSearchBar({ onOpenChange }) {
-  const [q, setQ]       = useState("");
+  const [q, setQ] = useState("");
   const [city, setCity] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const [focused, setFocused] = useState(false);
-  const navigate        = useNavigate();
-  const wrapRef         = useRef(null);
+  const navigate = useNavigate();
+  const wrapRef = useRef(null);
 
   useEffect(() => {
     onOpenChange?.((open && suggestions.length > 0) || cityOpen);
@@ -260,7 +262,7 @@ function HeroSearchBar({ onOpenChange }) {
           />
           <input
             className="flex-1 outline-none text-sm text-gray-800 placeholder-gray-400 py-3 min-w-0"
-            placeholder="Marriage hall, photographer, caterer…"
+            placeholder="Search a service, shop, class or vendor…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && go()}
@@ -310,6 +312,8 @@ function HeroSearchBar({ onOpenChange }) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function HeroSearch({ topCities = [] }) {
+  const { categories: liveCategories } = useCategories();
+  const popular = pickMixed(liveCategories, 8);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   return (
     <>
@@ -491,7 +495,7 @@ export default function HeroSearch({ topCities = [] }) {
           <div className="flex items-center justify-center gap-2 mb-5 eyebrow-enter">
             <span className="inline-flex items-center gap-1.5 text-xs font-bold tracking-wide text-white bg-white/10 border border-white/20 px-4 py-1.5 rounded-full backdrop-blur-sm">
               <Star size={11} className="fill-gold-400 text-gold-400" />
-              Wedding &amp; Event Vendors - Verified
+              Verified Local Businesses &amp; Vendors
             </span>
           </div>
 
@@ -500,8 +504,8 @@ export default function HeroSearch({ topCities = [] }) {
 
           {/* Sub-headline */}
           <p className="text-white/80 text-sm md:text-base max-w-xl mx-auto mb-8 leading-relaxed subtext-enter">
-            Search, compare and directly contact verified marriage halls, decorators,
-            caterers, photographers and every other vendor - no middleman, no commission.
+            Search, compare and directly contact verified coaching classes, clinics, gyms,
+            shops, event vendors and service providers - no middleman, no commission.
           </p>
 
           {/* Search bar */}
@@ -519,7 +523,7 @@ export default function HeroSearch({ topCities = [] }) {
               pointerEvents: dropdownOpen ? "none" : "auto",
             }}
           >
-            {POPULAR_SEARCHES.map((c, i) => (
+            {popular.map((c, i) => (
               <Link
                 key={c.slug}
                 to={`/search?category=${c.slug}`}
@@ -538,7 +542,7 @@ export default function HeroSearch({ topCities = [] }) {
                   e.currentTarget.style.transform = "";
                   e.currentTarget.style.boxShadow = "";
                 }}
-                >
+              >
                 {c.label}
               </Link>
             ))}

@@ -1,16 +1,16 @@
 {
-    "name": "In2Fest - Find Wedding & Event Vendors",
-    "short_name": "In2Fest",
-    "description": "Find verified banquet halls, marriage halls, decorators, caterers, photographers and more near you.",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#f9fafb",
-    "theme_color": "#0f172a",
-    "icons": [
-      { "src": "/logo.png", "sizes": "192x192", "type": "image/png" },
-      { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
-    ],
-    "categories": ["wedding", "events", "lifestyle"],
-    "lang": "en-IN",
-    "dir": "ltr"
-  }
+  "name": "In2Fest - Find Verified Local Businesses & Vendors",
+  "short_name": "In2Fest",
+  "description": "Find and contact verified local businesses, shops, classes, clinics and event vendors near you.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "categories": ["business", "shopping", "lifestyle"],
+  "lang": "en-IN",
+  "dir": "ltr"
+}

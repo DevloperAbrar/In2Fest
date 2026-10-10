@@ -4,19 +4,23 @@ import { BRAND_NAME } from "../../lib/constants";
 export const homeFaqItems = [
   {
     question: `What is ${BRAND_NAME}?`,
-    answer: `${BRAND_NAME} is a platform to search, compare and directly contact verified banquet halls, marriage halls, decorators, caterers, photographers, DJs, mehndi artists, wedding planners and other wedding and event vendors near you.`
+    answer: `${BRAND_NAME} is a platform to search, compare and directly contact verified local businesses and vendors near you: coaching classes, schools, gyms, clinics, salons, shops, restaurants, repair services, and wedding and event vendors.`
   },
   {
-    question: `Is ${BRAND_NAME} also known as I2F or IntoFest?`,
-    answer: `Yes. People search for us using different spellings such as I2F, IntoFest, In to Fest, In Two Fest and In 2 Fest. All of these refer to the same platform, ${BRAND_NAME}.`
+    question: `Is ${BRAND_NAME} also written as In 2 Fest, In Two Fest or Intwofest?`,
+    answer: `Yes. People write our name in different ways such as In 2 Fest, In Two Fest, Intwofest, I2F or IntoFest. All of these refer to the same platform, ${BRAND_NAME}, at in2fest.com.`
   },
   {
-    question: "Can I find an event management company near me?",
-    answer: `Yes, ${BRAND_NAME} lists verified event management companies and wedding planners along with their pricing, reviews and contact details.`
+    question: `Is it free to list my business on ${BRAND_NAME}?`,
+    answer: `Yes. Listing is free, and you also get a free branded website, a booking calendar and billing tools. You can upgrade later if you need more.`
   },
   {
-    question: "Does In2Fest cover banquet halls, tent houses and singers for shaadi?",
-    answer: `Yes, banquet halls, tent houses, live singers for weddings, mehndi artists and every other major wedding and event category are covered on ${BRAND_NAME}.`
+    question: "Do I pay a commission to contact a vendor?",
+    answer: `No. You contact vendors directly on call or WhatsApp. ${BRAND_NAME} does not take a commission from customers or sit in the middle of your deal.`
+  },
+  {
+    question: "How are vendors verified?",
+    answer: "Every business submits proof and documents, our team reviews them, and only then the profile goes live. Ratings come from real customers, not paid placements."
   }
 ];
 

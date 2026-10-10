@@ -71,7 +71,13 @@ const SCHEMA_STATEMENTS = [
   // Nullable on purpose: existing rows are backfilled below without ever
   // overwriting a value the Super Admin has already chosen.
   `ALTER TABLE categories
-     ADD COLUMN IF NOT EXISTS business_type VARCHAR(30)`
+     ADD COLUMN IF NOT EXISTS business_type VARCHAR(30)`,
+
+  // ---- category home page media ----
+  `ALTER TABLE categories
+     ADD COLUMN IF NOT EXISTS image_url TEXT,
+     ADD COLUMN IF NOT EXISTS tagline VARCHAR(160),
+     ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN NOT NULL DEFAULT true`
 ];
 
 const ENUM_STATEMENTS = [
