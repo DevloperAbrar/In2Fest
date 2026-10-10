@@ -66,6 +66,7 @@ function vendorSummary(venue, cityRow, matchedCategory) {
     hero_image_url: venue.hero_image_url,
     cover_photo: venue.hero_image_url,
     starting_price: venue.starting_price,
+    pricing_unit: venue.pricing_unit,
     average_rating: venue.average_rating,
     review_count: venue.review_count,
     badge_verified_business: venue.badge_verified_business,

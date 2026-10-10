@@ -9,6 +9,7 @@ import Button from "../../../components/common/Button";
 import { SECTION_TYPES } from "../../../lib/sectionLibrary";
 import SectionPickerModal from "./SectionPickerModal.jsx";
 import DisplayOptionsCard from "./DisplayOptionsCard.jsx";
+import NavbarOptionsCard from "./NavbarOptionsCard.jsx";
 import { BASE_DOMAIN } from "../../../lib/constants";
 import { GripVertical, Eye, EyeOff, Trash2, Pencil, Plus, Layers } from "lucide-react";
 
@@ -129,6 +130,8 @@ export default function WebsiteBuilderHome() {
         </div>
 
         <DisplayOptionsCard />
+
+        <NavbarOptionsCard />
 
         <p className="text-gray-500 mb-6 text-sm">
           Drag sections to reorder, hide the ones you don't need, and add new ones from the library.

@@ -13,6 +13,7 @@ import AvailabilityCalendar from "./availability-calendar/AvailabilityCalendar.j
 import DynamicSectionRenderer from "./venue-home/DynamicSectionRenderer.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import { getTemplateSections } from "./templates/index.jsx";
+import { resolveNav } from "../../lib/navItems";
 
 const DEFAULT_SECTIONS = {
   HeroSection,
@@ -107,8 +108,11 @@ export default function VenueHomePage() {
   const showAvailability = venue.show_availability !== false;
   const showSlotsPackages = venue.show_slots_packages !== false;
 
+  // Navbar links chosen by the vendor in Website Builder > "Website menu"
+  const navItems = resolveNav(venue, { slots, packages });
+
   return (
-    <PublicLayout venueName={venue.hall_name} venue={venue}>
+    <PublicLayout venueName={venue.hall_name} venue={venue} navItems={navItems}>
       {visibleSections.map((section) => {
         if (section.type === "contact") {
           return (

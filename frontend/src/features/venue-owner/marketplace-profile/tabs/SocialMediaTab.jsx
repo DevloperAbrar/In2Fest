@@ -3,29 +3,28 @@ import { AlertCircle } from "lucide-react";
 import Input from "../../../../components/common/Input";
 import Button from "../../../../components/common/Button";
 
-export default function SocialMediaTab({ venue, onSave, saving, onNext, onBack }) {
-  const [form, setForm] = useState({
-    whatsapp_number: venue.whatsapp_number || "",
-    instagram_handle: venue.instagram_handle || "",
-    youtube_channel_link: venue.youtube_channel_link || "",
-    external_website: venue.external_website || "",
-    video_intro_url: venue.video_intro_url || ""
-  });
+const fromVenue = (venue) => ({
+  whatsapp_number: venue.whatsapp_number || "",
+  instagram_handle: venue.instagram_handle || "",
+  youtube_channel_link: venue.youtube_channel_link || "",
+  external_website: venue.external_website || "",
+  video_intro_url: venue.video_intro_url || ""
+});
+
+export default function SocialMediaTab({ venue, schema, onSave, saving, onNext, onBack }) {
+  const [form, setForm] = useState(() => fromVenue(venue));
   const [triedNext, setTriedNext] = useState(false);
 
   useEffect(() => {
-    setForm({
-      whatsapp_number: venue.whatsapp_number || "",
-      instagram_handle: venue.instagram_handle || "",
-      youtube_channel_link: venue.youtube_channel_link || "",
-      external_website: venue.external_website || "",
-      video_intro_url: venue.video_intro_url || ""
-    });
+    setForm(fromVenue(venue));
   }, [venue]);
+
+  // The intro video is only compulsory for the kinds of business that need it (events).
+  const videoRequired = Boolean(schema?.required?.includes("video_intro_url"));
 
   const errors = [];
   if (!form.whatsapp_number.trim()) errors.push("WhatsApp number is required");
-  if (!form.video_intro_url.trim()) errors.push("Video introduction link is required");
+  if (videoRequired && !form.video_intro_url.trim()) errors.push("Video introduction link is required");
   const canGoNext = errors.length === 0;
 
   const handleNext = () => {
@@ -36,7 +35,7 @@ export default function SocialMediaTab({ venue, onSave, saving, onNext, onBack }
   return (
     <div className="space-y-5">
       <Input
-        label="WhatsApp number (the number customers will message)"
+        label="WhatsApp number (the number customers will message) *"
         value={form.whatsapp_number}
         onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })}
       />
@@ -57,7 +56,7 @@ export default function SocialMediaTab({ venue, onSave, saving, onNext, onBack }
         onChange={(e) => setForm({ ...form, external_website: e.target.value })}
       />
       <Input
-        label="Video introduction link (YouTube / Instagram reel URL)"
+        label={`Video introduction link (YouTube / Instagram reel URL)${videoRequired ? " *" : " (optional)"}`}
         value={form.video_intro_url}
         onChange={(e) => setForm({ ...form, video_intro_url: e.target.value })}
       />

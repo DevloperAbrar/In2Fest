@@ -6,6 +6,7 @@ const DAY_NAMES = {
   fri: "Friday", sat: "Saturday", sun: "Sunday"
 };
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const NAV_KEY_RE = /^[a-z0-9_-]{1,40}$/;
 
 const toMinutes = (t) => {
   const [h, m] = t.split(":").map(Number);
@@ -90,4 +91,56 @@ function sanitizeServices(input) {
     .filter(Boolean);
 }
 
-module.exports = { sanitizeBusinessHours, sanitizeServices };
+// Cleans the navbar menu settings.
+// Shape: { items: { [key]: { show?: boolean, label?: string } } }
+// Returns null to reset the menu to its defaults.
+// Cleans the navbar menu settings.
+// Shape: {
+//   items: { [key]: { show?: boolean, label?: string } },
+//   order: string[]   // menu order (keys)
+// }
+// Returns null to reset the menu to its defaults.
+function sanitizeNavConfig(input) {
+  if (input === null) return null;
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new AppError("Menu settings format is invalid", 400);
+  }
+
+  const src =
+    input.items && typeof input.items === "object" && !Array.isArray(input.items)
+      ? input.items
+      : {};
+
+  const keys = Object.keys(src);
+  if (keys.length > 40) throw new AppError("Too many menu items", 400);
+
+  const items = {};
+  keys.forEach((key) => {
+    if (!NAV_KEY_RE.test(key)) return;
+    const row = src[key];
+    if (!row || typeof row !== "object") return;
+
+    const entry = {};
+    if (typeof row.show === "boolean") entry.show = row.show;
+    if (typeof row.label === "string") {
+      const label = row.label.trim().slice(0, 24);
+      if (label) entry.label = label;
+    }
+    if (Object.keys(entry).length > 0) items[key] = entry;
+  });
+
+  const order = [];
+  if (Array.isArray(input.order)) {
+    const seen = new Set();
+    input.order.forEach((k) => {
+      if (typeof k !== "string" || !NAV_KEY_RE.test(k) || seen.has(k)) return;
+      if (seen.size >= 40) return;
+      seen.add(k);
+      order.push(k);
+    });
+  }
+
+  return { items, order };
+}
+
+module.exports = { sanitizeBusinessHours, sanitizeServices, sanitizeNavConfig };

@@ -3,6 +3,11 @@ const { sanitizeSecondaryCategories } = require("../../utils/sanitizeSecondaryCa
 const { AppError } = require("../../middleware/error.middleware");
 const { getRedisClient } = require("../../config/redis");
 const { slugify } = require("../../utils/slugify");
+const {
+  getProfileSchema,
+  sanitizeProfileAttributes,
+  isAttributeFilled
+} = require("../../config/marketplaceSchemas");
 
 // Fields the venue owner is allowed to edit from the Marketplace Profile tabs.
 // Verification badges and featured_on_homepage are intentionally excluded  - admin only.
@@ -15,11 +20,14 @@ const EDITABLE_FIELDS = [
   "long_description", "specialty_tagline", "famous_events_handled", "awards_recognition",
   "booking_advance_notice_days", "peak_season_months", "off_season_discount_enabled",
   "marketplace_services",
-  "marketplace_services_detail", // NEW - vendor-defined services with sub-items
-  "service_prices",   // NEW
-  "pricing_mode"      // NEW
+  "marketplace_services_detail", // vendor-defined services with sub-items
+  "service_prices",
+  "pricing_mode",
+  "pricing_unit",        // NEW - "per month", "for two", ...
+  "profile_attributes"   // NEW - category specific details (see config/marketplaceSchemas.js)
 ];
 
+// Kept for backward compatibility: this is the required list for events vendors.
 const MANDATORY_FIELDS = [
   "business_category", "long_description", "specialty_tagline", "primary_locality",
   "whatsapp_number", "starting_price", "cancellation_policy", "marketplace_services", "video_intro_url"
@@ -29,9 +37,9 @@ function wordCount(text) {
   return (text || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
-function isFieldFilled(venue, field) {
+function isFieldFilled(venue, field, schema) {
   const value = venue[field];
-  if (field === "long_description") return wordCount(value) >= 150;
+  if (field === "long_description") return wordCount(value) >= schema.min_description_words;
   if (field === "marketplace_services") return Array.isArray(value) && value.length > 0;
   if (value === null || value === undefined || value === "") return false;
   return true;
@@ -46,9 +54,19 @@ async function getOwnedVenue(venueId, ownerId) {
   return venue;
 }
 
+// What counts as "complete" depends on the kind of business (category).
 function calculateCompletion(venue) {
-  const missing = MANDATORY_FIELDS.filter((field) => !isFieldFilled(venue, field));
-  const percentage = Math.round(((MANDATORY_FIELDS.length - missing.length) / MANDATORY_FIELDS.length) * 100);
+  const schema = getProfileSchema(venue.business_category, venue.secondary_categories);
+  const attrs = venue.profile_attributes || {};
+  const requiredAttrs = schema.attributes.filter((a) => a.required);
+
+  const missing = schema.required.filter((field) => !isFieldFilled(venue, field, schema));
+  requiredAttrs.forEach((a) => {
+    if (!isAttributeFilled(attrs[a.key])) missing.push(`attr:${a.key}`);
+  });
+
+  const total = schema.required.length + requiredAttrs.length;
+  const percentage = total === 0 ? 100 : Math.round(((total - missing.length) / total) * 100);
   return { percentage, missing_fields: missing };
 }
 
@@ -84,8 +102,38 @@ async function updateProfile(venueId, ownerId, payload) {
     updates.secondary_categories = await sanitizeSecondaryCategories(updates.secondary_categories, primaryCategory);
   }
 
-  if (updates.long_description !== undefined && wordCount(updates.long_description) < 150 && updates.long_description !== "") {
-    throw new AppError("Long description must be at least 150 words", 400);
+  // The rules below depend on the category the profile will have AFTER this save.
+  const targetCategory = updates.business_category !== undefined ? updates.business_category : venue.business_category;
+  const targetSecondary = updates.secondary_categories !== undefined ? updates.secondary_categories : venue.secondary_categories;
+  const schema = getProfileSchema(targetCategory, targetSecondary);
+
+  if (
+    updates.long_description !== undefined &&
+    updates.long_description !== "" &&
+    wordCount(updates.long_description) < schema.min_description_words
+  ) {
+    throw new AppError(`Long description must be at least ${schema.min_description_words} words`, 400);
+  }
+
+  if (updates.pricing_unit !== undefined) {
+    const unit = updates.pricing_unit;
+    if (!unit) {
+      updates.pricing_unit = null;
+    } else if (!schema.price_units.some((u) => u.value === unit)) {
+      throw new AppError("Invalid pricing unit for this category", 400);
+    }
+  }
+
+  if (updates.profile_attributes !== undefined) {
+    const clean = sanitizeProfileAttributes(updates.profile_attributes, schema);
+    // Keep values that belong to another category (e.g. the vendor switched category
+    // and may switch back); only the keys of the current schema are replaced.
+    const schemaKeys = new Set(schema.attributes.map((a) => a.key));
+    const preserved = {};
+    Object.entries(venue.profile_attributes || {}).forEach(([key, value]) => {
+      if (!schemaKeys.has(key)) preserved[key] = value;
+    });
+    updates.profile_attributes = { ...preserved, ...clean };
   }
 
   await venue.update(updates);

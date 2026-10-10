@@ -13,6 +13,7 @@ router.get("/categories", schemaReadySoft, controller.listCategories); // waits 
 router.get("/categories/:categorySlug/services-checklist", controller.getServicesChecklist);
 router.get("/categories/:categorySlug/section-defaults", controller.getSectionDefaults);
 router.get("/categories/:categorySlug/business-profile", businessTypeController.getCategoryBusinessProfile);
+router.get("/categories/:categorySlug/profile-schema", businessTypeController.getCategoryProfileSchema);
 router.get("/business-types", businessTypeController.listBusinessTypes);
 router.get("/section-types", controller.listSectionTypes);
 router.get("/pincode/:pincode", controller.lookupPincode);

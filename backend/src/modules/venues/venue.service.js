@@ -8,7 +8,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const sharp = require("sharp");
 const { createFreeSubscription } = require("../subscriptions/subscription.service");
-const { sanitizeBusinessHours, sanitizeServices } = require("../../utils/venueContentSanitizer");
+const { sanitizeBusinessHours, sanitizeServices, sanitizeNavConfig } = require("../../utils/venueContentSanitizer");
 
 function slugify(text) {
   return text
@@ -293,8 +293,8 @@ async function updateVenue(venueId, ownerId, updates) {
   const venue = await Venue.findOne({ where: { id: venueId, owner_id: ownerId } });
   if (!venue) throw new AppError("Venue not found or access denied", 404);
 
-  // NOTE: "services", "business_hours", "show_availability" and "show_slots_packages"
-  // are handled separately below so they get validated.
+  // NOTE: "services", "business_hours", "nav_config", "show_availability" and
+  // "show_slots_packages" are handled separately below so they get validated.
   const allowedFields = [
     "hall_name", "owner_name", "phone", "city", "address", "google_maps_link",
     "capacity", "venue_type", "business_category", "secondary_categories",
@@ -324,6 +324,10 @@ async function updateVenue(venueId, ownerId, updates) {
 
   if (updates.business_hours !== undefined) {
     venue.business_hours = sanitizeBusinessHours(updates.business_hours);
+  }
+
+  if (updates.nav_config !== undefined) {
+    venue.nav_config = sanitizeNavConfig(updates.nav_config);
   }
 
   ["show_availability", "show_slots_packages"].forEach((field) => {

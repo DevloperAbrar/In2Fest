@@ -1,31 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import Input from "../../../../components/common/Input";
+import Select from "../../../../components/common/Select";
 import Button from "../../../../components/common/Button";
 
-export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBack }) {
+const fromVenue = (venue) => ({
+  starting_price: venue.starting_price || "",
+  maximum_price: venue.maximum_price || "",
+  pricing_unit: venue.pricing_unit || "",
+  pricing_note: venue.pricing_note || "",
+  advance_payment_percentage: venue.advance_payment_percentage || "",
+  cancellation_policy: venue.cancellation_policy || ""
+});
+
+export default function PricingPoliciesTab({ venue, schema, onSave, saving, onNext, onBack }) {
   const [pricingMode, setPricingMode] = useState(venue.pricing_mode || "single");
-  const [form, setForm] = useState({
-    starting_price: venue.starting_price || "",
-    maximum_price: venue.maximum_price || "",
-    pricing_note: venue.pricing_note || "",
-    advance_payment_percentage: venue.advance_payment_percentage || "",
-    cancellation_policy: venue.cancellation_policy || ""
-  });
+  const [form, setForm] = useState(() => fromVenue(venue));
   const [servicePrices, setServicePrices] = useState(venue.service_prices || {});
   const [triedNext, setTriedNext] = useState(false);
 
   const services = venue.marketplace_services || [];
+  const L = schema.labels;
+  const priceRequired = schema.required.includes("starting_price");
+  const policyRequired = schema.required.includes("cancellation_policy");
 
   useEffect(() => {
     setPricingMode(venue.pricing_mode || "single");
-    setForm({
-      starting_price: venue.starting_price || "",
-      maximum_price: venue.maximum_price || "",
-      pricing_note: venue.pricing_note || "",
-      advance_payment_percentage: venue.advance_payment_percentage || "",
-      cancellation_policy: venue.cancellation_policy || ""
-    });
+    setForm(fromVenue(venue));
     setServicePrices(venue.service_prices || {});
   }, [venue]);
 
@@ -37,23 +38,23 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
     const start = parseFloat(form.starting_price);
     const max = parseFloat(form.maximum_price);
     if (form.starting_price && form.maximum_price && !isNaN(start) && !isNaN(max)) {
-      if (max <= start) return "Maximum price must be greater than starting price";
+      if (max <= start) return `${L.priceMax} must be greater than ${L.price.toLowerCase()}`;
     }
     return null;
   })();
 
   const errors = [];
-  if (pricingMode === "single" && !form.starting_price) {
-    errors.push("Starting price is required");
+  if (priceRequired && pricingMode === "single" && !form.starting_price) {
+    errors.push(`${L.price} is required`);
   }
   if (priceError) {
     errors.push(priceError);
   }
   if (pricingMode === "per_service" && services.length === 0) {
-    errors.push("Please select services in the Services tab first");
+    errors.push("Please add your items in the previous tab first");
   }
-  if (!form.cancellation_policy.trim()) {
-    errors.push("Cancellation policy is required");
+  if (policyRequired && !form.cancellation_policy.trim()) {
+    errors.push(`${L.policy} is required`);
   }
   const canGoNext = errors.length === 0;
 
@@ -65,19 +66,20 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
   const handleSave = () => {
     if (priceError) return;
     let derivedStartingPrice = form.starting_price;
-  
+
     if (pricingMode === "per_service") {
       const nonEmptyPrices = Object.values(servicePrices)
         .map((v) => parseFloat(v))
         .filter((v) => !isNaN(v) && v > 0);
-  
+
       derivedStartingPrice = nonEmptyPrices.length > 0
         ? Math.min(...nonEmptyPrices).toString()
         : "";
     }
-  
+
     onSave({
       ...form,
+      pricing_unit: form.pricing_unit || null,
       pricing_mode: pricingMode,
       service_prices: pricingMode === "per_service" ? servicePrices : {},
       starting_price: derivedStartingPrice || null
@@ -100,7 +102,7 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
                 : "bg-white text-gray-600 border-gray-300 hover:border-primary-400"
             }`}
           >
-            Single package price
+            Single price
           </button>
           <button
             type="button"
@@ -111,16 +113,26 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
                 : "bg-white text-gray-600 border-gray-300 hover:border-primary-400"
             }`}
           >
-            Price per service
+            Price per item
           </button>
         </div>
       </div>
+
+      {/* Unit shown next to the price on your profile */}
+      {schema.price_units.length > 0 && (
+        <Select
+          label="Price unit (shown next to your price)"
+          options={[{ value: "", label: "No unit" }, ...schema.price_units]}
+          value={form.pricing_unit}
+          onChange={(e) => setForm({ ...form, pricing_unit: e.target.value })}
+        />
+      )}
 
       {/* Single price mode */}
       {pricingMode === "single" && (
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Starting price (₹)"
+            label={`${L.price} (₹)${priceRequired ? " *" : ""}`}
             type="number"
             min="0"
             value={form.starting_price}
@@ -128,7 +140,7 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
           />
           <div>
             <Input
-              label="Maximum price (₹)"
+              label={`${L.priceMax} (₹)`}
               type="number"
               min="0"
               value={form.maximum_price}
@@ -144,15 +156,15 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
         </div>
       )}
 
-      {/* Per-service price mode */}
+      {/* Per-item price mode */}
       {pricingMode === "per_service" && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Price per service (₹)  - leave blank if not applicable
+            Price per item (₹)  - leave blank if not applicable
           </label>
           {services.length === 0 ? (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
-              No services selected yet. Go to the Services tab and select your services first, then come back here to set prices.
+              Nothing added yet. Go to the "{L.services}" tab, add your items, then come back here to set prices.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -181,24 +193,29 @@ export default function PricingPoliciesTab({ venue, onSave, saving, onNext, onBa
         <label className="block text-sm font-medium text-gray-700 mb-1">Pricing note</label>
         <textarea
           rows={2}
-          placeholder="e.g. Price varies based on guest count and services selected"
+          placeholder="e.g. Final price depends on the service and quantity"
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
           value={form.pricing_note}
           onChange={(e) => setForm({ ...form, pricing_note: e.target.value })}
         />
       </div>
 
-      <Input
-        label="Advance payment required (%)"
-        type="number"
-        min="0"
-        max="100"
-        value={form.advance_payment_percentage}
-        onChange={(e) => setForm({ ...form, advance_payment_percentage: e.target.value })}
-      />
+      {schema.show_advance && (
+        <Input
+          label={L.advance}
+          type="number"
+          min="0"
+          max="100"
+          value={form.advance_payment_percentage}
+          onChange={(e) => setForm({ ...form, advance_payment_percentage: e.target.value })}
+        />
+      )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation policy</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {L.policy}{policyRequired ? " *" : " (optional)"}
+        </label>
+        {L.policyHint && <p className="mb-1 text-xs text-gray-400">{L.policyHint}</p>}
         <textarea
           rows={3}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"

@@ -6,35 +6,28 @@ import MultiSelect from "../../../../components/common/MultiSelect";
 import Button from "../../../../components/common/Button";
 import { LANGUAGE_OPTIONS } from "../../../../lib/marketplaceCategories";
 
-const MIN_DESCRIPTION_WORDS = 150;
+const fromVenue = (venue) => ({
+  business_category: venue.business_category || "",
+  secondary_categories: venue.secondary_categories || [],
+  long_description: venue.long_description || "",
+  specialty_tagline: venue.specialty_tagline || "",
+  year_established: venue.year_established || "",
+  team_size: venue.team_size || "",
+  languages_spoken: venue.languages_spoken || [],
+  famous_events_handled: venue.famous_events_handled || "",
+  awards_recognition: venue.awards_recognition || ""
+});
 
-export default function BusinessDetailsTab({ venue, categories, onSave, saving, onNext, onBack }) {
-  const [form, setForm] = useState({
-    business_category: venue.business_category || "",
-    secondary_categories: venue.secondary_categories || [],
-    long_description: venue.long_description || "",
-    specialty_tagline: venue.specialty_tagline || "",
-    year_established: venue.year_established || "",
-    team_size: venue.team_size || "",
-    languages_spoken: venue.languages_spoken || [],
-    famous_events_handled: venue.famous_events_handled || "",
-    awards_recognition: venue.awards_recognition || ""
-  });
+export default function BusinessDetailsTab({ venue, categories, schema, onCategoryChange, onSave, saving, onNext, onBack }) {
+  const [form, setForm] = useState(() => fromVenue(venue));
   const [triedNext, setTriedNext] = useState(false);
 
   useEffect(() => {
-    setForm({
-      business_category: venue.business_category || "",
-      secondary_categories: venue.secondary_categories || [],
-      long_description: venue.long_description || "",
-      specialty_tagline: venue.specialty_tagline || "",
-      year_established: venue.year_established || "",
-      team_size: venue.team_size || "",
-      languages_spoken: venue.languages_spoken || [],
-      famous_events_handled: venue.famous_events_handled || "",
-      awards_recognition: venue.awards_recognition || ""
-    });
+    setForm(fromVenue(venue));
   }, [venue]);
+
+  const L = schema.labels;
+  const minWords = schema.min_description_words;
 
   const categoryOptions = [
     { value: "", label: "Select primary category" },
@@ -46,13 +39,13 @@ export default function BusinessDetailsTab({ venue, categories, onSave, saving, 
     .map((c) => ({ value: c.slug, label: c.name }));
 
   const wordCount = form.long_description.trim().split(/\s+/).filter(Boolean).length;
-  const wordsRemaining = MIN_DESCRIPTION_WORDS - wordCount;
-  const descriptionMet = wordCount >= MIN_DESCRIPTION_WORDS;
+  const wordsRemaining = minWords - wordCount;
+  const descriptionMet = wordCount >= minWords;
 
   const errors = [];
   if (!form.business_category) errors.push("Primary category is required");
-  if (!descriptionMet) errors.push(`Long description needs ${wordsRemaining} more word${wordsRemaining === 1 ? "" : "s"}`);
-  if (!form.specialty_tagline.trim()) errors.push("Specialty tagline is required");
+  if (!descriptionMet) errors.push(`${L.description} needs ${wordsRemaining} more word${wordsRemaining === 1 ? "" : "s"}`);
+  if (!form.specialty_tagline.trim()) errors.push(`${L.tagline} is required`);
 
   const canGoNext = errors.length === 0;
 
@@ -61,26 +54,43 @@ export default function BusinessDetailsTab({ venue, categories, onSave, saving, 
     if (canGoNext) onNext();
   };
 
+  const handlePrimaryChange = (value) => {
+    const secondary = form.secondary_categories.filter((s) => s !== value);
+    setForm({ ...form, business_category: value, secondary_categories: secondary });
+    if (onCategoryChange) onCategoryChange(value, secondary);
+  };
+
+  const handleSecondaryChange = (vals) => {
+    const secondary = vals.slice(0, 2);
+    setForm({ ...form, secondary_categories: secondary });
+    if (onCategoryChange) onCategoryChange(form.business_category, secondary);
+  };
+
   return (
     <div className="space-y-5">
       <Select
         label="Primary category"
         options={categoryOptions}
         value={form.business_category}
-        onChange={(e) => setForm({ ...form, business_category: e.target.value })}
+        onChange={(e) => handlePrimaryChange(e.target.value)}
       />
+      {form.business_category && (
+        <p className="-mt-3 text-xs text-gray-400">
+          This sets the questions and labels you see in the next tabs ({schema.business_type_label}).
+        </p>
+      )}
 
       <MultiSelect
         label="Secondary categories (up to 2)"
         options={secondaryOptions}
         value={form.secondary_categories}
-        onChange={(vals) => setForm({ ...form, secondary_categories: vals.slice(0, 2) })}
+        onChange={handleSecondaryChange}
         placeholder="Select up to 2 additional categories"
       />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Long description <span className="text-gray-400">(write at least 150 words  - used for SEO too)</span>
+          {L.description} <span className="text-gray-400">(write at least {minWords} words  - used for SEO too)</span>
         </label>
         <textarea
           rows={6}
@@ -94,14 +104,14 @@ export default function BusinessDetailsTab({ venue, categories, onSave, saving, 
           </p>
         ) : (
           <p className="mt-1 text-xs text-amber-600">
-            {wordCount} {wordCount === 1 ? "word" : "words"} so far  - write at least {wordsRemaining} more to meet the 150-word minimum
+            {wordCount} {wordCount === 1 ? "word" : "words"} so far  - write at least {wordsRemaining} more to meet the {minWords}-word minimum
           </p>
         )}
       </div>
 
       <Input
-        label="Specialty tagline"
-        placeholder="e.g. Indore's most trusted wedding venue since 2008"
+        label={L.tagline}
+        placeholder={L.taglinePlaceholder}
         value={form.specialty_tagline}
         onChange={(e) => setForm({ ...form, specialty_tagline: e.target.value })}
       />
@@ -114,7 +124,7 @@ export default function BusinessDetailsTab({ venue, categories, onSave, saving, 
           onChange={(e) => setForm({ ...form, year_established: e.target.value })}
         />
         <Input
-          label="Team size"
+          label={L.team}
           type="number"
           value={form.team_size}
           onChange={(e) => setForm({ ...form, team_size: e.target.value })}
@@ -128,18 +138,21 @@ export default function BusinessDetailsTab({ venue, categories, onSave, saving, 
         onChange={(vals) => setForm({ ...form, languages_spoken: vals })}
       />
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Famous events handled</label>
-        <textarea
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-          value={form.famous_events_handled}
-          onChange={(e) => setForm({ ...form, famous_events_handled: e.target.value })}
-        />
-      </div>
+      {L.highlights && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{L.highlights}</label>
+          <textarea
+            rows={3}
+            placeholder={L.highlightsPlaceholder}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            value={form.famous_events_handled}
+            onChange={(e) => setForm({ ...form, famous_events_handled: e.target.value })}
+          />
+        </div>
+      )}
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Awards & recognition</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{L.achievements}</label>
         <textarea
           rows={3}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"

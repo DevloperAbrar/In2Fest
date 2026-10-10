@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AlertCircle, Plus, X } from "lucide-react";
 import Button from "../../../../components/common/Button";
-import Select from "../../../../components/common/Select";
 
 let idCounter = 0;
 const makeId = () => `svc-${Date.now()}-${idCounter++}`;
@@ -36,9 +35,9 @@ function flattenGroups(groups) {
   return Array.from(new Set(flat));
 }
 
-export default function ServicesChecklistTab({ venue, categories, onSave, saving, onNext, onBack }) {
+export default function ServicesChecklistTab({ venue, categories, schema, onSave, saving, onNext, onBack }) {
   const [groups, setGroups] = useState(() => normalizeGroups(venue));
-  const [selectedSlug, setSelectedSlug] = useState("");
+  const [newName, setNewName] = useState("");
   const [optionInputs, setOptionInputs] = useState({}); // { [groupId]: draftText }
   const [triedNext, setTriedNext] = useState(false);
 
@@ -46,6 +45,8 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
     setGroups(normalizeGroups(venue));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venue.marketplace_services_detail, venue.marketplace_services]);
+
+  const L = schema.labels;
 
   if (!venue.business_category) {
     return (
@@ -62,32 +63,27 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
 
   const categoryLookup = new Map((categories || []).map((c) => [c.slug, c.name]));
 
-  // The categories the vendor picked during registration/Business Details:
-  // primary category + up to 2 secondary categories.
-  const registeredSlugs = Array.from(
+  // The vendor's own registered categories are offered as quick-add chips too.
+  const registeredNames = Array.from(
     new Set([venue.business_category, ...(venue.secondary_categories || [])].filter(Boolean))
-  );
-  const registeredCategoryOptions = registeredSlugs.map((slug) => ({
-    slug,
-    name: categoryLookup.get(slug) || slug
-  }));
+  ).map((slug) => categoryLookup.get(slug) || slug);
 
   const existingNames = groups.map((g) => g.name.trim().toLowerCase());
-  const availableCategoryOptions = registeredCategoryOptions.filter(
-    (opt) => !existingNames.includes(opt.name.trim().toLowerCase())
+
+  const suggestions = Array.from(new Set([...(schema.services_suggestions || []), ...registeredNames])).filter(
+    (name) => !existingNames.includes(name.trim().toLowerCase())
   );
 
   const addGroup = (name) => {
-    const trimmed = (name || "").trim();
+    const trimmed = (name || "").trim().slice(0, 60);
     if (!trimmed) return;
     if (existingNames.includes(trimmed.toLowerCase())) return;
     setGroups((prev) => [...prev, { id: makeId(), name: trimmed, options: [] }]);
   };
 
-  const handleAddSelected = () => {
-    if (!selectedSlug) return;
-    addGroup(categoryLookup.get(selectedSlug) || selectedSlug);
-    setSelectedSlug("");
+  const handleAddTyped = () => {
+    addGroup(newName);
+    setNewName("");
   };
 
   const removeGroup = (id) => {
@@ -136,31 +132,45 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
 
   return (
     <div className="space-y-5">
-      <div className="text-sm text-gray-500">
-        Pick from the categories you registered under and break each one into sub-services if it
-        helps customers (e.g. "Photography" &rarr; "Inhouse shoot", "Outdoor shoot").
+      <div className="text-sm text-gray-500">{L.servicesHint}</div>
+
+      {/* Type your own */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newName}
+          maxLength={60}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleAddTyped();
+            }
+          }}
+          placeholder={L.servicesPlaceholder}
+          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+        <Button type="button" onClick={handleAddTyped} disabled={!newName.trim()}>
+          <Plus size={16} className="mr-1" /> Add
+        </Button>
       </div>
 
-      {/* Add a service from the vendor's own registered categories */}
-      {availableCategoryOptions.length > 0 ? (
-        <div className="flex gap-2">
-          <Select
-            className="flex-1"
-            options={[
-              { value: "", label: "Select a category you registered under" },
-              ...availableCategoryOptions.map((opt) => ({ value: opt.slug, label: opt.name }))
-            ]}
-            value={selectedSlug}
-            onChange={(e) => setSelectedSlug(e.target.value)}
-          />
-          <Button type="button" onClick={handleAddSelected} disabled={!selectedSlug}>
-            <Plus size={16} className="mr-1" /> Add
-          </Button>
-        </div>
-      ) : (
-        <div className="text-xs text-gray-400">
-          All your registered categories have been added below. Add more categories in Business
-          Details if you offer more.
+      {/* Quick add suggestions */}
+      {suggestions.length > 0 && (
+        <div>
+          <p className="text-xs text-gray-400 mb-2">Quick add</p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => addGroup(name)}
+                className="flex items-center gap-1 text-xs text-gray-600 border border-dashed border-gray-300 rounded-full px-3 py-1.5 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+              >
+                <Plus size={12} /> {name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -212,7 +222,7 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
                     addOption(g.id);
                   }
                 }}
-                placeholder={`Add a sub-service under "${g.name}" (optional)`}
+                placeholder={`Add a sub-item under "${g.name}" (optional)`}
                 className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-200"
               />
               <Button type="button" variant="outline" onClick={() => addOption(g.id)}>
@@ -224,7 +234,7 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
 
         {groups.length === 0 && (
           <div className="text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg p-4 text-center">
-            No services added yet. Select a category above to add your first one.
+            Nothing added yet. Type above or tap a quick-add suggestion to add your first one.
           </div>
         )}
       </div>
@@ -232,7 +242,7 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
       {triedNext && !canGoNext && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
           <AlertCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-red-700">Please add at least one service before continuing.</p>
+          <p className="text-sm text-red-700">Please add at least one item before continuing.</p>
         </div>
       )}
 
@@ -240,7 +250,7 @@ export default function ServicesChecklistTab({ venue, categories, onSave, saving
         {onBack ? <Button variant="outline" onClick={onBack}>Back</Button> : <span />}
         <div className="flex items-center gap-2">
           <Button loading={saving} onClick={handleSave}>
-            Save Services
+            Save
           </Button>
           {onNext && (
             <Button variant="outline" onClick={handleNext}>Next</Button>

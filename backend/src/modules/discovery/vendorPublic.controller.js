@@ -6,6 +6,7 @@ const { unslugify } = require("../../utils/slugify");
 const { vendorSummary } = require("./search.service");
 const { AppError } = require("../../middleware/error.middleware");
 const { Package, BookingUnit } = require("../../database/models");
+const { getProfileSchema } = require("../../config/marketplaceSchemas");
 
 async function getVendorProfile(req, res, next) {
   try {
@@ -41,6 +42,7 @@ async function getVendorProfile(req, res, next) {
       success: true,
       data: {
         venue,
+        profile_schema: getProfileSchema(venue.business_category, venue.secondary_categories),
         similar_vendors: similar.map(vendorSummary),
         seo: {
           title: `${venue.hall_name} - ${categorySlug.replace(/-/g, " ")} in ${cityName} - In2Fest`,

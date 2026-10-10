@@ -54,7 +54,16 @@ const SCHEMA_STATEMENTS = [
   `ALTER TABLE venues
      ADD COLUMN IF NOT EXISTS show_availability BOOLEAN NOT NULL DEFAULT true,
      ADD COLUMN IF NOT EXISTS show_slots_packages BOOLEAN NOT NULL DEFAULT true,
-     ADD COLUMN IF NOT EXISTS business_hours JSONB`
+     ADD COLUMN IF NOT EXISTS business_hours JSONB`,
+
+  // ---- website navbar menu settings ----
+  `ALTER TABLE venues
+     ADD COLUMN IF NOT EXISTS nav_config JSONB`,
+
+  // ---- category-driven marketplace profile ----
+  `ALTER TABLE venues
+     ADD COLUMN IF NOT EXISTS profile_attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
+     ADD COLUMN IF NOT EXISTS pricing_unit VARCHAR(30)`
 ];
 
 const ENUM_STATEMENTS = [

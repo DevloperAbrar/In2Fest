@@ -9,6 +9,8 @@ import ContactButtons from "../components/vendor-profile/ContactButtons";
 import SimilarVendors from "../components/vendor-profile/SimilarVendors";
 import InquiryModal from "../components/vendor-profile/InquiryModal";
 import AvailabilityCalendar from "../components/vendor-profile/AvailabilityCalendar";
+import ProfileAttributes, { formatAttrValue } from "../components/vendor-profile/ProfileAttributes";
+import BusinessHoursCard from "../components/vendor-profile/BusinessHoursCard";
 import BreadcrumbNav from "../components/seo/BreadcrumbNav";
 import ReviewsSection from "../components/vendor-profile/ReviewsSection.jsx";
 import VendorCTAPrompt from "../components/vendor-profile/VendorCTAPrompt";
@@ -19,7 +21,7 @@ import { VendorProfileSchema } from "../components/seo/SchemaMarkup";
 import {
   MapPin, Award, Users, Calendar, Languages,
   ShieldCheck, Banknote, Copy, MessageCircle, ExternalLink,
-  Globe, PlayCircle, Quote,
+  Globe, PlayCircle, Quote, Tag,
 } from "lucide-react";
 import PageLoader from "../components/common/PageLoader";
 
@@ -55,6 +57,8 @@ function copyText(text) {
   navigator.clipboard.writeText(text);
 }
 
+const GRID_COLS = { 1: "sm:grid-cols-1", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4" };
+
 export default function VendorProfilePage() {
   const { city, category, slug: vendorSlug } = useParams();
   const [data, setData] = useState(null);
@@ -68,26 +72,38 @@ export default function VendorProfilePage() {
 
   if (!data) return <PageLoader />;
 
-  const { venue, similar_vendors, seo } = data;
+  const { venue, similar_vendors, seo, profile_schema: schema } = data;
+  const L = schema?.labels || {};
+  const attrs = venue.profile_attributes || {};
   const categoryLabel = category.replace(/-/g, " ");
   const videoEmbed = getVideoEmbed(venue.video_intro_url);
 
   const brandedWebsiteUrl = getVendorSiteUrl(venue.slug || vendorSlug);
 
-  const stats = [
-    {
-      icon: Banknote,
-      label: "Starting Price",
-      value: venue.starting_price ? `₹${Number(venue.starting_price).toLocaleString("en-IN")}` : "On request",
-    },
-    { icon: Users, label: "Team Size", value: venue.team_size ? `${venue.team_size} members` : "—" },
-    { icon: Calendar, label: "Established", value: venue.year_established || "—" },
-    {
-      icon: Languages,
-      label: "Languages",
-      value: venue.languages_spoken?.length ? venue.languages_spoken.join(", ") : "—",
-    },
-  ];
+  // ----- stats strip: chosen by the kind of business -----
+  const unit = venue.pricing_unit || "";
+  const priceText = venue.starting_price
+    ? `₹${Number(venue.starting_price).toLocaleString("en-IN")}${unit ? ` ${unit}` : ""}`
+    : "On request";
+
+  const statItems = (schema?.stats || ["starting_price", "team_size", "year_established", "languages_spoken"])
+    .map((key) => {
+      if (key === "starting_price") return { icon: Banknote, label: L.price || "Starting Price", value: priceText, always: true };
+      if (key === "team_size") return { icon: Users, label: L.team || "Team Size", value: venue.team_size ? `${venue.team_size} members` : "" };
+      if (key === "year_established") return { icon: Calendar, label: "Established", value: venue.year_established || "" };
+      if (key === "languages_spoken") return { icon: Languages, label: "Languages", value: venue.languages_spoken?.length ? venue.languages_spoken.join(", ") : "" };
+      if (key.startsWith("attr:")) {
+        const attr = schema?.attributes?.find((a) => a.key === key.slice(5));
+        if (!attr) return null;
+        return { icon: Tag, label: attr.label, value: formatAttrValue(attr, attrs[attr.key]) };
+      }
+      return null;
+    })
+    .filter((s) => s && (s.always || s.value));
+
+  const gridCols = GRID_COLS[Math.min(Math.max(statItems.length, 1), 4)];
+  const highlights = Array.isArray(attrs.highlights) ? attrs.highlights : [];
+  const showAvailability = schema?.features?.availability !== false;
 
   // Clean "Open in Google Maps" URL — never pass raw internal Google embed links
   const getCleanMapsUrl = () => {
@@ -151,8 +167,8 @@ export default function VendorProfilePage() {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          {stats.map(({ icon: Icon, label, value }) => (
+        <div className={`grid grid-cols-2 ${gridCols} gap-3 mb-8`}>
+          {statItems.map(({ icon: Icon, label, value }) => (
             <div key={label} className="bg-white border border-gray-100 rounded-2xl p-4 text-center shadow-sm">
               <div className="w-9 h-9 rounded-full bg-navy-50 flex items-center justify-center mx-auto mb-2">
                 <Icon size={16} className="text-navy-700" />
@@ -164,9 +180,19 @@ export default function VendorProfilePage() {
         </div>
 
         {venue.specialty_tagline && (
-          <div className="relative bg-navy-50/60 border-l-4 border-gold-500 rounded-r-xl px-5 py-4 mb-8">
+          <div className="relative bg-navy-50/60 border-l-4 border-gold-500 rounded-r-xl px-5 py-4 mb-6">
             <Quote size={22} className="absolute top-3 right-4 text-navy-200" />
             <p className="text-navy-800 text-sm font-medium italic pr-6">{venue.specialty_tagline}</p>
+          </div>
+        )}
+
+        {highlights.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-8">
+            {highlights.map((h) => (
+              <span key={h} className="flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-full">
+                <ShieldCheck size={13} /> {h}
+              </span>
+            ))}
           </div>
         )}
 
@@ -229,9 +255,14 @@ export default function VendorProfilePage() {
               </SectionCard>
             )}
 
-            <SectionCard title="Services & Amenities">
-              <ServicesGrid services={venue.marketplace_services} />
-            </SectionCard>
+            {venue.marketplace_services?.length > 0 && (
+              <SectionCard title={L.services || "Services & Amenities"}>
+                <ServicesGrid services={venue.marketplace_services} />
+              </SectionCard>
+            )}
+
+            {/* Category specific details (course info, cuisines, facilities, ...) */}
+            <ProfileAttributes schema={schema} values={attrs} />
 
             {(venue.starting_price || venue.pricing_mode === "per_service" || venue.pricing_note) && (
               <SectionCard title="Pricing">
@@ -250,13 +281,16 @@ export default function VendorProfilePage() {
                   <div className="flex items-center gap-8 mb-4">
                     {venue.starting_price && (
                       <div>
-                        <p className="text-xs text-gray-400 mb-0.5">Starting from</p>
-                        <p className="text-2xl font-bold text-navy-700">₹{Number(venue.starting_price).toLocaleString("en-IN")}</p>
+                        <p className="text-xs text-gray-400 mb-0.5">{L.price || "Starting from"}</p>
+                        <p className="text-2xl font-bold text-navy-700">
+                          ₹{Number(venue.starting_price).toLocaleString("en-IN")}
+                          {unit && <span className="text-sm font-medium text-gray-400"> {unit}</span>}
+                        </p>
                       </div>
                     )}
                     {venue.maximum_price && (
                       <div>
-                        <p className="text-xs text-gray-400 mb-0.5">Up to</p>
+                        <p className="text-xs text-gray-400 mb-0.5">{L.priceMax || "Up to"}</p>
                         <p className="text-2xl font-bold text-gray-600">₹{Number(venue.maximum_price).toLocaleString("en-IN")}</p>
                       </div>
                     )}
@@ -276,7 +310,7 @@ export default function VendorProfilePage() {
                   )}
                   {venue.cancellation_policy && (
                     <div className="bg-gray-50 rounded-lg px-3 py-2">
-                      <p className="text-xs text-gray-400">Cancellation policy</p>
+                      <p className="text-xs text-gray-400">{L.policy || "Cancellation policy"}</p>
                       <p className="text-sm font-semibold text-gray-700">{venue.cancellation_policy}</p>
                     </div>
                   )}
@@ -284,21 +318,21 @@ export default function VendorProfilePage() {
               </SectionCard>
             )}
 
-            {venue.id && (
+            {venue.id && showAvailability && (
               <AvailabilityCalendar
                 venueId={venue.id}
                 onSendInquiry={(date) => { setInquiryDate(date); setShowInquiry(true); }}
               />
             )}
 
-            {venue.famous_events_handled && (
-              <SectionCard title="Notable Events Handled">
-                <p className="text-sm text-gray-600 leading-relaxed">{venue.famous_events_handled}</p>
+            {L.highlights && venue.famous_events_handled && (
+              <SectionCard title={L.highlights}>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{venue.famous_events_handled}</p>
               </SectionCard>
             )}
 
             {venue.awards_recognition && (
-              <SectionCard title="Awards & Recognition">
+              <SectionCard title={L.achievements || "Awards & Recognition"}>
                 <div className="flex items-start gap-3">
                   <Award size={18} className="text-gold-500 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-gray-600 leading-relaxed">{venue.awards_recognition}</p>
@@ -349,9 +383,11 @@ export default function VendorProfilePage() {
                 onClick={() => setShowInquiry(true)}
                 className="flex items-center justify-center gap-2 w-full text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 bg-gradient-to-r from-accent-500 to-accent-600"
               >
-                Send Inquiry
+                {L.inquiry || "Send Inquiry"}
               </button>
             </div>
+
+            <BusinessHoursCard hours={venue.business_hours} />
 
             {(venue.serviceAreas?.length > 0 || venue.service_travel_note) && (
               <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
@@ -389,7 +425,7 @@ export default function VendorProfilePage() {
                 )}
                 {venue.team_size && (
                   <div className="flex items-center gap-2 text-xs text-gray-600">
-                    <Users size={14} className="text-gold-500" /> Team of {venue.team_size}
+                    <Users size={14} className="text-gold-500" /> {L.team || "Team size"}: {venue.team_size}
                   </div>
                 )}
               </div>
@@ -416,8 +452,7 @@ export default function VendorProfilePage() {
                 </div>
               )}
 
-              
-              <a  href={mapsOpenUrl}
+              <a href={mapsOpenUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs text-accent-600 hover:underline font-medium"

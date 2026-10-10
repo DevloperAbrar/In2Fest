@@ -513,11 +513,14 @@ export default function DynamicSectionRenderer({ type, config, venue, index = 0 
   const Renderer = RENDERERS[type];
   if (!Renderer || !config) return null;
   return (
-    <Renderer
-      config={config}
-      theme={venue.theme_color || "#7c3aed"}
-      toneIdx={index}
-      venue={venue}
-    />
+    // id is the scroll target for the navbar link (see lib/navItems.js)
+    <div id={`section-${type}`} className="scroll-mt-20">
+      <Renderer
+        config={config}
+        theme={venue.theme_color || "#7c3aed"}
+        toneIdx={index}
+        venue={venue}
+      />
+    </div>
   );
 }
