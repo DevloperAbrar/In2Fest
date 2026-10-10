@@ -157,6 +157,16 @@ const SECTION_TYPES = {
     toggleable: true,
     itemFields: ["title", "description"],
     defaultConfig: { title: "Get in touch", items: [] }
+  },
+
+  social_links: {
+    label: "Social Media Links",
+    description: "Instagram, YouTube, Facebook, X, LinkedIn and more as animated link cards",
+    icon: "share",
+    removable: true,
+    toggleable: true,
+    itemFields: ["platform", "url", "label"],
+    defaultConfig: { title: "Follow Us", subtitle: "", style: "cards", items: [] }
   }
 };
 

@@ -17,6 +17,7 @@ import GalleryEditor from "../features/venue-owner/website-builder/GalleryEditor
 import ContactEditor from "../features/venue-owner/website-builder/ContactEditor.jsx";
 import WebsiteBuilderHome from "../features/venue-owner/website-builder/WebsiteBuilderHome.jsx";
 import SectionContentEditor from "../features/venue-owner/website-builder/SectionContentEditor.jsx";
+import SocialLinksEditor from "../features/venue-owner/website-builder/SocialLinksEditor.jsx";
 import PackagesSectionEditor from "../features/venue-owner/website-builder/PackagesSectionEditor.jsx";
 
 import SlotList from "../features/venue-owner/slots/SlotList.jsx";
@@ -66,6 +67,7 @@ export default function VenueOwnerRoutes() {
         <Route path="marketplace-profile" element={<RequireFeature feature="marketplace_profile"><MarketplaceProfilePage /></RequireFeature>} />
 
         <Route path="website/section/packages" element={<RequireFeature feature="website_builder"><PackagesSectionEditor /></RequireFeature>} />
+        <Route path="website/section/social_links" element={<RequireFeature feature="website_builder"><SocialLinksEditor /></RequireFeature>} />
         <Route path="website/section/:type" element={<RequireFeature feature="website_builder"><SectionContentEditor /></RequireFeature>} />
 
         <Route path="slots" element={<RequireFeature feature="slots"><SlotList /></RequireFeature>} />

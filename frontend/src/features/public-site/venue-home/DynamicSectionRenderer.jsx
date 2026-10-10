@@ -2,6 +2,7 @@ import React from "react";
 import BusinessHoursDisplay from "./BusinessHoursDisplay.jsx";
 import { ChevronDown } from "lucide-react";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
+import SocialLinks from "./SocialLinksSection.jsx";
 
 /* ─── Reveal helper ─── */
 function Reveal({ children, delay = 0, className = "", from = "bottom" }) {
@@ -506,7 +507,8 @@ const RENDERERS = {
   menu: Menu,
   hours: Hours,
   results: Results,
-  cta_banner: CtaBanner
+  cta_banner: CtaBanner,
+  social_links: SocialLinks
 };
 
 export default function DynamicSectionRenderer({ type, config, venue, index = 0 }) {

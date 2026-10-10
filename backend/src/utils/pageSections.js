@@ -1,4 +1,5 @@
 const { SECTION_TYPES, CATEGORY_SECTION_DEFAULTS } = require("../config/sectionLibrary");
+const { sanitizeSocialConfig } = require("./socialLinks");
 
 // Fixed skeleton order for core sections when building fresh defaults.
 const CORE_ORDER = ["hero", "about", "services", "gallery", "testimonials", "contact"];
@@ -33,6 +34,7 @@ function buildDefaultSections(categorySlug) {
 // Sanitizes whatever is stored/submitted for page_sections:
 // - drops unknown/removed section types (defensive against stale data)
 // - drops duplicate types (keeps the first occurrence)
+// - cleans the content of sections that hold links (social_links)
 // - guarantees every core type is present (appends any that are missing)
 // - falls back to full category defaults if nothing usable is stored yet
 function normalizeSections(venue) {
@@ -51,13 +53,20 @@ function normalizeSections(venue) {
     if (seen.has(entry.type)) return;
 
     seen.add(entry.type);
+
+    let config =
+      entry.config && typeof entry.config === "object"
+        ? entry.config
+        : cloneDefaultConfig(entry.type);
+
+    if (entry.type === "social_links") {
+      config = sanitizeSocialConfig(config);
+    }
+
     cleaned.push({
       type: entry.type,
       visible: entry.visible !== false,
-      config:
-        entry.config && typeof entry.config === "object"
-          ? entry.config
-          : cloneDefaultConfig(entry.type)
+      config
     });
   });
 

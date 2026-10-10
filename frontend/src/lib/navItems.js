@@ -32,7 +32,8 @@ const DYNAMIC_LABELS = {
   courses: "Courses",
   menu: "Menu",
   hours: "Opening Hours",
-  results: "Results"
+  results: "Results",
+  social_links: "Social"
 };
 
 function dynamicHasContent(section, venue) {

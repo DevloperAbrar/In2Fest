@@ -2,7 +2,7 @@ import {
   Image, Info, Wrench, Images, Star, Phone,
   LayoutGrid, Package, ListChecks, HelpCircle,
   ShoppingBag, Users, PartyPopper,
-  GraduationCap, UtensilsCrossed, Clock, Trophy, Megaphone
+  GraduationCap, UtensilsCrossed, Clock, Trophy, Megaphone, Share2
 } from "lucide-react";
 
 export const SECTION_TYPES = {
@@ -211,6 +211,16 @@ const NEW_SECTION_TYPES = {
     toggleable: true,
     itemFields: ["title", "description"],
     defaultConfig: { title: "Get in touch", items: [] }
+  },
+  social_links: {
+    label: "Social Media Links",
+    description: "Instagram, YouTube, Facebook, X, LinkedIn and more as animated link cards",
+    icon: Share2,
+    color: "bg-sky-50 text-sky-600",
+    removable: true,
+    toggleable: true,
+    itemFields: ["platform", "url", "label"],
+    defaultConfig: { title: "Follow Us", subtitle: "", style: "cards", items: [] }
   }
 };
 

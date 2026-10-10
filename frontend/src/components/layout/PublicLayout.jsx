@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Moon, Sun, Menu, X, Phone, ChevronDown } from "lucide-react";
 import { DISCOVERY_URL } from "../../lib/constants";
+import SocialFooterRow from "./SocialFooterRow.jsx";
 import { MAX_INLINE_NAV_LINKS as MAX_INLINE_LINKS } from "../../lib/navItems";
 
 export default function PublicLayout({ venueName, venue, navItems, children }) {
@@ -190,6 +191,7 @@ export default function PublicLayout({ venueName, venue, navItems, children }) {
 
         {/* Footer */}
         <footer className="bg-stone-950 dark:bg-black text-stone-400 py-8 text-center text-sm">
+          <SocialFooterRow venue={venue} />
           <p className="font-medium text-white mb-1">{venueName}</p>
           <p>© {new Date().getFullYear()} {venueName}. All rights reserved.</p>
           <p className="mt-1 text-xs">
