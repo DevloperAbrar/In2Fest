@@ -1,15 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { adminSidebarItems } from "../adminSidebarItems.js";
 import { useFetch } from "../../../hooks/useFetch";
 import Input from "../../../components/common/Input";
+import Select from "../../../components/common/Select";
 import Button from "../../../components/common/Button";
 import Loader from "../../../components/common/Loader";
 import Modal from "../../../components/common/Modal";
 import { adminDiscoveryService } from "../../../services/adminDiscoveryService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 
-const EMPTY_FORM = { name: "", slug: "", icon: "tag", is_venue_type: false, display_order: "" };
+const EMPTY_FORM = {
+  name: "",
+  slug: "",
+  icon: "tag",
+  is_venue_type: false,
+  display_order: "",
+  business_type: "general"
+};
 
 function SlugPreview({ name, customSlug }) {
   const auto = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -24,6 +32,7 @@ function SlugPreview({ name, customSlug }) {
 
 export default function CategoryManager() {
   const { data: categories, loading, refetch } = useFetch("/admin/discovery/categories");
+  const { data: businessTypes } = useFetch("/meta/business-types");
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [editTarget, setEditTarget] = useState(null); // category being edited
@@ -31,6 +40,14 @@ export default function CategoryManager() {
   const [deleting, setDeleting] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const businessTypeOptions = useMemo(
+    () => (businessTypes || []).map((t) => ({ value: t.key, label: t.label })),
+    [businessTypes]
+  );
+
+  const businessTypeLabel = (key) =>
+    (businessTypes || []).find((t) => t.key === key)?.label || key || " - ";
 
   const handleCreate = async () => {
     if (!form.name.trim()) { showError("Category name is required"); return; }
@@ -48,7 +65,7 @@ export default function CategoryManager() {
   };
 
   const openEdit = (cat) => {
-    setEditTarget({ ...cat });
+    setEditTarget({ ...cat, business_type: cat.business_type || "general" });
   };
 
   const handleUpdate = async () => {
@@ -59,7 +76,8 @@ export default function CategoryManager() {
         icon: editTarget.icon,
         display_order: editTarget.display_order,
         active: editTarget.active,
-        is_venue_type: editTarget.is_venue_type
+        is_venue_type: editTarget.is_venue_type,
+        business_type: editTarget.business_type
       });
       showSuccess("Category updated");
       setEditTarget(null);
@@ -123,6 +141,19 @@ export default function CategoryManager() {
             placeholder="e.g. calendar"
           />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+          <div>
+            <Select
+              label="Business type"
+              options={businessTypeOptions}
+              value={form.business_type}
+              onChange={(e) => set("business_type", e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Decides the labels, questions and modules vendors in this category see.
+            </p>
+          </div>
+        </div>
         <div className="flex items-center gap-6 mb-4">
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
             <input
@@ -148,6 +179,7 @@ export default function CategoryManager() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3">Icon</th>
+                <th className="px-4 py-3">Business type</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Active</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -160,6 +192,11 @@ export default function CategoryManager() {
                   <td className="px-4 py-3 font-medium text-gray-800">{cat.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-primary-600">{cat.slug}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{cat.icon}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary-50 text-primary-700">
+                      {businessTypeLabel(cat.business_type)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cat.is_venue_type ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
                       {cat.is_venue_type ? "Venue" : "Service"}
@@ -212,6 +249,17 @@ export default function CategoryManager() {
               value={editTarget.icon || ""}
               onChange={(e) => setEditTarget({ ...editTarget, icon: e.target.value })}
             />
+            <div>
+              <Select
+                label="Business type"
+                options={businessTypeOptions}
+                value={editTarget.business_type}
+                onChange={(e) => setEditTarget({ ...editTarget, business_type: e.target.value })}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Changing this updates the marketplace profile questions and labels for every vendor in this category.
+              </p>
+            </div>
             <Input
               label="Display order"
               type="number"

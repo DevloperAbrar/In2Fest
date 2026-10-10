@@ -2,6 +2,8 @@
 // Every statement is safe to run repeatedly (IF NOT EXISTS / WHERE NOT EXISTS).
 const { getSequelize } = require("../utils/db");
 const { NEW_CATEGORIES } = require("../config/businessTypes");
+const { FIXED_CATEGORIES } = require("../config/categories");
+const { refreshCategoryTypes } = require("../utils/categoryTypeCache");
 
 const SCHEMA_STATEMENTS = [
   // ---- invoices ----
@@ -63,7 +65,13 @@ const SCHEMA_STATEMENTS = [
   // ---- category-driven marketplace profile ----
   `ALTER TABLE venues
      ADD COLUMN IF NOT EXISTS profile_attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
-     ADD COLUMN IF NOT EXISTS pricing_unit VARCHAR(30)`
+     ADD COLUMN IF NOT EXISTS pricing_unit VARCHAR(30)`,
+
+  // ---- admin-controlled business type per category ----
+  // Nullable on purpose: existing rows are backfilled below without ever
+  // overwriting a value the Super Admin has already chosen.
+  `ALTER TABLE categories
+     ADD COLUMN IF NOT EXISTS business_type VARCHAR(30)`
 ];
 
 const ENUM_STATEMENTS = [
@@ -73,6 +81,28 @@ const ENUM_STATEMENTS = [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errCode = (e) => e?.original?.code || e?.parent?.code;
+
+// Fills categories.business_type only where it is still NULL.
+async function backfillCategoryBusinessTypes(sequelize) {
+  const slugsByType = {};
+  FIXED_CATEGORIES.forEach((c) => {
+    (slugsByType.events = slugsByType.events || []).push(c.slug);
+  });
+  NEW_CATEGORIES.forEach((c) => {
+    (slugsByType[c.business_type] = slugsByType[c.business_type] || []).push(c.slug);
+  });
+
+  for (const [type, slugs] of Object.entries(slugsByType)) {
+    await sequelize.query(
+      `UPDATE categories SET business_type = :type
+         WHERE slug IN (:slugs) AND business_type IS NULL`,
+      { replacements: { type, slugs } }
+    );
+  }
+
+  // Anything else (e.g. categories an admin created earlier) keeps the old behaviour: "general".
+  await sequelize.query(`UPDATE categories SET business_type = 'general' WHERE business_type IS NULL`);
+}
 
 async function applyAll() {
   const sequelize = getSequelize();
@@ -100,14 +130,37 @@ async function applyAll() {
     const c = NEW_CATEGORIES[i];
     try {
       await sequelize.query(
-        `INSERT INTO categories (name, slug, icon, display_order, active, is_venue_type)
-         SELECT :name, :slug, :icon, :order, true, false
+        `INSERT INTO categories (name, slug, icon, display_order, active, is_venue_type, business_type)
+         SELECT :name, :slug, :icon, :order, true, false, :type
          WHERE NOT EXISTS (SELECT 1 FROM categories WHERE slug = :slug)`,
-        { replacements: { name: c.name, slug: c.slug, icon: c.icon, order: 100 + i } }
+        {
+          replacements: {
+            name: c.name,
+            slug: c.slug,
+            icon: c.icon,
+            order: 100 + i,
+            type: c.business_type
+          }
+        }
       );
     } catch (e) {
       if (errCode(e) === "42P01") missingTable = true;
       else console.error("[MIGRATE] category seed failed:", e.message);
+    }
+  }
+
+  try {
+    await backfillCategoryBusinessTypes(sequelize);
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] category business_type backfill failed:", e.message);
+  }
+
+  if (!missingTable) {
+    try {
+      await refreshCategoryTypes();
+    } catch (e) {
+      console.error("[MIGRATE] category type registry refresh failed:", e.message);
     }
   }
 

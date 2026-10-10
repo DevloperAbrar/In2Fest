@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import Input from "../../../../components/common/Input";
 import Select from "../../../../components/common/Select";
@@ -18,6 +18,19 @@ const fromVenue = (venue) => ({
   awards_recognition: venue.awards_recognition || ""
 });
 
+// Business types in the order the backend defines them, then the admin's display order.
+const compareCategories = (a, b) =>
+  (a.business_type_order ?? 99) - (b.business_type_order ?? 99) ||
+  (a.display_order ?? 0) - (b.display_order ?? 0) ||
+  String(a.name).localeCompare(String(b.name));
+
+const humanizeSlug = (slug) =>
+  String(slug)
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
 export default function BusinessDetailsTab({ venue, categories, schema, onCategoryChange, onSave, saving, onNext, onBack }) {
   const [form, setForm] = useState(() => fromVenue(venue));
   const [triedNext, setTriedNext] = useState(false);
@@ -29,14 +42,42 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
   const L = schema.labels;
   const minWords = schema.min_description_words;
 
-  const categoryOptions = [
-    { value: "", label: "Select primary category" },
-    ...categories.map((c) => ({ value: c.slug, label: c.name }))
-  ];
+  const sortedCategories = useMemo(
+    () => [...(categories || [])].sort(compareCategories),
+    [categories]
+  );
 
-  const secondaryOptions = categories
-    .filter((c) => c.slug !== form.business_category)
-    .map((c) => ({ value: c.slug, label: c.name }));
+  // Primary dropdown grouped by business type (Events, Education, Retail ...).
+  const primaryGroups = useMemo(() => {
+    const groups = new Map();
+    sortedCategories.forEach((c) => {
+      const key = c.business_type || "general";
+      if (!groups.has(key)) {
+        groups.set(key, { label: c.business_type_label || "Other", options: [] });
+      }
+      groups.get(key).options.push({ value: c.slug, label: c.name });
+    });
+    const list = [...groups.values()];
+
+    // A saved category the admin has since deactivated must stay selectable,
+    // otherwise the dropdown would silently show as empty.
+    const current = form.business_category;
+    if (current && !sortedCategories.some((c) => c.slug === current)) {
+      list.push({ label: "Current (no longer listed)", options: [{ value: current, label: humanizeSlug(current) }] });
+    }
+    return list;
+  }, [sortedCategories, form.business_category]);
+
+  const placeholderOption = [{ value: "", label: "Select primary category" }];
+
+  // Secondary multi-select: same ordering, with a heading per business type.
+  const secondaryOptions = useMemo(
+    () =>
+      sortedCategories
+        .filter((c) => c.slug !== form.business_category)
+        .map((c) => ({ value: c.slug, label: c.name, group: c.business_type_label || "Other" })),
+    [sortedCategories, form.business_category]
+  );
 
   const wordCount = form.long_description.trim().split(/\s+/).filter(Boolean).length;
   const wordsRemaining = minWords - wordCount;
@@ -70,7 +111,8 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
     <div className="space-y-5">
       <Select
         label="Primary category"
-        options={categoryOptions}
+        options={placeholderOption}
+        groups={primaryGroups}
         value={form.business_category}
         onChange={(e) => handlePrimaryChange(e.target.value)}
       />

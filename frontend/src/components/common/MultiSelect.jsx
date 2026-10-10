@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, X, Check, Search } from "lucide-react";
 
+// Options may carry an optional `group` string. Keep options of the same group
+// next to each other and a heading is shown above each group.
 export default function MultiSelect({
   label,
   error,
@@ -126,19 +128,26 @@ export default function MultiSelect({
             {filteredOptions.length === 0 && (
               <p className="px-3 py-2 text-sm text-gray-400">No matches</p>
             )}
-            {filteredOptions.map((opt) => {
+            {filteredOptions.map((opt, index) => {
               const isSelected = value.includes(opt.value);
+              const showGroupHeading = opt.group && opt.group !== filteredOptions[index - 1]?.group;
               return (
-                <div
-                  key={opt.value}
-                  onClick={() => toggleOption(opt.value)}
-                  className={`flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
-                    isSelected ? "text-primary-700 font-medium" : "text-gray-700"
-                  }`}
-                >
-                  {opt.label}
-                  {isSelected && <Check size={14} className="text-primary-600" />}
-                </div>
+                <React.Fragment key={opt.value}>
+                  {showGroupHeading && (
+                    <div className="sticky top-0 px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 bg-gray-50">
+                      {opt.group}
+                    </div>
+                  )}
+                  <div
+                    onClick={() => toggleOption(opt.value)}
+                    className={`flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
+                      isSelected ? "text-primary-700 font-medium" : "text-gray-700"
+                    }`}
+                  >
+                    {opt.label}
+                    {isSelected && <Check size={14} className="text-primary-600" />}
+                  </div>
+                </React.Fragment>
               );
             })}
           </div>

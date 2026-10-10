@@ -235,18 +235,60 @@ const NEW_CATEGORIES = [
   { name: "Other Business", slug: "other-business", icon: "building", business_type: "general" }
 ];
 
+// Static defaults baked into the code. At runtime the database column
+// categories.business_type (set by Super Admin) wins; this map is only the fallback
+// for categories whose DB value is still empty.
 const CATEGORY_BUSINESS_TYPE = {};
 FIXED_CATEGORIES.forEach((c) => { CATEGORY_BUSINESS_TYPE[c.slug] = "events"; });
 NEW_CATEGORIES.forEach((c) => { CATEGORY_BUSINESS_TYPE[c.slug] = c.business_type; });
 
+/* ------------------------------------------------------------------ */
+/* Runtime registry (slug -> business type) loaded from the database   */
+/* ------------------------------------------------------------------ */
+const REGISTRY_TTL_MS = 60 * 1000;
+let dynamicTypes = new Map();
+let registryLoadedAt = 0;
+let registryRefresher = null;
+
+function isValidBusinessType(key) {
+  return typeof key === "string" && Object.prototype.hasOwnProperty.call(BUSINESS_TYPES, key);
+}
+
+// Called by utils/categoryTypeCache.js with rows of { slug, business_type }.
+function setDynamicCategoryTypes(rows) {
+  const next = new Map();
+  (rows || []).forEach((row) => {
+    if (row && row.slug && isValidBusinessType(row.business_type)) {
+      next.set(row.slug, row.business_type);
+    }
+  });
+  dynamicTypes = next;
+  registryLoadedAt = Date.now();
+}
+
+function registerCategoryTypeRefresher(fn) {
+  registryRefresher = fn;
+}
+
+// Stays synchronous so existing callers (marketplaceSchemas, billing) need no change.
+// When the registry is older than the TTL, a background refresh is kicked off.
 function getBusinessTypeKey(categorySlug) {
-  return CATEGORY_BUSINESS_TYPE[categorySlug] || "general";
+  if (!categorySlug) return "general";
+
+  if (registryRefresher && Date.now() - registryLoadedAt > REGISTRY_TTL_MS) {
+    registryLoadedAt = Date.now(); // throttle: at most one refresh per window
+    Promise.resolve()
+      .then(registryRefresher)
+      .catch(() => {});
+  }
+
+  return dynamicTypes.get(categorySlug) || CATEGORY_BUSINESS_TYPE[categorySlug] || "general";
 }
 
 // secondarySlugs (optional): a vendor running two lines of business gets the union of modules.
 function getBusinessProfile(categorySlug, secondarySlugs = []) {
   const key = getBusinessTypeKey(categorySlug);
-  const type = BUSINESS_TYPES[key];
+  const type = BUSINESS_TYPES[key] || BUSINESS_TYPES.general;
   const modules = new Set(type.modules);
   (secondarySlugs || []).forEach((slug) => {
     (BUSINESS_TYPES[getBusinessTypeKey(slug)]?.modules || []).forEach((m) => modules.add(m));
@@ -265,6 +307,9 @@ module.exports = {
   BUSINESS_TYPES,
   NEW_CATEGORIES,
   CATEGORY_BUSINESS_TYPE,
+  isValidBusinessType,
+  setDynamicCategoryTypes,
+  registerCategoryTypeRefresher,
   getBusinessTypeKey,
   getBusinessProfile
 };

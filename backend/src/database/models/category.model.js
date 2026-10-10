@@ -10,7 +10,11 @@ module.exports = (sequelize, DataTypes) => {
     icon: DataTypes.STRING,
     display_order: { type: DataTypes.INTEGER, defaultValue: 0 },
     active: { type: DataTypes.BOOLEAN, defaultValue: true },
-    is_venue_type: { type: DataTypes.BOOLEAN, defaultValue: false }
+    is_venue_type: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // Which business type (events, education, retail ...) this category belongs to.
+    // Controlled by Super Admin. Drives the labels, questions and modules a vendor sees.
+    // NULL is allowed on purpose: it is resolved to a default at read time.
+    business_type: { type: DataTypes.STRING(30), allowNull: true }
   }, {
     tableName: "categories",
     timestamps: false

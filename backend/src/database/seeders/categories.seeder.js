@@ -6,7 +6,7 @@ async function seedCategories() {
     const cat = FIXED_CATEGORIES[i];
     const existing = await Category.findOne({ where: { slug: cat.slug } });
     if (!existing) {
-      await Category.create({ ...cat, display_order: i + 1 });
+      await Category.create({ ...cat, display_order: i + 1, business_type: "events" });
       console.log(`[SEED] Category created: ${cat.name}`);
     }
   }

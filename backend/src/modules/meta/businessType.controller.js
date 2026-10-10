@@ -1,8 +1,29 @@
-const { BUSINESS_TYPES, NEW_CATEGORIES, CATEGORY_BUSINESS_TYPE, getBusinessProfile } = require("../../config/businessTypes");
+const { Category } = require("../../database/models");
+const {
+  BUSINESS_TYPES,
+  isValidBusinessType,
+  getBusinessTypeKey,
+  getBusinessProfile
+} = require("../../config/businessTypes");
 const { getProfileSchema } = require("../../config/marketplaceSchemas");
 
+// GET /meta/business-types
+// Lists every business type with the ACTIVE categories currently assigned to it
+// (read from the database, so it follows whatever Super Admin configures).
 async function listBusinessTypes(req, res, next) {
   try {
+    const rows = await Category.findAll({
+      where: { active: true },
+      attributes: ["slug", "business_type"],
+      order: [["display_order", "ASC"], ["name", "ASC"]]
+    });
+
+    const slugsByType = {};
+    rows.forEach((row) => {
+      const key = isValidBusinessType(row.business_type) ? row.business_type : getBusinessTypeKey(row.slug);
+      (slugsByType[key] = slugsByType[key] || []).push(row.slug);
+    });
+
     const data = Object.values(BUSINESS_TYPES).map((t) => ({
       key: t.key,
       label: t.label,
@@ -10,9 +31,10 @@ async function listBusinessTypes(req, res, next) {
       icon: t.icon,
       terms: t.terms,
       modules: t.modules,
-      categories: Object.keys(CATEGORY_BUSINESS_TYPE).filter((slug) => CATEGORY_BUSINESS_TYPE[slug] === t.key),
-      new_category_count: NEW_CATEGORIES.filter((c) => c.business_type === t.key).length
+      categories: slugsByType[t.key] || [],
+      category_count: (slugsByType[t.key] || []).length
     }));
+
     res.json({ success: true, data });
   } catch (error) {
     next(error);

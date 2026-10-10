@@ -1,6 +1,8 @@
 import React from "react";
 
-export default function Select({ label, error, options = [], className = "", ...props }) {
+// `options`: [{ value, label }] rendered first (e.g. a placeholder).
+// `groups`:  optional [{ label, options: [{ value, label }] }] rendered as <optgroup>s.
+export default function Select({ label, error, options = [], groups = [], className = "", ...props }) {
   return (
     <div className="w-full">
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
@@ -14,6 +16,15 @@ export default function Select({ label, error, options = [], className = "", ...
           <option key={opt.value} value={opt.value}>
             {opt.label}
           </option>
+        ))}
+        {groups.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.options.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}

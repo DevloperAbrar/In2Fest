@@ -2,6 +2,8 @@ const { Op, fn, col } = require("sequelize");
 const { Venue, City, Category, Inquiry, CityRequest } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { slugify } = require("../../utils/slugify");
+const { BUSINESS_TYPES } = require("../../config/businessTypes");
+const { refreshCategoryTypes } = require("../../utils/categoryTypeCache");
 
 // ─── Featured vendors ────────────────────────────────────────────────────────
 
@@ -63,8 +65,29 @@ async function listAllCategories() {
   return Category.findAll({ order: [["display_order", "ASC"], ["name", "ASC"]] });
 }
 
+// Validates a business type coming from the admin UI. Empty means "use the default".
+function resolveBusinessType(value, fallback = "general") {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (!Object.prototype.hasOwnProperty.call(BUSINESS_TYPES, value)) {
+    throw new AppError(
+      `Invalid business type "${value}". Allowed: ${Object.keys(BUSINESS_TYPES).join(", ")}`,
+      400
+    );
+  }
+  return value;
+}
+
+// Keeps the in-memory slug -> business type registry in step with the database.
+async function syncCategoryTypes() {
+  try {
+    await refreshCategoryTypes();
+  } catch (err) {
+    console.error("[CATEGORY] Could not refresh business type registry:", err.message);
+  }
+}
+
 async function createCategory(payload) {
-  const { name, slug, icon, display_order, is_venue_type } = payload;
+  const { name, slug, icon, display_order, is_venue_type, business_type } = payload;
   if (!name || !name.trim()) throw new AppError("Category name is required", 400);
 
   const autoSlug = slug ? slug.trim() : slugify(name);
@@ -77,10 +100,12 @@ async function createCategory(payload) {
   const existing = await Category.findOne({ where: { slug: autoSlug } });
   if (existing) throw new AppError(`Slug "${autoSlug}" is already taken`, 409);
 
+  const resolvedType = resolveBusinessType(business_type);
+
   // display_order: if not provided, put it at the end
   const maxOrder = await Category.max("display_order") || 0;
 
-  return Category.create({
+  const created = await Category.create({
     name: name.trim(),
     slug: autoSlug,
     icon: icon || "tag",
@@ -88,8 +113,12 @@ async function createCategory(payload) {
       ? Number(display_order)
       : maxOrder + 1,
     active: true,
-    is_venue_type: !!is_venue_type
+    is_venue_type: !!is_venue_type,
+    business_type: resolvedType
   });
+
+  await syncCategoryTypes();
+  return created;
 }
 
 async function updateCategory(categoryId, payload) {
@@ -99,16 +128,20 @@ async function updateCategory(categoryId, payload) {
   // Slug is immutable once set  - changing it breaks every live URL for that
   // category. If someone tries to change it, silently ignore the new value
   // rather than erroring, so the rest of the update still goes through.
-  const { name, icon, display_order, active, is_venue_type } = payload;
+  const { name, icon, display_order, active, is_venue_type, business_type } = payload;
+
+  const hasBusinessType = business_type !== undefined && business_type !== null && business_type !== "";
 
   await cat.update({
     ...(name != null && { name: name.trim() }),
     ...(icon != null && { icon }),
     ...(display_order != null && { display_order }),
     ...(active != null && { active }),
-    ...(is_venue_type != null && { is_venue_type })
+    ...(is_venue_type != null && { is_venue_type }),
+    ...(hasBusinessType && { business_type: resolveBusinessType(business_type) })
   });
 
+  await syncCategoryTypes();
   return cat;
 }
 
@@ -126,6 +159,7 @@ async function deleteCategory(categoryId) {
   }
 
   await cat.destroy();
+  await syncCategoryTypes();
   return { deleted: true, slug: cat.slug };
 }
 
