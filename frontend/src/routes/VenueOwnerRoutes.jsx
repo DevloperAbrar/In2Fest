@@ -28,8 +28,8 @@ import BookingCalendarView from "../features/venue-owner/bookings/BookingCalenda
 import ClientList from "../features/venue-owner/clients/ClientList.jsx";
 import ClientDetail from "../features/venue-owner/clients/ClientDetail.jsx";
 
-import QuotationForm from "../features/venue-owner/billing/QuotationForm.jsx";
-import InvoiceForm from "../features/venue-owner/billing/InvoiceForm.jsx";
+import BillingHome from "../features/venue-owner/billing/BillingHome.jsx";
+import DocumentEditor from "../features/venue-owner/billing/DocumentEditor.jsx";
 import ServiceCatalog from "../features/venue-owner/billing/ServiceCatalog.jsx";
 
 import OwnerAnalytics from "../features/venue-owner/analytics/OwnerAnalytics.jsx";
@@ -78,8 +78,10 @@ export default function VenueOwnerRoutes() {
         <Route path="clients" element={<RequireFeature feature="clients"><ClientList /></RequireFeature>} />
         <Route path="clients/:id" element={<RequireFeature feature="clients"><ClientDetail /></RequireFeature>} />
 
-        <Route path="billing/quotation" element={<RequireFeature feature="billing"><QuotationForm /></RequireFeature>} />
-        <Route path="billing/invoice" element={<RequireFeature feature="billing"><InvoiceForm /></RequireFeature>} />
+        <Route path="billing/quotation" element={<RequireFeature feature="billing"><BillingHome key="q" initialTab="quotation" /></RequireFeature>} />
+        <Route path="billing/invoice" element={<RequireFeature feature="billing"><BillingHome key="i" initialTab="invoice" /></RequireFeature>} />
+        <Route path="billing/new" element={<RequireFeature feature="billing"><DocumentEditor /></RequireFeature>} />
+        <Route path="billing/:id/edit" element={<RequireFeature feature="billing"><DocumentEditor /></RequireFeature>} />
         <Route path="billing/services" element={<RequireFeature feature="billing"><ServiceCatalog /></RequireFeature>} />
 
         <Route path="analytics" element={<RequireOwner><OwnerAnalytics /></RequireOwner>} />

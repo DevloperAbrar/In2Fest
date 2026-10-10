@@ -1,5 +1,6 @@
 const { FIXED_CATEGORIES } = require("./categories");
 const { PLAN_FEATURES } = require("./planFeatures");
+const { resolveBilling } = require("./billingProfiles");
 
 const ALL_MODULES = PLAN_FEATURES.map((f) => f.key);
 const CORE_MODULES = ["website_builder", "marketplace_profile", "reviews", "inquiries", "clients", "billing"];
@@ -299,7 +300,7 @@ function getBusinessProfile(categorySlug, secondarySlugs = []) {
     icon: type.icon,
     terms: type.terms,
     modules: [...modules],
-    billing: type.billing
+    billing: resolveBilling(type.billing, type.key, categorySlug)
   };
 }
 
