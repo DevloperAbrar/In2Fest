@@ -27,7 +27,7 @@ function TrustBar({ venue }) {
   );
 }
 
-export default function HeroSection({ venue }) {
+export default function HeroSection({ venue, showRating = true }) {
   const imageUrl = getImageUrl(venue.hero_image_url);
 
   return (
@@ -93,9 +93,11 @@ export default function HeroSection({ venue }) {
             </p>
           )}
 
-          <div className="mt-2.5">
-            <StarRating rating={venue.average_rating} reviewCount={venue.review_count} />
-          </div>
+          {showRating && (
+            <div className="mt-2.5">
+              <StarRating rating={venue.average_rating} reviewCount={venue.review_count} />
+            </div>
+          )}
 
           <TrustBar venue={venue} />
         </motion.div>

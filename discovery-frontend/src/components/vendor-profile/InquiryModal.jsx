@@ -16,7 +16,7 @@ function fmt(t) {
   return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
 }
 
-export default function InquiryModal({ venue, onClose, initialDate = "" }) {
+export default function InquiryModal({ venue, onClose, initialDate = "", slotsEnabled = false }) {
   const [step, setStep] = useState("form"); // "form" | "google" | "done"
   const [form, setForm] = useState({
     customer_name: "", phone: "", email: "",
@@ -41,7 +41,8 @@ export default function InquiryModal({ venue, onClose, initialDate = "" }) {
   // Whenever the event date changes, fetch that day's slot/package
   // availability so the customer can pick exactly what they need.
   const fetchDayAvailability = useCallback((dateStr) => {
-    if (!venue?.id || !dateStr) { setDaySlots([]); return; }
+    // No "slots" feature on this vendor's plan -> never ask for slot data.
+    if (!slotsEnabled || !venue?.id || !dateStr) { setDaySlots([]); return; }
     setSlotsLoading(true);
     setSlotsError(false);
     api.get(`/vendor-availability/${venue.id}`, { params: { from: dateStr, to: dateStr } })
@@ -53,7 +54,7 @@ export default function InquiryModal({ venue, onClose, initialDate = "" }) {
       })
       .catch(() => setSlotsError(true))
       .finally(() => setSlotsLoading(false));
-  }, [venue?.id]);
+  }, [venue?.id, slotsEnabled]);
 
   useEffect(() => {
     if (form.event_date) fetchDayAvailability(form.event_date);
@@ -185,8 +186,8 @@ export default function InquiryModal({ venue, onClose, initialDate = "" }) {
                 value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
             </div>
 
-            {/* SLOT / SERVICE PICKER — shown once a date is chosen */}
-            {form.event_date && (
+            {/* SLOT / SERVICE PICKER — only for plans with the "slots" feature */}
+            {slotsEnabled && form.event_date && (
               <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                 <p className="text-xs font-semibold text-gray-600 mb-2">
                   What do you need on {formatDate(form.event_date)}?

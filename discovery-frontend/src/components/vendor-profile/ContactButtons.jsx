@@ -71,12 +71,14 @@ export default function ContactButtons({ venue, onSendInquiry }) {
           <MessageCircle size={15} /> WhatsApp
         </a>
 
-        <button
-          onClick={onSendInquiry}
-          className="flex items-center gap-2 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:opacity-90 transition-opacity bg-gradient-to-r from-accent-500 to-accent-600"
-        >
-          <Send size={15} /> Send Inquiry
-        </button>
+        {typeof onSendInquiry === "function" && (
+          <button
+            onClick={onSendInquiry}
+            className="flex items-center gap-2 text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-sm hover:opacity-90 transition-opacity bg-gradient-to-r from-accent-500 to-accent-600"
+          >
+            <Send size={15} /> Send Inquiry
+          </button>
+        )}
 
         <button
           onClick={handleSaveClick}

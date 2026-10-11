@@ -78,7 +78,16 @@ export default function VendorProfilePage() {
   const categoryLabel = category.replace(/-/g, " ");
   const videoEmbed = getVideoEmbed(venue.video_intro_url);
 
-  const brandedWebsiteUrl = getVendorSiteUrl(venue.slug || vendorSlug);
+  // ----- what the vendor's PLAN allows visitors to see / do -----
+  // Everything defaults to OFF if the API did not send plan_features.
+  const planFeatures = data.plan_features || {};
+  const canInquire = !!planFeatures.inquiries;
+  const canShowReviews = !!planFeatures.reviews;
+  const hasWebsite = !!planFeatures.website_builder;
+  const showAvailability = !!planFeatures.slots && schema?.features?.availability !== false;
+
+  // Branded website link only exists for plans that include the website builder.
+  const brandedWebsiteUrl = hasWebsite ? getVendorSiteUrl(venue.slug || vendorSlug) : null;
 
   // ----- stats strip: chosen by the kind of business -----
   const unit = venue.pricing_unit || "";
@@ -103,7 +112,9 @@ export default function VendorProfilePage() {
 
   const gridCols = GRID_COLS[Math.min(Math.max(statItems.length, 1), 4)];
   const highlights = Array.isArray(attrs.highlights) ? attrs.highlights : [];
-  const showAvailability = schema?.features?.availability !== false;
+
+  // Sidebar "Get in touch" card only renders if it has something to show.
+  const showContactCard = !!(brandedWebsiteUrl || venue.whatsapp_number || canInquire);
 
   // Clean "Open in Google Maps" URL — never pass raw internal Google embed links
   const getCleanMapsUrl = () => {
@@ -163,7 +174,7 @@ export default function VendorProfilePage() {
         { label: venue.hall_name }
       ]} />
 
-      <HeroSection venue={venue} />
+      <HeroSection venue={venue} showRating={canShowReviews} />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
 
@@ -197,7 +208,10 @@ export default function VendorProfilePage() {
         )}
 
         <div className="mb-8">
-          <ContactButtons venue={venue} onSendInquiry={() => setShowInquiry(true)} />
+          <ContactButtons
+            venue={venue}
+            onSendInquiry={canInquire ? () => setShowInquiry(true) : undefined}
+          />
         </div>
 
         {(venue.instagram_handle || venue.youtube_channel_link || brandedWebsiteUrl || venue.video_intro_url) && (
@@ -318,10 +332,13 @@ export default function VendorProfilePage() {
               </SectionCard>
             )}
 
+            {/* Availability calendar: only for plans with the "slots" feature.
+                The calendar's "send inquiry" action is only wired up when the plan
+                also allows inquiries. */}
             {venue.id && showAvailability && (
               <AvailabilityCalendar
                 venueId={venue.id}
-                onSendInquiry={(date) => { setInquiryDate(date); setShowInquiry(true); }}
+                onSendInquiry={canInquire ? (date) => { setInquiryDate(date); setShowInquiry(true); } : undefined}
               />
             )}
 
@@ -340,52 +357,58 @@ export default function VendorProfilePage() {
               </SectionCard>
             )}
 
-            <SectionCard>
-              <ReviewsSection venueId={venue.id} />
-            </SectionCard>
+            {canShowReviews && (
+              <SectionCard>
+                <ReviewsSection venueId={venue.id} />
+              </SectionCard>
+            )}
 
             <SimilarVendors vendors={similar_vendors} />
           </div>
 
           <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
 
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-700">Get in touch</h3>
+            {showContactCard && (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-700">Get in touch</h3>
 
-              {brandedWebsiteUrl && (
-                <a href={brandedWebsiteUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2 w-full bg-navy-50 hover:bg-navy-100 border border-navy-100 text-navy-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                >
-                  <ExternalLink size={15} /> Visit Their Website
-                </a>
-              )}
-
-              {venue.whatsapp_number && (
-                <>
-                  <a href={`https://wa.me/${venue.whatsapp_number.replace(/\D/g, "")}`}
-                    target="_blank" rel="noreferrer"
-                    className="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                {brandedWebsiteUrl && (
+                  <a href={brandedWebsiteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-navy-50 hover:bg-navy-100 border border-navy-100 text-navy-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                   >
-                    <MessageCircle size={15} /> WhatsApp Now
+                    <ExternalLink size={15} /> Visit Their Website
                   </a>
-                  <button
-                    onClick={() => copyText(venue.whatsapp_number)}
-                    className="flex items-center justify-center gap-2 w-full border border-gray-200 text-gray-600 hover:bg-gray-50 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                  >
-                    <Copy size={14} /> Copy Number
-                  </button>
-                </>
-              )}
+                )}
 
-              <button
-                onClick={() => setShowInquiry(true)}
-                className="flex items-center justify-center gap-2 w-full text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 bg-gradient-to-r from-accent-500 to-accent-600"
-              >
-                {L.inquiry || "Send Inquiry"}
-              </button>
-            </div>
+                {venue.whatsapp_number && (
+                  <>
+                    <a href={`https://wa.me/${venue.whatsapp_number.replace(/\D/g, "")}`}
+                      target="_blank" rel="noreferrer"
+                      className="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    >
+                      <MessageCircle size={15} /> WhatsApp Now
+                    </a>
+                    <button
+                      onClick={() => copyText(venue.whatsapp_number)}
+                      className="flex items-center justify-center gap-2 w-full border border-gray-200 text-gray-600 hover:bg-gray-50 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                    >
+                      <Copy size={14} /> Copy Number
+                    </button>
+                  </>
+                )}
+
+                {canInquire && (
+                  <button
+                    onClick={() => setShowInquiry(true)}
+                    className="flex items-center justify-center gap-2 w-full text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90 bg-gradient-to-r from-accent-500 to-accent-600"
+                  >
+                    {L.inquiry || "Send Inquiry"}
+                  </button>
+                )}
+              </div>
+            )}
 
             <BusinessHoursCard hours={venue.business_hours} />
 
@@ -465,10 +488,11 @@ export default function VendorProfilePage() {
         </div>
       </div>
 
-      {showInquiry && (
+      {canInquire && showInquiry && (
         <InquiryModal
           venue={venue}
           initialDate={inquiryDate}
+          slotsEnabled={!!planFeatures.slots}
           onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
         />
       )}

@@ -2,6 +2,7 @@ const { Inquiry, Venue } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { sendWhatsApp } = require("../whatsapp/whatsapp.service");
 const { verifyGoogleIdToken } = require("../../utils/googleIdToken");
+const { getActiveFeatures } = require("../../utils/planAccess");
 
 const VALID_TRANSITIONS = {
   new: ["contacted", "lost"],
@@ -18,10 +19,16 @@ async function createPublicInquiry(venueId, payload) {
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
 
+  const features = await getActiveFeatures(venueId);
+  if (!features.includes("inquiries")) {
+    throw new AppError("This vendor is not accepting online inquiries right now. Please contact them directly.", 403);
+  }
+  const slotsEnabled = features.includes("slots");
+
   const inquiry = await Inquiry.create({
     venue_id: venueId,
-    slot_id: payload.slot_id,
-    selected_slots: Array.isArray(payload.selected_slots) ? payload.selected_slots : [],
+    slot_id: slotsEnabled ? payload.slot_id : null,
+    selected_slots: slotsEnabled && Array.isArray(payload.selected_slots) ? payload.selected_slots : [],
     customer_name: payload.customer_name,
     phone: payload.phone,
     email: payload.email,
@@ -83,6 +90,14 @@ async function createMarketplaceInquiry(venueId, payload) {
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
 
+  // Plan check BEFORE the Google verification, so no work is done for a vendor
+  // that cannot receive inquiries.
+  const features = await getActiveFeatures(venueId);
+  if (!features.includes("inquiries")) {
+    throw new AppError("This vendor is not accepting online inquiries right now. Please contact them directly.", 403);
+  }
+  const slotsEnabled = features.includes("slots");
+
   let googleUser;
   try {
     googleUser = await verifyGoogleIdToken(payload.google_credential);
@@ -93,7 +108,7 @@ async function createMarketplaceInquiry(venueId, payload) {
     throw new AppError("Google verification required.", 401);
   }
 
-  const selectedSlots = Array.isArray(payload.selected_slots) ? payload.selected_slots : [];
+  const selectedSlots = slotsEnabled && Array.isArray(payload.selected_slots) ? payload.selected_slots : [];
 
   const inquiry = await Inquiry.create({
     venue_id: venueId,
@@ -111,12 +126,14 @@ async function createMarketplaceInquiry(venueId, payload) {
     source: "marketplace"
   });
 
+  // .catch added: the server shuts down on any unhandled rejection, so a failed
+  // WhatsApp send must never be left un-caught.
   sendWhatsApp({
     venueId,
     recipientPhone: venue.phone,
     triggerType: "marketplace_inquiry_to_vendor",
     variables: { customerName: payload.customer_name, eventType: payload.event_type, date: payload.event_date }
-  });
+  }).catch((err) => console.error("[WHATSAPP] Failed to notify owner of marketplace inquiry:", err.message));
 
   return inquiry;
 }

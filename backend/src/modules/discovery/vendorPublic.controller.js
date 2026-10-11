@@ -7,6 +7,7 @@ const { vendorSummary } = require("./search.service");
 const { AppError } = require("../../middleware/error.middleware");
 const { Package, BookingUnit } = require("../../database/models");
 const { getProfileSchema } = require("../../config/marketplaceSchemas");
+const { getActiveFeatures } = require("../../utils/planAccess");
 
 async function getVendorProfile(req, res, next) {
   try {
@@ -25,24 +26,55 @@ async function getVendorProfile(req, res, next) {
 
     if (!venue) throw new AppError("Vendor profile not found", 404);
 
-    const similar = await Venue.findAll({
-      where: {
-        id: { [Op.ne]: venue.id },
-        city: { [Op.iLike]: cityName },
-        business_category: categorySlug,
-        is_active: true,
-        marketplace_listed: true
-      },
-      limit: 4
-    });
+    const [activeFeatures, similar] = await Promise.all([
+      getActiveFeatures(venue.id),
+      Venue.findAll({
+        where: {
+          id: { [Op.ne]: venue.id },
+          city: { [Op.iLike]: cityName },
+          business_category: categorySlug,
+          is_active: true,
+          marketplace_listed: true
+        },
+        limit: 4
+      })
+    ]);
+
+    // What this vendor's CURRENT plan allows visitors to see / do.
+    // Read from the DB on every request, so a plan change by the super admin
+    // (or an upgrade / expiry) takes effect immediately.
+    const planFeatures = {
+      inquiries: activeFeatures.includes("inquiries"),
+      slots: activeFeatures.includes("slots"),
+      reviews: activeFeatures.includes("reviews"),
+      website_builder: activeFeatures.includes("website_builder")
+    };
+
+    // Availability needs BOTH the business type to support slots AND the plan.
+    const baseSchema = getProfileSchema(venue.business_category, venue.secondary_categories);
+    const profileSchema = {
+      ...baseSchema,
+      features: {
+        ...(baseSchema.features || {}),
+        availability: baseSchema.features?.availability !== false && planFeatures.slots
+      }
+    };
+
+    // Don't expose rating data for a plan that has no reviews feature.
+    const venueData = venue.toJSON();
+    if (!planFeatures.reviews) {
+      venueData.average_rating = null;
+      venueData.review_count = 0;
+    }
 
     const description150 = (venue.long_description || "").slice(0, 155);
 
     res.json({
       success: true,
       data: {
-        venue,
-        profile_schema: getProfileSchema(venue.business_category, venue.secondary_categories),
+        venue: venueData,
+        plan_features: planFeatures,
+        profile_schema: profileSchema,
         similar_vendors: similar.map(vendorSummary),
         seo: {
           title: `${venue.hall_name} - ${categorySlug.replace(/-/g, " ")} in ${cityName} - In2Fest`,
@@ -151,6 +183,13 @@ async function getVendorAvailability(req, res, next) {
 
     const venue = await Venue.findByPk(venueId, { attributes: ["id"] });
     if (!venue) throw new AppError("Venue not found", 404);
+
+    // Availability calendar is a "slots" plan feature. Without it, return an
+    // empty calendar instead of leaking slot data.
+    const activeFeatures = await getActiveFeatures(venueId);
+    if (!activeFeatures.includes("slots")) {
+      return res.json({ success: true, data: { days: [], slots: [], packages: [] } });
+    }
 
     const slots = await Slot.findAll({ where: { venue_id: venueId, is_active: true }, order: [["created_at", "ASC"]] });
     const packages = await Package.findAll({ where: { venue_id: venueId, is_active: true } });

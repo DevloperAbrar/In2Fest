@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { Review, Venue, Inquiry } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
+const { venueHasFeatureFlag } = require("../../utils/planAccess");
 
 function hashEmail(email) {
   return crypto.createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
@@ -56,6 +57,10 @@ async function submitMarketplaceReview(venueId, payload, reviewer) {
 
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
+
+  if (!(await venueHasFeatureFlag(venueId, "reviews"))) {
+    throw new AppError("This vendor is not accepting reviews right now.", 403);
+  }
 
   if (reviewer.type === "vendor" && venue.owner_id === reviewer.id) {
     throw new AppError("You can't review your own venue", 400);

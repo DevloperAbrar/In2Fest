@@ -1,6 +1,7 @@
 const reviewService = require("./review.service");
 const { ReviewRequest } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
+const { venueHasFeatureFlag } = require("../../utils/planAccess");
 
 async function submit(req, res, next) {
   try {
@@ -31,9 +32,17 @@ async function submitViaToken(req, res, next) {
 
 async function getByVenue(req, res, next) {
   try {
+    // Reviews are a plan feature: a plan without it shows no public reviews.
+    if (!(await venueHasFeatureFlag(req.params.venueId, "reviews"))) {
+      return res.json({
+        success: true,
+        data: { reviews: [], average_rating: null, review_count: 0, response_rate_badge: null, reviews_enabled: false }
+      });
+    }
+
     const result = await reviewService.getVenueReviews(req.params.venueId);
     const responseRateBadge = await reviewService.getResponseRateBadge(req.params.venueId);
-    res.json({ success: true, data: { ...result, response_rate_badge: responseRateBadge } });
+    res.json({ success: true, data: { ...result, response_rate_badge: responseRateBadge, reviews_enabled: true } });
   } catch (error) {
     next(error);
   }
