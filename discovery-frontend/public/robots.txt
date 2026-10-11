@@ -9,10 +9,14 @@ Disallow: /admin/
 Disallow: /auth/
 Disallow: /api/
 
+# The sitemap files live under /api/, so they must stay crawlable
+Allow: /api/sitemap.xml
+Allow: /api/sitemap-images.xml
+
 # Parameter URLs that only create duplicates
 Disallow: /*?*sort=
 Disallow: /*?*page=
 
-# Sitemaps (served by the API host)
-Sitemap: https://api.in2fest.com/sitemap.xml
-Sitemap: https://api.in2fest.com/sitemap-images.xml
+# Sitemaps
+Sitemap: https://in2fest.com/api/sitemap.xml
+Sitemap: https://in2fest.com/api/sitemap-images.xml
