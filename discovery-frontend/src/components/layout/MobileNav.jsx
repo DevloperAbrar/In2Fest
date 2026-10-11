@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import LanguageToggle from "../common/LanguageToggle.jsx";
 import { SHOW_LANGUAGE_TOGGLE } from "../../config/features";
 
+// Same target the desktop "List your business" button uses (see Header.jsx).
+const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
+const VENDOR_APP_LOGIN_URL = `${APP_URL}/login`;
+
 export default function MobileNav() {
   const { pathname } = useLocation();
   const { t } = useTranslation();
@@ -15,36 +19,52 @@ export default function MobileNav() {
     return pathname.startsWith(to);
   };
 
+  // `external: true` items open the vendor app (app.in2fest.com) instead of an in-site route.
   const NAV_ITEMS = [
-    { to: "/",              icon: Home,       label: t("mobileNav.home") },
-    { to: "/search",        icon: Search,     label: t("mobileNav.search") },
-    { to: "/register-free", icon: PlusCircle, label: t("mobileNav.listFree") },
+    { to: "/",    icon: Home,       label: t("mobileNav.home") },
+    { to: "/search", icon: Search,  label: t("mobileNav.search") },
+    { to: VENDOR_APP_LOGIN_URL, icon: PlusCircle, label: t("mobileNav.listFree"), external: true },
   ];
+
+  const itemClass = (active) =>
+    [
+      "flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors",
+      active ? "text-primary-600" : "text-gray-400 hover:text-gray-700",
+    ].join(" ");
 
   return (
     <>
       {/* Bottom nav bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 safe-area-pb">
         <div className="grid grid-cols-4 h-16">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
-            <Link
-              key={to}
-              to={to}
-              className={[
-                "flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors",
-                isActive(to)
-                  ? "text-primary-600"
-                  : "text-gray-400 hover:text-gray-700",
-              ].join(" ")}
-            >
-              <Icon
-                size={20}
-                className={isActive(to) ? "text-primary-600" : "text-gray-400"}
-                strokeWidth={isActive(to) ? 2.5 : 1.8}
-              />
-              {label}
-            </Link>
-          ))}
+          {NAV_ITEMS.map(({ to, icon: Icon, label, external }) => {
+            const active = !external && isActive(to);
+            const content = (
+              <>
+                <Icon
+                  size={20}
+                  className={active ? "text-primary-600" : "text-gray-400"}
+                  strokeWidth={active ? 2.5 : 1.8}
+                />
+                {label}
+              </>
+            );
+
+            // Full page navigation to the vendor app, same as the desktop button.
+            if (external) {
+              return (
+                <a key={to} href={to} className={itemClass(false)}>
+                  {content}
+                </a>
+              );
+            }
+
+            return (
+              <Link key={to} to={to} className={itemClass(active)}>
+                {content}
+              </Link>
+            );
+          })}
 
           {/* More button */}
           <button
@@ -83,7 +103,12 @@ export default function MobileNav() {
               <DrawerLink to="/categories" label={t("mobileNav.allCategories")} onClick={() => setDrawerOpen(false)} />
               <DrawerLink to="/cities" label={t("mobileNav.allCities")} onClick={() => setDrawerOpen(false)} />
               <DrawerLink to="/for-vendors" label={t("mobileNav.forVendors")} onClick={() => setDrawerOpen(false)} />
-              <DrawerLink to="/register-free" label={t("mobileNav.listBusinessFree")} onClick={() => setDrawerOpen(false)} />
+              <DrawerLink
+                to={VENDOR_APP_LOGIN_URL}
+                external
+                label={t("mobileNav.listBusinessFree")}
+                onClick={() => setDrawerOpen(false)}
+              />
               {/* Language toggle inside drawer (controlled by SHOW_LANGUAGE_TOGGLE) */}
               {SHOW_LANGUAGE_TOGGLE && (
                 <div className="px-3 pt-1">
@@ -102,13 +127,20 @@ export default function MobileNav() {
   );
 }
 
-function DrawerLink({ to, label, onClick }) {
+function DrawerLink({ to, label, onClick, external = false }) {
+  const className =
+    "flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition-colors";
+
+  if (external) {
+    return (
+      <a href={to} onClick={onClick} className={className}>
+        {label}
+      </a>
+    );
+  }
+
   return (
-    <Link
-      to={to}
-      onClick={onClick}
-      className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-    >
+    <Link to={to} onClick={onClick} className={className}>
       {label}
     </Link>
   );
