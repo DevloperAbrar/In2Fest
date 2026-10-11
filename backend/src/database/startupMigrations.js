@@ -77,7 +77,18 @@ const SCHEMA_STATEMENTS = [
   `ALTER TABLE categories
      ADD COLUMN IF NOT EXISTS image_url TEXT,
      ADD COLUMN IF NOT EXISTS tagline VARCHAR(160),
-     ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN NOT NULL DEFAULT true`
+     ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN NOT NULL DEFAULT true`,
+
+  // ---- Super Admin login activity ----
+  `CREATE TABLE IF NOT EXISTS login_events (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     actor_type VARCHAR(20) NOT NULL,
+     actor_id UUID NOT NULL,
+     venue_id UUID,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS login_events_created_idx ON login_events (created_at)`,
+  `CREATE INDEX IF NOT EXISTS login_events_actor_idx ON login_events (actor_type, actor_id, created_at)`
 ];
 
 const ENUM_STATEMENTS = [

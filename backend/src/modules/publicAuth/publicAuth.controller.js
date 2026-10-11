@@ -2,6 +2,7 @@ const { PublicUser, Review } = require("../../database/models");
 const { verifyGoogleIdToken } = require("../../utils/googleIdToken");
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require("./publicJwt.service");
 const { AppError } = require("../../middleware/error.middleware");
+const { recordLogin } = require("../../utils/loginTracker");
 
 const REFRESH_COOKIE = "publicRefreshToken"; // deliberately different name from the vendor's "refreshToken" cookie
 
@@ -36,6 +37,8 @@ async function googleLogin(req, res, next) {
       if (picture) user.avatar_url = picture;
       await user.save();
     }
+
+    recordLogin({ actorType: "visitor", actorId: user.id });
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);

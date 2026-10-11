@@ -5,6 +5,9 @@ import { useVisibleNavItems } from "../../hooks/useVisibleNavItems";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+// Dashboard roots only match exactly, so "Dashboard" is not highlighted on every sub page.
+const EXACT_MATCH_PATHS = ["/dashboard", "/admin"];
+
 export default function Sidebar({ items = [], logo = "In2Fest" }) {
   const { sidebarCollapsed, toggleSidebar } = useAuthStore();
   const visibleItems = useVisibleNavItems(items);
@@ -31,28 +34,44 @@ export default function Sidebar({ items = [], logo = "In2Fest" }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 no-scrollbar">
-        {visibleItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === "/dashboard"}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-white text-navy-900 shadow-sm"
-                  : "text-navy-300 hover:text-white hover:bg-white/5"
-              } ${sidebarCollapsed ? "justify-center" : ""}`
-            }
-            title={sidebarCollapsed ? item.label : undefined}
-          >
-            <item.icon size={18} className="shrink-0" />
-            {!sidebarCollapsed && (
-              <span className="truncate">
-                {item.i18nKey ? t(item.i18nKey) : item.label}
-              </span>
-            )}
-          </NavLink>
-        ))}
+        {visibleItems.map((item, index) => {
+          // Group heading (used by the Super Admin menu)
+          if (item.section) {
+            return sidebarCollapsed ? (
+              <div key={`section-${index}`} className="my-3 border-t border-white/10" />
+            ) : (
+              <p
+                key={`section-${index}`}
+                className="px-3 pt-4 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-navy-400"
+              >
+                {item.section}
+              </p>
+            );
+          }
+
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={EXACT_MATCH_PATHS.includes(item.path)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-white text-navy-900 shadow-sm"
+                    : "text-navy-300 hover:text-white hover:bg-white/5"
+                } ${sidebarCollapsed ? "justify-center" : ""}`
+              }
+              title={sidebarCollapsed ? item.label : undefined}
+            >
+              <item.icon size={18} className="shrink-0" />
+              {!sidebarCollapsed && (
+                <span className="truncate">
+                  {item.i18nKey ? t(item.i18nKey) : item.label}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       <div className="p-3 border-t border-white/5">

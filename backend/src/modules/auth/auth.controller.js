@@ -3,6 +3,7 @@ const { User } = require("../../database/models");
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require("./jwt.service");
 const { AppError } = require("../../middleware/error.middleware");
 const teamMemberService = require("../team-members/teamMember.service");
+const { recordLogin } = require("../../utils/loginTracker");
 
 /**
  * Super Admin login  - email + password only (as per spec: no Google OAuth for admin)
@@ -28,6 +29,7 @@ async function adminLogin(req, res, next) {
 
     user.last_login_at = new Date();
     await user.save();
+    recordLogin({ actorType: "super_admin", actorId: user.id });
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -59,6 +61,7 @@ async function teamMemberLogin(req, res, next) {
   try {
     const { email, password } = req.body;
     const result = await teamMemberService.loginTeamMember(email, password);
+    recordLogin({ actorType: "team_member", actorId: result.user.id, venueId: result.user.venueId });
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -71,6 +74,7 @@ async function teamMemberLogin(req, res, next) {
 async function googleCallback(req, res, next) {
   try {
     const user = req.user;
+    recordLogin({ actorType: "vendor", actorId: user.id });
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 

@@ -34,6 +34,8 @@ const CityRequest = require("./cityRequest.model")(sequelize, DataTypes);
 
 const Announcement = require("./announcement.model")(sequelize, DataTypes);
 
+const LoginEvent = require("./loginEvent.model")(sequelize, DataTypes);
+
 // New: Referral models
 const Referral = require("./referral.model")(sequelize, DataTypes);
 const ReferralCreditLedger = require("./referralCreditLedger.model")(sequelize, DataTypes);
@@ -169,6 +171,6 @@ module.exports = {
   City, Category, VenueServiceArea,
   VendorListing, Review, ReviewRequest,
   PublicUser, SavedVendor, CityRequest,
-  Announcement,
+  Announcement, LoginEvent,
   Referral, ReferralCreditLedger
 };

@@ -28,6 +28,7 @@ const listingRoutes = require("../modules/listing/listing.routes");
 const reviewRoutes = require("../modules/reviews/review.routes");
 
 const adminDiscoveryRoutes = require("../modules/admin-discovery/adminDiscovery.routes");
+const adminOverviewRoutes = require("../modules/admin-overview/adminOverview.routes");
 
 const announcementRoutes = require("../modules/announcements/announcement.routes");
 
@@ -70,6 +71,7 @@ router.use("/listing", listingRoutes);
 router.use("/reviews", reviewRoutes);
 
 router.use("/admin/discovery", adminDiscoveryRoutes);
+router.use("/admin/overview", adminOverviewRoutes);
 router.use("/announcements", announcementRoutes);
 
 module.exports = router;

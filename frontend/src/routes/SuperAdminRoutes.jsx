@@ -12,6 +12,12 @@ import AdminAnalytics from "../features/superadmin/analytics/AdminAnalytics.jsx"
 import PlatformSettings from "../features/superadmin/settings/PlatformSettings.jsx";
 import AnnouncementManager from "../features/superadmin/discovery/AnnouncementManager.jsx";
 
+import RegistrationsPage from "../features/superadmin/overview/RegistrationsPage.jsx";
+import LoginActivity from "../features/superadmin/overview/LoginActivity.jsx";
+import PlanVendors from "../features/superadmin/overview/PlanVendors.jsx";
+import MarketplaceOverview from "../features/superadmin/overview/MarketplaceOverview.jsx";
+import SystemHealth from "../features/superadmin/overview/SystemHealth.jsx";
+
 import FeaturedVendors from "../features/superadmin/discovery/FeaturedVendors.jsx";
 import ReviewModeration from "../features/superadmin/discovery/ReviewModeration.jsx";
 import FreeListings from "../features/superadmin/discovery/FreeListings.jsx";
@@ -25,6 +31,12 @@ export default function SuperAdminRoutes() {
   return (
     <Routes>
       <Route index element={<SuperAdminDashboard />} />
+      <Route path="registrations" element={<RegistrationsPage />} />
+      <Route path="logins" element={<LoginActivity />} />
+      <Route path="plan-vendors" element={<PlanVendors />} />
+      <Route path="marketplace" element={<MarketplaceOverview />} />
+      <Route path="system" element={<SystemHealth />} />
+
       <Route path="venues" element={<VenueList />} />
       <Route path="venues/new" element={<AddVendor />} />
       <Route path="venues/:id" element={<VenueDetail />} />
