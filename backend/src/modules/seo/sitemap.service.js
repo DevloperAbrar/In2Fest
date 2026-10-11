@@ -3,8 +3,13 @@ const { slugify } = require("../../utils/slugify");
 const env = require("../../config/env");
 
 const BASE = env.baseDomain || "in2fest.com";
-const SITE = `https://www.${BASE}`;
-const API_BASE = (process.env.API_PUBLIC_URL || `https://api.${BASE}`).replace(/\/$/, "");
+
+// The site is served on the apex domain (https://in2fest.com), so every URL in the sitemap
+// must use exactly that host. Mixing www and non-www makes Google treat them as different pages.
+const SITE = `https://${BASE}`;
+
+// Only used for relative image paths (R2 images are already absolute URLs).
+const API_BASE = (process.env.API_PUBLIC_URL || `https://${BASE}`).replace(/\/$/, "");
 
 function escapeXml(str = "") {
   return String(str)
@@ -153,8 +158,8 @@ ${imageXmlBody}
 </urlset>`;
 
   // 6. Vendor subdomain sitemap.
-  // URLs on other hosts (name.in2fest.com) are not allowed inside a www sitemap, so this file
-  // is kept only for a future per-subdomain sitemap and is NOT referenced from the index.
+  // URLs on other hosts (name.in2fest.com) are not allowed inside the main sitemap, so this file
+  // is kept only for a future per-subdomain sitemap and is NOT submitted to Google.
   const vendorSitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${venues

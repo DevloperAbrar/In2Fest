@@ -13,5 +13,6 @@ Disallow: /api/
 Disallow: /*?*sort=
 Disallow: /*?*page=
 
-# Sitemap index (lists the main and image sitemaps)
-Sitemap: https://www.in2fest.com/sitemap-index.xml
+# Sitemaps (served by the API host)
+Sitemap: https://api.in2fest.com/sitemap.xml
+Sitemap: https://api.in2fest.com/sitemap-images.xml

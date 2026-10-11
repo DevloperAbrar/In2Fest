@@ -42,6 +42,7 @@ app.use(
 );
 
 app.use("/", sitemapRoutes);
+app.use("/api", sitemapRoutes); // makes https://in2fest.com/api/sitemap.xml work, since /api already reaches the backend
 const cashfreeWebhookRoutes = require("./modules/payments/cashfree.webhook");
 app.use("/api/webhooks", cashfreeWebhookRoutes); // must be before express.json() for raw-body HMAC
 app.use(express.json({ limit: "2mb" }));
