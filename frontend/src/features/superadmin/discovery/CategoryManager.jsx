@@ -18,7 +18,8 @@ const EMPTY_FORM = {
   is_venue_type: false,
   show_on_home: true,
   display_order: "",
-  business_type: "general"
+  business_type: "general",
+  max_secondary_categories: 2
 };
 
 const MAX_IMAGE_MB = 5;
@@ -70,6 +71,7 @@ function ImagePicker({ current, file, removed, onPick, onRemove }) {
         <div className="space-y-2">
           <label className="inline-block text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer">
             {shown ? "Replace image" : "Upload image"}
+
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
           </label>
           {shown && (
@@ -129,7 +131,10 @@ export default function CategoryManager() {
       ...cat,
       business_type: cat.business_type || "general",
       tagline: cat.tagline || "",
-      show_on_home: cat.show_on_home !== false
+      show_on_home: cat.show_on_home !== false,
+      max_secondary_categories: Number.isInteger(cat.max_secondary_categories)
+        ? cat.max_secondary_categories
+        : 2
     });
   };
 
@@ -145,6 +150,7 @@ export default function CategoryManager() {
         is_venue_type: editTarget.is_venue_type,
         show_on_home: editTarget.show_on_home,
         business_type: editTarget.business_type,
+        max_secondary_categories: editTarget.max_secondary_categories,
         image: editFile || undefined,
         remove_image: editRemoved && !editFile ? true : undefined
       });
@@ -231,6 +237,20 @@ export default function CategoryManager() {
               placeholder="e.g. Gyms, studios and trainers near you"
             />
           </div>
+        </div>
+        <div className="mb-4 max-w-sm">
+          <Input
+            label="Extra services allowed (0 = single category only)"
+            type="number"
+            min={0}
+            max={10}
+            value={form.max_secondary_categories}
+            onChange={(e) => set("max_secondary_categories", e.target.value)}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            How many other categories a vendor can add when this is their main one.
+            Use 0 for coaching/gym, 3-4 for venues.
+          </p>
         </div>
         <div className="mb-4">
           <ImagePicker
@@ -371,6 +391,22 @@ export default function CategoryManager() {
               />
               <p className="text-xs text-gray-400 mt-1">
                 Changing this updates the profile questions, billing setup and home page group for every vendor in this category.
+              </p>
+            </div>
+            <div>
+              <Input
+                label="Extra services allowed (0 = single category only)"
+                type="number"
+                min={0}
+                max={10}
+                value={editTarget.max_secondary_categories}
+                onChange={(e) =>
+                  setEditTarget({ ...editTarget, max_secondary_categories: e.target.value })
+                }
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Applies to vendors whose main category is this one. Existing vendors keep their
+                saved extras until they next save their profile.
               </p>
             </div>
             <Input

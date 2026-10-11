@@ -5,6 +5,7 @@ import Select from "../../../../components/common/Select";
 import MultiSelect from "../../../../components/common/MultiSelect";
 import Button from "../../../../components/common/Button";
 import { LANGUAGE_OPTIONS } from "../../../../lib/marketplaceCategories";
+import { getMaxSecondary } from "../../../../lib/vendorCategoryConfig";
 
 const fromVenue = (venue) => ({
   business_category: venue.business_category || "",
@@ -45,6 +46,12 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
   const sortedCategories = useMemo(
     () => [...(categories || [])].sort(compareCategories),
     [categories]
+  );
+
+  // The limit for extra categories comes from the selected PRIMARY category.
+  const maxSecondary = useMemo(
+    () => getMaxSecondary(sortedCategories.find((c) => c.slug === form.business_category)),
+    [sortedCategories, form.business_category]
   );
 
   // Primary dropdown grouped by business type (Events, Education, Retail ...).
@@ -96,13 +103,14 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
   };
 
   const handlePrimaryChange = (value) => {
-    const secondary = form.secondary_categories.filter((s) => s !== value);
+    const nextLimit = getMaxSecondary(sortedCategories.find((c) => c.slug === value));
+    const secondary = form.secondary_categories.filter((s) => s !== value).slice(0, nextLimit);
     setForm({ ...form, business_category: value, secondary_categories: secondary });
     if (onCategoryChange) onCategoryChange(value, secondary);
   };
 
   const handleSecondaryChange = (vals) => {
-    const secondary = vals.slice(0, 2);
+    const secondary = vals.slice(0, maxSecondary);
     setForm({ ...form, secondary_categories: secondary });
     if (onCategoryChange) onCategoryChange(form.business_category, secondary);
   };
@@ -122,13 +130,26 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
         </p>
       )}
 
-      <MultiSelect
-        label="Secondary categories (up to 2)"
-        options={secondaryOptions}
-        value={form.secondary_categories}
-        onChange={handleSecondaryChange}
-        placeholder="Select up to 2 additional categories"
-      />
+      {maxSecondary > 0 || form.secondary_categories.length > 0 ? (
+        <MultiSelect
+          label={
+            maxSecondary > 0
+              ? `Additional services (optional, up to ${maxSecondary})`
+              : "Additional services (not allowed for this category - remove them)"
+          }
+          options={secondaryOptions}
+          value={form.secondary_categories}
+          onChange={handleSecondaryChange}
+          max={Math.max(maxSecondary, 0)}
+          placeholder={`Select up to ${maxSecondary} additional categories`}
+        />
+      ) : (
+        form.business_category && (
+          <p className="text-xs text-gray-400">
+            This category is listed on its own, so no additional services can be added.
+          </p>
+        )
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">

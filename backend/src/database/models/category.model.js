@@ -20,7 +20,10 @@ module.exports = (sequelize, DataTypes) => {
     // Short line shown under the category name on the home page.
     tagline: { type: DataTypes.STRING(160), allowNull: true },
     // Super Admin can hide a category from the home page without deactivating it.
-    show_on_home: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
+    show_on_home: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    // How many EXTRA categories a vendor whose main category is this one may add.
+    // 0 = single category only (e.g. coaching). Default 2 keeps old behaviour.
+    max_secondary_categories: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 2 }
   }, {
     tableName: "categories",
     timestamps: false

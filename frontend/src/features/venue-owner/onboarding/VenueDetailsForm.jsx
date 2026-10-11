@@ -17,12 +17,12 @@ import {
   CATEGORY_FIELD_CONFIG,
   COMMON_FIELDS,
   getGroupForCategories,
-  getPrimaryCategory
+  getMaxSecondary
 } from "../../../lib/vendorCategoryConfig";
 import {
   Building2, Trees, Camera, Video, Palette, UtensilsCrossed,
   Music2, Sparkles, Tent, Printer, Flame, Car, ClipboardList,
-  Mic2, Gem, Cake, Gift, Store, Search, X, ArrowLeft, Check
+  Mic2, Gem, Cake, Gift, Store, Search, X, ArrowLeft, Check, Plus
 } from "lucide-react";
 
 const ICON_RULES = [
@@ -41,12 +41,48 @@ function getCategoryIcon(name = "") {
   return match ? match[1] : Store;
 }
 
-function StepProgress({ step }) {
+// `total` is 3 when the main category allows extra services, otherwise 2.
+function StepProgress({ step, total = 3 }) {
   return (
-    <div className="flex items-center gap-2 max-w-[120px] mx-auto mb-6">
-      <span className={`h-1 flex-1 rounded-full ${step >= 1 ? "bg-[#C1352B]" : "bg-[#EBE5DA]"}`} />
-      <span className={`h-1 flex-1 rounded-full ${step >= 2 ? "bg-[#C1352B]" : "bg-[#EBE5DA]"}`} />
+    <div className="flex items-center gap-2 max-w-[160px] mx-auto mb-6">
+      {Array.from({ length: total }).map((_, i) => (
+        <span
+          key={i}
+          className={`h-1 flex-1 rounded-full ${step >= i + 1 ? "bg-[#C1352B]" : "bg-[#EBE5DA]"}`}
+        />
+      ))}
     </div>
+  );
+}
+
+function CategoryTile({ cat, selected, disabled, onClick }) {
+  const Icon = getCategoryIcon(cat.name);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={`relative flex flex-col items-start gap-2.5 rounded-xl p-4 text-left transition-all duration-150 border ${
+        selected
+          ? "border-[#C1352B] bg-[#FFFBFA] shadow-sm"
+          : disabled
+            ? "border-[#EBE5DA] bg-[#FAF8F4] opacity-50 cursor-not-allowed"
+            : "border-[#EBE5DA] bg-white hover:border-[#D8D2C6] hover:-translate-y-0.5"
+      }`}
+    >
+      <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${selected ? "bg-[#C1352B] text-white" : "bg-[#F5F1E9] text-[#6B6B76]"}`}>
+        <Icon size={16} strokeWidth={2} />
+      </span>
+      <span className={`text-sm font-medium ${selected ? "text-[#C1352B]" : "text-[#151626]"}`}>
+        {cat.name}
+      </span>
+      {selected && (
+        <span className="absolute top-3 right-3 w-4 h-4 rounded-full bg-[#C1352B] flex items-center justify-center">
+          <Check size={10} className="text-white" strokeWidth={3} />
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -59,9 +95,12 @@ export default function VenueDetailsForm() {
   const needsPayment = !!plan && Number(plan.monthly_price) > 0;
   const { refetchVenue } = useVenue();
 
+  // 1 = main business, 2 = extra services (optional), 3 = business details
   const [step, setStep] = useState(1);
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [primaryCategory, setPrimaryCategory] = useState(null);
+  const [secondaryCategories, setSecondaryCategories] = useState([]);
   const [search, setSearch] = useState("");
+  const [secondarySearch, setSecondarySearch] = useState("");
   const [payingNow, setPayingNow] = useState(false);
 
   // Referral code from URL or localStorage
@@ -76,6 +115,14 @@ export default function VenueDetailsForm() {
   }, []);
 
   const { data: categories, loading: categoriesLoading } = useFetch("/meta/categories");
+
+  // Main category first, then any extra services (in the order the vendor added them).
+  const selectedCategories = primaryCategory ? [primaryCategory, ...secondaryCategories] : [];
+  const primaryCategoryRow = (categories || []).find((c) => c.slug === primaryCategory);
+  // How many extra services this main category allows (set by Super Admin, 0 = single only).
+  const maxSecondary = getMaxSecondary(primaryCategoryRow);
+  const hasExtrasStep = maxSecondary > 0;
+  const totalSteps = hasExtrasStep ? 3 : 2;
 
   const group = getGroupForCategories(selectedCategories, categories || []);
   const groupConfig = CATEGORY_FIELD_CONFIG[group];
@@ -103,18 +150,36 @@ export default function VenueDetailsForm() {
     ...(cities || []).map((c) => ({ value: c.name, label: c.name }))
   ];
 
-  function handleToggleCategory(slug) {
-    setSelectedCategories((prev) =>
-      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
-    );
+  function handleSelectPrimary(slug) {
+    const row = (categories || []).find((c) => c.slug === slug);
+    const limit = getMaxSecondary(row);
+    setPrimaryCategory(slug);
+    // New main category: drop it from extras and trim to the new limit.
+    setSecondaryCategories((prev) => prev.filter((s) => s !== slug).slice(0, limit));
+    setSecondarySearch("");
   }
 
-  function handleContinue() {
-    if (selectedCategories.length === 0) {
-      showError("Select at least one business type to continue");
+  function handleToggleSecondary(slug) {
+    if (secondaryCategories.includes(slug)) {
+      setSecondaryCategories(secondaryCategories.filter((s) => s !== slug));
       return;
     }
-    setStep(2);
+    if (secondaryCategories.length >= maxSecondary) {
+      showError(
+        `You can add up to ${maxSecondary} additional service${maxSecondary === 1 ? "" : "s"}`
+      );
+      return;
+    }
+    setSecondaryCategories([...secondaryCategories, slug]);
+  }
+
+  // Screen 1 -> screen 2 (extras) if allowed, otherwise straight to details.
+  function handleContinueFromPrimary() {
+    if (!primaryCategory) {
+      showError("Select your main business type to continue");
+      return;
+    }
+    setStep(hasExtrasStep ? 2 : 3);
   }
 
   function startCashfreePayment(venue, quote) {
@@ -178,9 +243,6 @@ export default function VenueDetailsForm() {
 
   const onSubmit = async (values) => {
     try {
-      const primaryCategory = getPrimaryCategory(selectedCategories, categories || []);
-      const secondaryCategories = selectedCategories.filter((slug) => slug !== primaryCategory);
-
       const { data } = await venueService.create({
         ...values,
         business_category: primaryCategory,
@@ -202,27 +264,35 @@ export default function VenueDetailsForm() {
     }
   };
 
-  const filteredCategories = (categories || []).filter((cat) =>
-    cat.name.toLowerCase().includes(search.toLowerCase())
+  const animationStyles = (
+    <style>{`
+      @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      .step-enter { animation: stepIn 0.35s ease-out; }
+    `}</style>
   );
 
+  // ───────────────────────── Screen 1: main business ─────────────────────────
   if (step === 1) {
+    const filteredPrimary = (categories || []).filter((cat) =>
+      cat.name.toLowerCase().includes(search.toLowerCase())
+    );
+
     return (
       <div className="min-h-screen bg-[#FBF7F1]">
-        <style>{`
-          @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-          .step-enter { animation: stepIn 0.35s ease-out; }
-        `}</style>
+        {animationStyles}
 
         <div key="step-1" className="step-enter max-w-3xl mx-auto px-4 pt-14 pb-32">
-          <StepProgress step={1} />
+          <StepProgress step={1} total={totalSteps} />
 
+          <p className="text-xs font-semibold tracking-wide uppercase text-[#C1352B] text-center mb-2">
+            Step 1 of {totalSteps}
+          </p>
           <h2 className="text-2xl md:text-3xl font-bold text-[#151626] text-center tracking-tight">
-            What kind of business do you run?
+            What is your main business?
           </h2>
           <p className="text-sm text-[#6B6B76] mt-2 mb-8 text-center max-w-lg mx-auto">
-            This decides what your dashboard and public page look like. You can pick more than
-            one — e.g. Marriage Hall + Caterer.
+            Pick the one that describes you best. This decides what your dashboard and public
+            page look like.
           </p>
 
           <div className="relative mb-5">
@@ -236,60 +306,19 @@ export default function VenueDetailsForm() {
             />
           </div>
 
-          {selectedCategories.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              {selectedCategories.map((slug) => {
-                const cat = (categories || []).find((c) => c.slug === slug);
-                if (!cat) return null;
-                return (
-                  <button
-                    key={slug}
-                    type="button"
-                    onClick={() => handleToggleCategory(slug)}
-                    className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-[#FBEAE7] text-[#C1352B] text-xs font-medium hover:bg-[#F5D8D3] transition-colors"
-                  >
-                    {cat.name}
-                    <X size={12} strokeWidth={2.5} />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           {categoriesLoading ? (
             <Loader />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {filteredCategories.map((cat) => {
-                const isSelected = selectedCategories.includes(cat.slug);
-                const Icon = getCategoryIcon(cat.name);
-                return (
-                  <button
-                    key={cat.slug}
-                    type="button"
-                    onClick={() => handleToggleCategory(cat.slug)}
-                    aria-pressed={isSelected}
-                    className={`relative flex flex-col items-start gap-2.5 rounded-xl p-4 text-left transition-all duration-150 border ${
-                      isSelected
-                        ? "border-[#C1352B] bg-[#FFFBFA] shadow-sm"
-                        : "border-[#EBE5DA] bg-white hover:border-[#D8D2C6] hover:-translate-y-0.5"
-                    }`}
-                  >
-                    <span className={`flex items-center justify-center w-8 h-8 rounded-lg ${isSelected ? "bg-[#C1352B] text-white" : "bg-[#F5F1E9] text-[#6B6B76]"}`}>
-                      <Icon size={16} strokeWidth={2} />
-                    </span>
-                    <span className={`text-sm font-medium ${isSelected ? "text-[#C1352B]" : "text-[#151626]"}`}>
-                      {cat.name}
-                    </span>
-                    {isSelected && (
-                      <span className="absolute top-3 right-3 w-4 h-4 rounded-full bg-[#C1352B] flex items-center justify-center">
-                        <Check size={10} className="text-white" strokeWidth={3} />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              {filteredCategories.length === 0 && (
+              {filteredPrimary.map((cat) => (
+                <CategoryTile
+                  key={cat.slug}
+                  cat={cat}
+                  selected={primaryCategory === cat.slug}
+                  onClick={() => handleSelectPrimary(cat.slug)}
+                />
+              ))}
+              {filteredPrimary.length === 0 && (
                 <p className="col-span-full text-center text-sm text-[#9C978C] py-8">
                   No business type matches "{search}"
                 </p>
@@ -299,15 +328,26 @@ export default function VenueDetailsForm() {
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#EBE5DA] px-4 py-4">
-          <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
             <p className="text-sm text-[#6B6B76]">
-              {selectedCategories.length === 0 ? "Select at least one" : `${selectedCategories.length} selected`}
+              {!primaryCategory ? (
+                "Select your main business type"
+              ) : hasExtrasStep ? (
+                <>
+                  <span className="font-medium text-[#151626]">{primaryCategoryRow?.name}</span> selected.
+                  Next: add other services you offer (optional).
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-[#151626]">{primaryCategoryRow?.name}</span> selected.
+                </>
+              )}
             </p>
             <Button
               type="button"
-              onClick={handleContinue}
-              disabled={selectedCategories.length === 0}
-              className="!bg-[#C1352B] hover:!bg-[#A82E25] !rounded-full !px-8"
+              onClick={handleContinueFromPrimary}
+              disabled={!primaryCategory}
+              className="!bg-[#C1352B] hover:!bg-[#A82E25] !rounded-full !px-8 shrink-0"
             >
               Continue
             </Button>
@@ -317,24 +357,169 @@ export default function VenueDetailsForm() {
     );
   }
 
+  // ─────────────────── Screen 2: other services (optional) ───────────────────
+  if (step === 2 && hasExtrasStep) {
+    const secondaryPool = (categories || []).filter(
+      (cat) =>
+        cat.slug !== primaryCategory &&
+        cat.name.toLowerCase().includes(secondarySearch.toLowerCase())
+    );
+    const limitReached = secondaryCategories.length >= maxSecondary;
+    const MainIcon = getCategoryIcon(primaryCategoryRow?.name || "");
+
+    return (
+      <div className="min-h-screen bg-[#FBF7F1]">
+        {animationStyles}
+
+        <div key="step-2-extras" className="step-enter max-w-3xl mx-auto px-4 pt-14 pb-32">
+          <StepProgress step={2} total={totalSteps} />
+
+          <p className="text-xs font-semibold tracking-wide uppercase text-[#C1352B] text-center mb-2">
+            Step 2 of {totalSteps} · Optional
+          </p>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#151626] text-center tracking-tight">
+            Do you offer other services too?
+          </h2>
+          <p className="text-sm text-[#6B6B76] mt-2 mb-6 text-center max-w-lg mx-auto">
+            For example, a banquet hall that also provides catering or DJ. Customers searching
+            for these services can find you too. You can skip this and add them later.
+          </p>
+
+          {/* Main business recap */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#EBE5DA] bg-white px-4 py-3 mb-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#C1352B] text-white shrink-0">
+                <MainIcon size={16} strokeWidth={2} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-wide text-[#9C978C]">Your main business</p>
+                <p className="text-sm font-semibold text-[#151626] truncate">{primaryCategoryRow?.name}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="text-xs font-medium text-[#C1352B] hover:underline shrink-0"
+            >
+              Change
+            </button>
+          </div>
+
+          {/* Added services + counter */}
+          <div className="rounded-xl border border-dashed border-[#D8D2C6] bg-white/60 px-4 py-3 mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-[#151626]">Additional services</p>
+              <span
+                className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                  limitReached ? "bg-[#C1352B] text-white" : "bg-[#F5F1E9] text-[#6B6B76]"
+                }`}
+              >
+                {secondaryCategories.length} of {maxSecondary} added
+              </span>
+            </div>
+
+            {secondaryCategories.length === 0 ? (
+              <p className="text-xs text-[#9C978C]">
+                Nothing added yet. Tap a service below to add it (up to {maxSecondary}).
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {secondaryCategories.map((slug) => {
+                  const cat = (categories || []).find((c) => c.slug === slug);
+                  if (!cat) return null;
+                  return (
+                    <button
+                      key={slug}
+                      type="button"
+                      onClick={() => handleToggleSecondary(slug)}
+                      className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full bg-[#FBEAE7] text-[#C1352B] text-xs font-medium hover:bg-[#F5D8D3] transition-colors"
+                    >
+                      {cat.name}
+                      <X size={12} strokeWidth={2.5} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {limitReached && (
+              <p className="text-xs text-[#C1352B] mt-2">
+                Limit reached. Remove one to pick a different service.
+              </p>
+            )}
+          </div>
+
+          <div className="relative mb-4">
+            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9C978C]" />
+            <input
+              type="text"
+              value={secondarySearch}
+              onChange={(e) => setSecondarySearch(e.target.value)}
+              placeholder="Search other services..."
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#EBE5DA] bg-white text-sm text-[#151626] placeholder:text-[#B4AFA2] focus:outline-none focus:border-[#C1352B] focus:ring-2 focus:ring-[#C1352B]/10"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {secondaryPool.map((cat) => {
+              const isSelected = secondaryCategories.includes(cat.slug);
+              return (
+                <CategoryTile
+                  key={cat.slug}
+                  cat={cat}
+                  selected={isSelected}
+                  disabled={limitReached && !isSelected}
+                  onClick={() => handleToggleSecondary(cat.slug)}
+                />
+              );
+            })}
+            {secondaryPool.length === 0 && (
+              <p className="col-span-full text-center text-sm text-[#9C978C] py-8">
+                No service matches "{secondarySearch}"
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#EBE5DA] px-4 py-4">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="group flex items-center gap-1.5 text-sm text-[#6B6B76] hover:text-[#C1352B] transition-colors"
+            >
+              <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
+              Back
+            </button>
+            <Button
+              type="button"
+              onClick={() => setStep(3)}
+              className="!bg-[#C1352B] hover:!bg-[#A82E25] !rounded-full !px-8"
+            >
+              {secondaryCategories.length === 0 ? "Skip for now" : "Continue"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ───────────────────────── Screen 3: business details ─────────────────────────
   return (
     <div className="min-h-screen bg-[#FBF7F1]">
-      <style>{`
-        @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .step-enter { animation: stepIn 0.35s ease-out; }
-      `}</style>
+      {animationStyles}
 
-      <div key="step-2" className="step-enter max-w-lg mx-auto px-4 py-14">
-        <StepProgress step={2} />
+      <div key="step-details" className="step-enter max-w-lg mx-auto px-4 py-14">
+        <StepProgress step={totalSteps} total={totalSteps} />
 
         <div className="bg-white p-8 rounded-2xl border border-[#EBE5DA]">
           <button
             type="button"
-            onClick={() => setStep(1)}
+            onClick={() => setStep(hasExtrasStep ? 2 : 1)}
             className="group flex items-center gap-1.5 text-sm text-[#9C978C] hover:text-[#C1352B] mb-5 transition-colors"
           >
             <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
-            Change business type(s)
+            {hasExtrasStep ? "Back to services" : "Change business type"}
           </button>
 
           <h2 className="text-xl font-bold text-[#151626] mb-1">{groupConfig.label}</h2>

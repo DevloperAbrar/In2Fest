@@ -10,7 +10,8 @@ export default function MultiSelect({
   value = [],
   onChange,
   placeholder = "Select options",
-  searchable = false
+  searchable = false,
+  max = null
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -49,10 +50,12 @@ export default function MultiSelect({
     setOpen(!open);
   };
 
+  const atLimit = max != null && value.length >= max;
+
   const toggleOption = (optValue) => {
     if (value.includes(optValue)) {
       onChange(value.filter((v) => v !== optValue));
-    } else {
+    } else if (!atLimit) {
       onChange([...value, optValue]);
     }
   };
@@ -140,8 +143,12 @@ export default function MultiSelect({
                   )}
                   <div
                     onClick={() => toggleOption(opt.value)}
-                    className={`flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
-                      isSelected ? "text-primary-700 font-medium" : "text-gray-700"
+                    className={`flex items-center justify-between px-3 py-2 text-sm ${
+                      atLimit && !isSelected
+                        ? "text-gray-300 cursor-not-allowed"
+                        : `cursor-pointer hover:bg-gray-50 ${
+                            isSelected ? "text-primary-700 font-medium" : "text-gray-700"
+                          }`
                     }`}
                   >
                     {opt.label}

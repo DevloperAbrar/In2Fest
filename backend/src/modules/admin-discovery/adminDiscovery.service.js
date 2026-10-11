@@ -6,10 +6,102 @@ const { BUSINESS_TYPES } = require("../../config/businessTypes");
 const { refreshCategoryTypes } = require("../../utils/categoryTypeCache");
 
 // ─── Featured vendors ────────────────────────────────────────────────────────
+const DEFAULT_MAX_SECONDARY = 2;
+
+// Validates the "extra categories allowed" number coming from the admin UI.
+function resolveMaxSecondary(value, fallback = DEFAULT_MAX_SECONDARY) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 10) {
+    throw new AppError("Extra categories limit must be a whole number from 0 to 10", 400);
+  }
+  return n;
+}
+
+async function createCategory(payload, imageUrl) {
+  const {
+    name, slug, icon, display_order, is_venue_type, business_type,
+    tagline, show_on_home, max_secondary_categories
+  } = payload;
+  if (!name || !name.trim()) throw new AppError("Category name is required", 400);
+
+  const autoSlug = slug ? slug.trim() : slugify(name);
+
+  // Slug must be unique and URL-safe
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(autoSlug)) {
+    throw new AppError("Slug must be lowercase letters, numbers and hyphens only", 400);
+  }
+
+  const existing = await Category.findOne({ where: { slug: autoSlug } });
+  if (existing) throw new AppError(`Slug "${autoSlug}" is already taken`, 409);
+
+  const resolvedType = resolveBusinessType(business_type);
+  const resolvedMaxSecondary = resolveMaxSecondary(max_secondary_categories);
+
+  // display_order: if not provided, put it at the end
+  const maxOrder = await Category.max("display_order") || 0;
+
+  const created = await Category.create({
+    name: name.trim(),
+    slug: autoSlug,
+    icon: icon || "tag",
+    display_order: (display_order !== undefined && display_order !== null && display_order !== "")
+      ? Number(display_order)
+      : maxOrder + 1,
+    active: true,
+    is_venue_type: asBool(is_venue_type, false),
+    business_type: resolvedType,
+    image_url: imageUrl || null,
+    tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null,
+    show_on_home: asBool(show_on_home, true),
+    max_secondary_categories: resolvedMaxSecondary
+  });
+
+  await syncCategoryTypes();
+  return created;
+}
+
+async function updateCategory(categoryId, payload, imageUrl) {
+  const cat = await Category.findByPk(categoryId);
+  if (!cat) throw new AppError("Category not found", 404);
+
+  // Slug is immutable once set - changing it breaks every live URL for that category.
+  const {
+    name, icon, display_order, active, is_venue_type, business_type,
+    tagline, show_on_home, remove_image, max_secondary_categories
+  } = payload;
+
+  const hasBusinessType = business_type !== undefined && business_type !== null && business_type !== "";
+  const hasMaxSecondary =
+    max_secondary_categories !== undefined && max_secondary_categories !== null && max_secondary_categories !== "";
+
+  const patch = {
+    ...(name != null && name !== "" && { name: String(name).trim() }),
+    ...(icon != null && icon !== "" && { icon }),
+    ...(display_order != null && display_order !== "" && { display_order: Number(display_order) }),
+    ...(active != null && active !== "" && { active: asBool(active, cat.active) }),
+    ...(is_venue_type != null && is_venue_type !== "" && { is_venue_type: asBool(is_venue_type, cat.is_venue_type) }),
+    ...(show_on_home != null && show_on_home !== "" && { show_on_home: asBool(show_on_home, cat.show_on_home) }),
+    ...(tagline !== undefined && { tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null }),
+    ...(hasBusinessType && { business_type: resolveBusinessType(business_type) }),
+    ...(hasMaxSecondary && {
+      max_secondary_categories: resolveMaxSecondary(max_secondary_categories, cat.max_secondary_categories)
+    })
+  };
+
+  if (imageUrl) patch.image_url = imageUrl;
+  else if (asBool(remove_image, false)) patch.image_url = null;
+
+  await cat.update(patch);
+
+  await syncCategoryTypes();
+  return cat;
+}
 
 async function getFeaturedVendors() {
   return Venue.findAll({ where: { featured_on_homepage: true }, order: [["hall_name", "ASC"]] });
 }
+
 
 async function setFeaturedVendors(venueIds) {
   if (!Array.isArray(venueIds) || venueIds.length > 10) {
@@ -94,72 +186,9 @@ const asBool = (v, fallback) => {
   return v === true || v === "true" || v === "1" || v === 1;
 };
 
-async function createCategory(payload, imageUrl) {
-  const { name, slug, icon, display_order, is_venue_type, business_type, tagline, show_on_home } = payload;
-  if (!name || !name.trim()) throw new AppError("Category name is required", 400);
 
-  const autoSlug = slug ? slug.trim() : slugify(name);
 
-  // Slug must be unique and URL-safe
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(autoSlug)) {
-    throw new AppError("Slug must be lowercase letters, numbers and hyphens only", 400);
-  }
 
-  const existing = await Category.findOne({ where: { slug: autoSlug } });
-  if (existing) throw new AppError(`Slug "${autoSlug}" is already taken`, 409);
-
-  const resolvedType = resolveBusinessType(business_type);
-
-  // display_order: if not provided, put it at the end
-  const maxOrder = await Category.max("display_order") || 0;
-
-  const created = await Category.create({
-    name: name.trim(),
-    slug: autoSlug,
-    icon: icon || "tag",
-    display_order: (display_order !== undefined && display_order !== null && display_order !== "")
-      ? Number(display_order)
-      : maxOrder + 1,
-    active: true,
-    is_venue_type: asBool(is_venue_type, false),
-    business_type: resolvedType,
-    image_url: imageUrl || null,
-    tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null,
-    show_on_home: asBool(show_on_home, true)
-  });
-
-  await syncCategoryTypes();
-  return created;
-}
-
-async function updateCategory(categoryId, payload, imageUrl) {
-  const cat = await Category.findByPk(categoryId);
-  if (!cat) throw new AppError("Category not found", 404);
-
-  // Slug is immutable once set - changing it breaks every live URL for that category.
-  const { name, icon, display_order, active, is_venue_type, business_type, tagline, show_on_home, remove_image } = payload;
-
-  const hasBusinessType = business_type !== undefined && business_type !== null && business_type !== "";
-
-  const patch = {
-    ...(name != null && name !== "" && { name: String(name).trim() }),
-    ...(icon != null && icon !== "" && { icon }),
-    ...(display_order != null && display_order !== "" && { display_order: Number(display_order) }),
-    ...(active != null && active !== "" && { active: asBool(active, cat.active) }),
-    ...(is_venue_type != null && is_venue_type !== "" && { is_venue_type: asBool(is_venue_type, cat.is_venue_type) }),
-    ...(show_on_home != null && show_on_home !== "" && { show_on_home: asBool(show_on_home, cat.show_on_home) }),
-    ...(tagline !== undefined && { tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null }),
-    ...(hasBusinessType && { business_type: resolveBusinessType(business_type) })
-  };
-
-  if (imageUrl) patch.image_url = imageUrl;
-  else if (asBool(remove_image, false)) patch.image_url = null;
-
-  await cat.update(patch);
-
-  await syncCategoryTypes();
-  return cat;
-}
 
 async function deleteCategory(categoryId) {
   const cat = await Category.findByPk(categoryId);

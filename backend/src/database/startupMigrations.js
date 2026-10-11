@@ -79,6 +79,10 @@ const SCHEMA_STATEMENTS = [
      ADD COLUMN IF NOT EXISTS tagline VARCHAR(160),
      ADD COLUMN IF NOT EXISTS show_on_home BOOLEAN NOT NULL DEFAULT true`,
 
+  // ---- per-category limit for extra (secondary) categories ----
+  `ALTER TABLE categories
+     ADD COLUMN IF NOT EXISTS max_secondary_categories INTEGER NOT NULL DEFAULT 2`,
+
   // ---- Super Admin login activity ----
   `CREATE TABLE IF NOT EXISTS login_events (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

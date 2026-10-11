@@ -55,3 +55,13 @@ export function getPrimaryCategory(selectedSlugs, categories) {
   const venueSlug = selectedSlugs.find((slug) => isVenueCategory(slug, categories || []));
   return venueSlug || selectedSlugs[0];
 }
+
+// How many EXTRA categories a vendor may add, based on their MAIN category.
+// Admin controls this per category (Category Manager). 0 = single category only.
+export const DEFAULT_MAX_SECONDARY = 2;
+
+export function getMaxSecondary(category) {
+  if (!category || category.max_secondary_categories == null) return DEFAULT_MAX_SECONDARY;
+  const n = Number(category.max_secondary_categories);
+  return Number.isInteger(n) && n >= 0 ? n : DEFAULT_MAX_SECONDARY;
+}
