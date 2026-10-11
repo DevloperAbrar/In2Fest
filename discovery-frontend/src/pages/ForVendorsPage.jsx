@@ -73,7 +73,7 @@ export default function ForVendorsPage() {
           name="description"
           content={`Grow your wedding or event business with a free listing on ${BRAND_NAME}. Get discovered by real customers searching for banquet halls, decorators, caterers, photographers and more.`}
         />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/for-vendors`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/for-vendors`} />
       </Helmet>
 
       {/* ── Hero ── */}

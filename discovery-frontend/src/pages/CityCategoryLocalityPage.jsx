@@ -20,7 +20,7 @@ export default function CityCategoryLocalityPage() {
 
   if (!data) return <PageLoader />;
 
-  const canonicalUrl = `https://www.${BASE_DOMAIN}/${city}/${category}/${locality}`;
+  const canonicalUrl = `https://${BASE_DOMAIN}/${city}/${category}/${locality}`;
 
   return (
     <>

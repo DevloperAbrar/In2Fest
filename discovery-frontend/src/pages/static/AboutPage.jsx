@@ -8,7 +8,7 @@ export default function AboutPage() {
       <Helmet>
         <title>About Us | {BRAND_NAME}</title>
         <meta name="description" content={`Learn about ${BRAND_NAME}, a platform helping people find and book verified wedding and event vendors near them.`} />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/about`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/about`} />
       </Helmet>
 
       <div className="max-w-3xl mx-auto px-4 py-12">

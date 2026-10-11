@@ -2,7 +2,7 @@ import React from "react";
 import { Helmet } from "react-helmet-async";
 import { BASE_DOMAIN } from "../../lib/constants";
 
-const SITE_URL = `https://www.${BASE_DOMAIN}`;
+const SITE_URL = `https://${BASE_DOMAIN}`;
 
 const ORG_ID = `${SITE_URL}/#organization`;
 const WEBSITE_ID = `${SITE_URL}/#website`;

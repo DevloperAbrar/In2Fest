@@ -99,7 +99,7 @@ export default function CategoriesIndexPage() {
           name="description"
           content={`Browse every wedding and event vendor category on ${BRAND_NAME}, from banquet halls and marriage halls to photographers, decorators, caterers, DJs, mehndi artists and event management companies.`}
         />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/categories`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/categories`} />
       </Helmet>
 
       {/* ══ HERO ══ - same navy band used across the site */}

@@ -9,7 +9,7 @@ export default function ContactPage() {
       <Helmet>
         <title>Contact Us | {BRAND_NAME}</title>
         <meta name="description" content={`Get in touch with the ${BRAND_NAME} team for support, partnerships or vendor listing queries.`} />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/contact`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/contact`} />
       </Helmet>
 
       <div className="max-w-3xl mx-auto px-4 py-12">

@@ -21,7 +21,7 @@ export default function CityCategoryPage() {
 
   if (!data) return <PageLoader />;
 
-  const canonicalUrl = `https://www.${BASE_DOMAIN}/${city}/${category}`;
+  const canonicalUrl = `https://${BASE_DOMAIN}/${city}/${category}`;
   const faqSchemaItems = (data.faq || []).map((f) => ({ question: f.q, answer: f.a }));
 
   return (

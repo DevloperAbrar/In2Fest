@@ -7,7 +7,7 @@ export default function PrivacyPage() {
     <>
       <Helmet>
         <title>Privacy Policy | {BRAND_NAME}</title>
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/privacy`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/privacy`} />
       </Helmet>
 
       <div className="max-w-3xl mx-auto px-4 py-12">

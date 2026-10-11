@@ -51,7 +51,7 @@ export default function HomePage() {
           name="description"
           content={`Search, compare and directly contact verified banquet halls, decorators, caterers, photographers and every other wedding or event vendor on ${BRAND_NAME}.`}
         />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/`} />
       </Helmet>
 
       {/* ════════════════════════════════════════════════════════════

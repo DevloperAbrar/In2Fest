@@ -148,7 +148,7 @@ export default function VendorProfilePage() {
         <link rel="canonical" href={seo.canonical || window.location.href} />
         <meta property="og:title" content={seo.title} />
         <meta property="og:description" content={seo.description} />
-        <meta property="og:image" content={venue.hero_image_url || `https://www.in2fest.com/og-default.jpg`} />
+        <meta property="og:image" content={venue.hero_image_url || `https://in2fest.com/og-default.jpg`} />
         <meta property="og:url" content={seo.canonical} />
         <meta property="og:type" content="business.business" />
         <meta name="twitter:card" content="summary_large_image" />

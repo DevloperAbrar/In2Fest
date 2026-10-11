@@ -40,7 +40,7 @@ export default function Home() {
           name="description"
           content={`Search, compare and directly contact verified local businesses on ${BRAND_NAME}: coaching classes, gyms, clinics, shops, event vendors, repair and home services. No middleman, no commission.`}
         />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/`} />
+        <link rel="canonical" 	href={`https://${BASE_DOMAIN}/`} />
       </Helmet>
       <FAQSchema items={homeFaqItems} />
       {/* Announcement popup - shown once per session if active announcements exist */}

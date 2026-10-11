@@ -4,7 +4,8 @@ const env = require("../../config/env");
 
 const router = express.Router();
 
-const SITE = `https://www.${env.baseDomain || "in2fest.com"}`;
+// The site is served on the apex domain, so every URL must use it (no www).
+const SITE = `https://${env.baseDomain || "in2fest.com"}`;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 let cache = { main: null, image: null, vendor: null, builtAt: 0 };
@@ -31,7 +32,7 @@ function sendXml(res, xml) {
   res.send(xml);
 }
 
-// Sitemap index: main pages + image sitemap
+// Sitemap index (lists the main and image sitemaps as they are served under /api)
 router.get("/sitemap-index.xml", async (req, res, next) => {
   try {
     const { builtAt } = await getSitemaps();
@@ -39,11 +40,11 @@ router.get("/sitemap-index.xml", async (req, res, next) => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
-    <loc>${SITE}/sitemap.xml</loc>
+    <loc>${SITE}/api/sitemap.xml</loc>
     <lastmod>${lastmod}</lastmod>
   </sitemap>
   <sitemap>
-    <loc>${SITE}/sitemap-images.xml</loc>
+    <loc>${SITE}/api/sitemap-images.xml</loc>
     <lastmod>${lastmod}</lastmod>
   </sitemap>
 </sitemapindex>`;

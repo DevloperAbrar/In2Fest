@@ -7,7 +7,7 @@ export default function TermsPage() {
     <>
       <Helmet>
         <title>Terms of Service | {BRAND_NAME}</title>
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/terms`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/terms`} />
       </Helmet>
 
       <div className="max-w-3xl mx-auto px-4 py-12">

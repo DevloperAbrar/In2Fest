@@ -17,7 +17,7 @@ export default function CitiesIndexPage() {
       <Helmet>
         <title>All Cities We Cover | {BRAND_NAME}</title>
         <meta name="description" content={`Find verified wedding and event vendors across every city covered by ${BRAND_NAME}.`} />
-        <link rel="canonical" href={`https://www.${BASE_DOMAIN}/cities`} />
+        <link rel="canonical" href={`https://${BASE_DOMAIN}/cities`} />
       </Helmet>
 
       <BreadcrumbNav items={[{ label: "Cities" }]} />

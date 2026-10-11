@@ -2,7 +2,7 @@ import React from "react";
 import { Helmet } from "react-helmet-async";
 import { BASE_DOMAIN, BRAND_NAME, BRAND_VARIANTS } from "../constants";
 
-const SITE_URL = `https://www.${BASE_DOMAIN}`;
+const SITE_URL = `https://${BASE_DOMAIN}`;
 
 // Organization + WebSite schema, rendered once on the homepage.
 // alternateName covers the spelling variants people actually search for,
