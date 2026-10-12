@@ -5,6 +5,7 @@ import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
 import MobileNav from "./components/layout/MobileNav";
 import ScrollToTop from "./components/common/ScrollToTop";
+import MetaPixelTracker from "./components/common/MetaPixelTracker";
 import PageLoader from "./components/common/PageLoader";
 import GetYourWebsite from "./pages/GetYourWebsite";
 
@@ -28,6 +29,8 @@ export default function App() {
   return (
     <PublicAuthProvider>
       <ScrollToTop />
+      <ScrollToTop />
+      <MetaPixelTracker />
       <div className="min-h-screen flex flex-col bg-gray-50">
         <Header />
         <main className="flex-1">
