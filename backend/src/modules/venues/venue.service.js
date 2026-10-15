@@ -1,6 +1,6 @@
 const { sanitizeSecondaryCategories } = require("../../utils/sanitizeSecondaryCategories");
 const { Op } = require("sequelize");
-const { Venue, Subscription, Plan, User } = require("../../database/models");
+const { Venue, Subscription, Plan, User, ServiceItem } = require("../../database/models");
 const { calculateCompletion } = require("../marketplace-profile/marketplaceProfile.service");
 const { buildDefaultSections, normalizeSections } = require("../../utils/pageSections");
 const { SECTION_TYPES } = require("../../config/sectionLibrary");
@@ -449,6 +449,34 @@ async function venueHasWebsiteFeature(venueId) {
   return Array.isArray(features) && features.includes("website_builder");
 }
 
+
+
+// Products the vendor chose to show on the website. Never exposes SKU, tax or exact stock.
+async function attachCatalogItems(venue) {
+  let items = [];
+  try {
+    const rows = await ServiceItem.findAll({
+      where: { venue_id: venue.id, item_type: "product", is_active: true, show_on_website: true },
+      attributes: ["id", "name", "default_price", "description", "image_url", "category", "variants", "track_stock", "stock_qty"],
+      order: [["createdAt", "DESC"]],
+      limit: 300
+    });
+    items = rows.map((r) => ({
+      id: r.id,
+      title: r.name,
+      price: Number(r.default_price),
+      description: r.description || "",
+      image_url: r.image_url || "",
+      category: r.category || "",
+      variants: Array.isArray(r.variants) ? r.variants.map((v) => v.label).filter(Boolean) : [],
+      in_stock: !r.track_stock || Number(r.stock_qty || 0) > 0
+    }));
+  } catch (e) {
+    console.error("[CATALOG] could not load website catalog:", e.message);
+  }
+  venue.setDataValue("catalog_items", items);
+}
+
 async function getPublicVenueBySubdomain(subdomain) {
   const venue = await Venue.findOne({
     where: {
@@ -468,6 +496,7 @@ async function getPublicVenueBySubdomain(subdomain) {
   }
 
   venue.setDataValue("page_sections", normalizeSections(venue));
+  await attachCatalogItems(venue);
   return venue;
 }
 
@@ -479,6 +508,7 @@ async function getVenueBySubdomainForPreview(subdomain) {
   }
 
   venue.setDataValue("page_sections", normalizeSections(venue));
+  await attachCatalogItems(venue);
   return venue;
 }
 
@@ -599,7 +629,6 @@ module.exports = {
   deleteGalleryImage,
   uploadSectionImage,
   recalculateSetupChecklist,
-  // getPublicVenueBySubdomain,
   getVenueBySubdomainForPreview,
   listAllVenues,
   toggleVenueActive,

@@ -43,6 +43,14 @@ const SCHEMA_STATEMENTS = [
      ADD COLUMN IF NOT EXISTS stock_qty DECIMAL(12,2),
      ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`,
 
+  // ---- shop catalog: photo, category, sizes, website visibility ----
+  `ALTER TABLE service_items
+     ADD COLUMN IF NOT EXISTS image_url TEXT,
+     ADD COLUMN IF NOT EXISTS category VARCHAR(80),
+     ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb,
+     ADD COLUMN IF NOT EXISTS show_on_website BOOLEAN NOT NULL DEFAULT false`,
+  `CREATE INDEX IF NOT EXISTS service_items_venue_web_idx ON service_items (venue_id, show_on_website)`,
+
   // ---- atomic document numbering ----
   `CREATE TABLE IF NOT EXISTS invoice_counters (
      venue_id UUID NOT NULL,

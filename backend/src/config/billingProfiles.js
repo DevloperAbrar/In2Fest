@@ -169,6 +169,7 @@ const CATEGORY_BILLING = {
     extraCharges: ["Accessories", "Activation / setup"]
   },
   "clothing-store": { units: ["pcs", "set", "mtr"], defaultUnit: "pcs" },
+  "footwear-store": { units: ["pair", "pcs"], defaultUnit: "pair" },
   "bakery-sweets": { units: ["kg", "pcs", "box", "dozen"], defaultUnit: "kg" },
 
   // health & wellness

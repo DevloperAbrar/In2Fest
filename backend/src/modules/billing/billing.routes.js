@@ -1,4 +1,5 @@
 const express = require("express");
+const sharp = require("sharp");
 const invoiceController = require("./invoice.controller");
 const quotationController = require("./quotation.controller");
 const { authenticate } = require("../../middleware/auth.middleware");
@@ -8,6 +9,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { requireVenueOwnership } = require("../../middleware/venueOwnership.middleware");
 const { requirePlanFeature } = require("../../middleware/planFeature.middleware");
 const { requireTeamPermission } = require("../../middleware/teamPermission.middleware");
+const { upload, uploadToR2 } = require("../../middleware/upload.middleware");
 const { kickoff, schemaReady } = require("../../database/startupMigrations");
 
 const router = express.Router({ mergeParams: true });
@@ -36,7 +38,11 @@ router.get("/quotations", quotationController.getQuotations);
 router.post("/quotations/:quotationId/convert", quotationController.convertQuotationToInvoice);
 
 // ---- Item catalog (products + services) ----
-const ITEM_FIELDS = ["name", "default_price", "description", "item_type", "unit", "hsn_sac", "tax_rate", "sku", "track_stock", "stock_qty", "is_active"];
+const ITEM_FIELDS = [
+  "name", "default_price", "description", "item_type", "unit", "hsn_sac", "tax_rate", "sku",
+  "track_stock", "stock_qty", "is_active",
+  "image_url", "category", "variants", "show_on_website"
+];
 
 function pickItemFields(body) {
   const out = {};
@@ -59,8 +65,48 @@ function pickItemFields(body) {
   if (out.unit !== undefined) out.unit = String(out.unit || "").slice(0, 20) || null;
   if (out.hsn_sac !== undefined) out.hsn_sac = String(out.hsn_sac || "").replace(/\s/g, "").slice(0, 10) || null;
   if (out.sku !== undefined) out.sku = String(out.sku || "").slice(0, 50) || null;
+
+  if (out.category !== undefined) out.category = String(out.category || "").trim().slice(0, 80) || null;
+
+  if (out.image_url !== undefined) {
+    const url = String(out.image_url || "").trim();
+    if (url && !/^https?:\/\//i.test(url)) throw new AppError("Invalid image URL", 400);
+    out.image_url = url ? url.slice(0, 500) : null;
+  }
+
+  if (out.variants !== undefined) {
+    const list = Array.isArray(out.variants) ? out.variants : [];
+    const seen = new Set();
+    out.variants = list
+      .map((v) => String(typeof v === "string" ? v : v?.label || "").trim().slice(0, 20))
+      .filter((label) => {
+        const key = label.toLowerCase();
+        if (!label || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 30)
+      .map((label) => ({ label }));
+  }
+
+  if (out.show_on_website !== undefined) out.show_on_website = Boolean(out.show_on_website);
   return out;
 }
+
+// Product photo upload (phone photos are auto-rotated and compressed before storing)
+router.post("/service-items/image", upload.single("itemImage"), async (req, res, next) => {
+  try {
+    if (!req.file) throw new AppError("No image uploaded", 400);
+    const buffer = await sharp(req.file.buffer)
+      .rotate()
+      .resize({ width: 1000, withoutEnlargement: true })
+      .webp({ quality: 78 })
+      .toBuffer();
+    const url = await uploadToR2(buffer, req.file.originalname, "catalog", "image/webp");
+    if (!url) throw new AppError("Storage not configured. Please set R2 credentials.", 500);
+    res.json({ success: true, data: { url } });
+  } catch (error) { next(error); }
+});
 
 router.post("/service-items", async (req, res, next) => {
   try {

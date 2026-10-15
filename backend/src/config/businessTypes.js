@@ -210,6 +210,7 @@ const NEW_CATEGORIES = [
   // retail
   { name: "Kirana / General Store", slug: "kirana-store", icon: "shopping-basket", business_type: "retail" },
   { name: "Clothing Store", slug: "clothing-store", icon: "shirt", business_type: "retail" },
+  { name: "Footwear Store", slug: "footwear-store", icon: "footprints", business_type: "retail" },
   { name: "Electronics Store", slug: "electronics-store", icon: "plug", business_type: "retail" },
   { name: "Mobile Shop", slug: "mobile-shop", icon: "smartphone", business_type: "retail" },
   { name: "Pharmacy", slug: "pharmacy", icon: "pill", business_type: "retail" },

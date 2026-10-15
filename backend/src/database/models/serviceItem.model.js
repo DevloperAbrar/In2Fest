@@ -16,7 +16,13 @@ module.exports = (sequelize, DataTypes) => {
     sku: DataTypes.STRING(50),
     track_stock: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     stock_qty: DataTypes.DECIMAL(12, 2),
-    is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
+    is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+
+    // ---- shop catalog (shown on the vendor website) ----
+    image_url: DataTypes.TEXT,
+    category: DataTypes.STRING(80),
+    variants: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] }, // [{ label: "M" }]
+    show_on_website: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }
   }, {
     tableName: "service_items",
     indexes: [{ fields: ["venue_id"] }]

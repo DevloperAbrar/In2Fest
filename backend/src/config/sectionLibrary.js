@@ -202,6 +202,7 @@ const CATEGORY_SECTION_DEFAULTS = {
   // retail
   "kirana-store": ["product_catalog", "hours", "cta_banner", "faq"],
   "clothing-store": ["product_catalog", "hours", "cta_banner", "faq"],
+  "footwear-store": ["product_catalog", "hours", "cta_banner", "faq"],
   "electronics-store": ["product_catalog", "hours", "cta_banner", "faq"],
   "mobile-shop": ["product_catalog", "hours", "cta_banner", "faq"],
   pharmacy: ["product_catalog", "hours", "cta_banner", "faq"],

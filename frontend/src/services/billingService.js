@@ -20,5 +20,8 @@ export const billingService = {
   createServiceItem: (venueId, payload) => api.post(`/venues/${venueId}/billing/service-items`, payload),
   updateServiceItem: (venueId, itemId, payload) =>
     api.patch(`/venues/${venueId}/billing/service-items/${itemId}`, payload),
-  deleteServiceItem: (venueId, itemId) => api.delete(`/venues/${venueId}/billing/service-items/${itemId}`)
+  deleteServiceItem: (venueId, itemId) => api.delete(`/venues/${venueId}/billing/service-items/${itemId}`),
+
+  // formData must contain the file under the field name "itemImage"
+  uploadItemImage: (venueId, formData) => api.post(`/venues/${venueId}/billing/service-items/image`, formData)
 };

@@ -225,29 +225,93 @@ function Faq({ config, theme, toneIdx }) {
   );
 }
 
-/* ─── Product Catalog ─── */
-function ProductCatalog({ config, theme, toneIdx }) {
-  const items = config?.items || [];
+const formatCatalogPrice = (p) =>
+  typeof p === "number" ? `₹${p.toLocaleString("en-IN")}` : p;
+
+function ProductCatalog({ config, theme, toneIdx, venue }) {
+  const catalog = Array.isArray(venue?.catalog_items) ? venue.catalog_items : [];
+  const usingCatalog = catalog.length > 0;
+  const items = usingCatalog ? catalog : (config?.items || []);
+  const [activeCategory, setActiveCategory] = React.useState("All");
+
   if (!items.length) return null;
+
+  const categories = usingCatalog
+    ? Array.from(new Set(items.map((i) => i.category).filter(Boolean)))
+    : [];
+  const visible = activeCategory === "All" ? items : items.filter((i) => i.category === activeCategory);
+
+  const rawPhone = String(venue?.whatsapp_number || venue?.phone || "").replace(/\D/g, "");
+  const waNumber = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+  const enquiryLink = (it) => {
+    if (!waNumber) return null;
+    const priceText = it.price !== undefined && it.price !== "" ? ` (${formatCatalogPrice(it.price)})` : "";
+    const text = `Hi, I'm interested in ${it.title}${priceText}. Is it available?`;
+    return `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`;
+  };
+
   return (
-    <SectionShell title={config.title} toneIdx={toneIdx} theme={theme} subtitle="Products">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-        {items.map((it, idx) => (
-          <Reveal key={it.id} delay={idx * 70}>
-            <div className="rounded-3xl border border-stone-100 dark:border-stone-700 overflow-hidden bg-white dark:bg-stone-800 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group">
-              {it.image_url && (
-                <div className="overflow-hidden h-40">
-                  <img src={it.image_url} alt={it.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+    <SectionShell title={config?.title || "Our Products"} toneIdx={toneIdx} theme={theme} subtitle="Products">
+      {categories.length > 1 && (
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {["All", ...categories].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setActiveCategory(c)}
+              className="px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors"
+              style={
+                activeCategory === c
+                  ? { backgroundColor: theme, borderColor: theme, color: "#fff" }
+                  : { borderColor: `${theme}40`, color: theme }
+              }
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
+        {visible.map((it, idx) => {
+          const link = usingCatalog ? enquiryLink(it) : null;
+          const soldOut = usingCatalog && it.in_stock === false;
+          return (
+            <Reveal key={it.id || idx} delay={idx * 70}>
+              <div className={`rounded-3xl border border-stone-100 dark:border-stone-700 overflow-hidden bg-white dark:bg-stone-800 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group h-full flex flex-col ${soldOut ? "opacity-70" : ""}`}>
+                {it.image_url && (
+                  <div className="overflow-hidden h-40 relative">
+                    <img src={it.image_url} alt={it.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    {soldOut && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/70 text-white text-[10px] font-bold">Out of stock</span>
+                    )}
+                  </div>
+                )}
+                <div className="p-4 flex-1 flex flex-col">
+                  <h3 className="font-bold text-stone-900 dark:text-white text-sm">{it.title}</h3>
+                  {it.price !== undefined && it.price !== "" && (
+                    <p className="font-extrabold mt-1 text-base" style={{ color: theme }}>{formatCatalogPrice(it.price)}</p>
+                  )}
+                  {Array.isArray(it.variants) && it.variants.length > 0 && (
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">Sizes: {it.variants.join(" · ")}</p>
+                  )}
+                  {it.description && <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-relaxed">{it.description}</p>}
+                  {link && (
+                    <a
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-auto pt-3 text-xs font-bold hover:underline"
+                      style={{ color: theme }}
+                    >
+                      Ask on WhatsApp →
+                    </a>
+                  )}
                 </div>
-              )}
-              <div className="p-4">
-                <h3 className="font-bold text-stone-900 dark:text-white text-sm">{it.title}</h3>
-                {it.price && <p className="font-extrabold mt-1 text-base" style={{ color: theme }}>{it.price}</p>}
-                {it.description && <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-relaxed">{it.description}</p>}
               </div>
-            </div>
-          </Reveal>
-        ))}
+            </Reveal>
+          );
+        })}
       </div>
     </SectionShell>
   );
@@ -526,3 +590,5 @@ export default function DynamicSectionRenderer({ type, config, venue, index = 0 
     </div>
   );
 }
+
+
