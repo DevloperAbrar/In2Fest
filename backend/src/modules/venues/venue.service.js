@@ -591,6 +591,16 @@ async function recalculateSetupChecklist(venue) {
   const slotCount = await Slot.count({ where: { venue_id: venue.id, is_active: true } });
   if (slotCount > 0) steps.push("slots");
 
+  // Products added through Products & Catalog (billing items shown on the website)
+  let catalogCount = 0;
+  try {
+    catalogCount = await ServiceItem.count({
+      where: { venue_id: venue.id, item_type: "product", is_active: true, show_on_website: true }
+    });
+  } catch (err) {
+    console.error("[CHECKLIST] could not count catalog items:", err.message);
+  }
+
   let hasFilledPluggableSection = false;
   sections.forEach((section) => {
     const def = SECTION_TYPES[section.type];
@@ -598,6 +608,15 @@ async function recalculateSetupChecklist(venue) {
     // Slots & Packages are managed on the Slots page and shown automatically
     // on the public site, so "packages" is not a checklist step.
     if (section.type === "packages") return;
+
+    if (section.type === "product_catalog") {
+      if (catalogCount > 0 || section.config?.items?.length > 0) {
+        steps.push("product_catalog");
+        hasFilledPluggableSection = true;
+      }
+      return;
+    }
+
     if (section.config?.items?.length > 0) {
       steps.push(section.type);
       hasFilledPluggableSection = true;

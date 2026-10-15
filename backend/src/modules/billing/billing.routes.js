@@ -108,12 +108,26 @@ router.post("/service-items/image", upload.single("itemImage"), async (req, res,
   } catch (error) { next(error); }
 });
 
+// Keeps the dashboard setup checklist in sync after any catalog change.
+// A checklist failure must never break the item request itself.
+async function syncSetupChecklist(venueId) {
+  try {
+    const { Venue } = require("../../database/models");
+    const { recalculateSetupChecklist } = require("../venues/venue.service"); // lazy: avoids circular import
+    const venue = await Venue.findByPk(venueId);
+    if (venue) await recalculateSetupChecklist(venue);
+  } catch (err) {
+    console.error("[billing] setup checklist sync failed:", err.message);
+  }
+}
+
 router.post("/service-items", async (req, res, next) => {
   try {
     const data = pickItemFields(req.body || {});
     if (!data.name) throw new AppError("Item name is required", 400);
     if (data.default_price === undefined) throw new AppError("Item price is required", 400);
     const item = await ServiceItem.create({ ...data, venue_id: req.params.venueId });
+    await syncSetupChecklist(req.params.venueId);
     res.status(201).json({ success: true, data: item });
   } catch (error) { next(error); }
 });
@@ -133,6 +147,7 @@ router.patch("/service-items/:itemId", async (req, res, next) => {
     if (!item) throw new AppError("Item not found", 404);
     Object.assign(item, pickItemFields(req.body || {}));
     await item.save();
+    await syncSetupChecklist(req.params.venueId);
     res.json({ success: true, data: item });
   } catch (error) { next(error); }
 });
@@ -142,6 +157,7 @@ router.delete("/service-items/:itemId", async (req, res, next) => {
     const item = await ServiceItem.findOne({ where: { id: req.params.itemId, venue_id: req.params.venueId } });
     if (!item) throw new AppError("Item not found", 404);
     await item.destroy();
+    await syncSetupChecklist(req.params.venueId);
     res.json({ success: true, message: "Item deleted" });
   } catch (error) { next(error); }
 });

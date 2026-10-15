@@ -29,6 +29,9 @@ export function useVisibleNavItems(items = []) {
     .filter((item) => {
       if (isTeamMember && OWNER_ONLY_PATHS.includes(item.path)) return false;
 
+      // Items meant only for some business types (e.g. "Products & Catalog" for shops).
+      if (item.businessTypes && venueReady && !(profile && item.businessTypes.includes(profile.key))) return false;
+
       // Hide modules that don't make sense for this business type (e.g. slots for a shop).
       if (item.requiredFeature && venueReady && modules && !modules.includes(item.requiredFeature)) return false;
 

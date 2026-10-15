@@ -7,7 +7,8 @@ import Button from "../../../components/common/Button";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { SECTION_TYPES, FIELD_LABELS, emptyItem } from "../../../lib/sectionLibrary";
-import { Plus, Trash2, Upload, X, Loader2 } from "lucide-react";
+import { Plus, Trash2, Upload, X, Loader2, Package } from "lucide-react";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 
 function ImageUploadField({ item, venueId, onUploaded }) {
   const inputRef = useRef(null);
@@ -74,6 +75,7 @@ export default function SectionContentEditor() {
   const { venue, refetchVenue } = useVenue();
   const navigate = useNavigate();
   const def = SECTION_TYPES[type];
+  const { profile } = useBusinessProfile();
 
   const [title, setTitle] = useState("");
   const [items, setItems] = useState([]);
@@ -95,6 +97,25 @@ export default function SectionContentEditor() {
             Back to Website Builder
           </button>
         </p>
+      </DashboardLayout>
+    );
+  }
+
+  // Shops manage products (categories, photos, sizes, stock) on the dedicated catalog page.
+  if (type === "product_catalog" && profile?.key === "retail") {
+    return (
+      <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Product Catalog">
+        <div className="max-w-xl bg-white p-8 rounded-xl border border-gray-100 text-center">
+          <div className="w-12 h-12 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center mx-auto mb-4">
+            <Package size={22} />
+          </div>
+          <h3 className="font-semibold text-gray-900 mb-2">Manage products in Products &amp; Catalog</h3>
+          <p className="text-sm text-gray-500 mb-6">
+            Add categories, photos, prices and sizes there once. They show on your website automatically and are
+            ready to use in billing.
+          </p>
+          <Button onClick={() => navigate("/dashboard/catalog")}>Open Products &amp; Catalog</Button>
+        </div>
       </DashboardLayout>
     );
   }

@@ -228,18 +228,42 @@ function Faq({ config, theme, toneIdx }) {
 const formatCatalogPrice = (p) =>
   typeof p === "number" ? `₹${p.toLocaleString("en-IN")}` : p;
 
+// Categories are stored as "Men" or "Men > Shirts"
+const splitCatalogCategory = (value) => {
+  const [top = "", sub = ""] = String(value || "").split(">").map((p) => p.trim());
+  return { top, sub };
+};
+
 function ProductCatalog({ config, theme, toneIdx, venue }) {
   const catalog = Array.isArray(venue?.catalog_items) ? venue.catalog_items : [];
   const usingCatalog = catalog.length > 0;
   const items = usingCatalog ? catalog : (config?.items || []);
-  const [activeCategory, setActiveCategory] = React.useState("All");
+  const [activeTop, setActiveTop] = React.useState("All");
+  const [activeSub, setActiveSub] = React.useState("All");
 
   if (!items.length) return null;
 
-  const categories = usingCatalog
-    ? Array.from(new Set(items.map((i) => i.category).filter(Boolean)))
+  const tops = usingCatalog
+    ? Array.from(new Set(items.map((i) => splitCatalogCategory(i.category).top).filter(Boolean)))
     : [];
-  const visible = activeCategory === "All" ? items : items.filter((i) => i.category === activeCategory);
+  const subs =
+    activeTop === "All"
+      ? []
+      : Array.from(
+          new Set(
+            items
+              .map((i) => splitCatalogCategory(i.category))
+              .filter((c) => c.top === activeTop && c.sub)
+              .map((c) => c.sub)
+          )
+        );
+
+  const visible = items.filter((i) => {
+    if (activeTop === "All") return true;
+    const c = splitCatalogCategory(i.category);
+    if (c.top !== activeTop) return false;
+    return activeSub === "All" || c.sub === activeSub;
+  });
 
   const rawPhone = String(venue?.whatsapp_number || venue?.phone || "").replace(/\D/g, "");
   const waNumber = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
@@ -250,27 +274,45 @@ function ProductCatalog({ config, theme, toneIdx, venue }) {
     return `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`;
   };
 
+  const chipStyle = (active) =>
+    active
+      ? { backgroundColor: theme, borderColor: theme, color: "#fff" }
+      : { borderColor: `${theme}40`, color: theme };
+
   return (
     <SectionShell title={config?.title || "Our Products"} toneIdx={toneIdx} theme={theme} subtitle="Products">
-      {categories.length > 1 && (
-        <div className="flex flex-wrap justify-center gap-2 mb-8">
-          {["All", ...categories].map((c) => (
+      {tops.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2 mb-4">
+          {["All", ...tops].map((c) => (
             <button
               key={c}
               type="button"
-              onClick={() => setActiveCategory(c)}
+              onClick={() => { setActiveTop(c); setActiveSub("All"); }}
               className="px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors"
-              style={
-                activeCategory === c
-                  ? { backgroundColor: theme, borderColor: theme, color: "#fff" }
-                  : { borderColor: `${theme}40`, color: theme }
-              }
+              style={chipStyle(activeTop === c)}
             >
               {c}
             </button>
           ))}
         </div>
       )}
+
+      {subs.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {["All", ...subs].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setActiveSub(c)}
+              className="px-3 py-1 rounded-full text-xs font-semibold border transition-colors"
+              style={chipStyle(activeSub === c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+      {tops.length > 0 && subs.length === 0 && <div className="mb-4" />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
         {visible.map((it, idx) => {
@@ -293,7 +335,7 @@ function ProductCatalog({ config, theme, toneIdx, venue }) {
                     <p className="font-extrabold mt-1 text-base" style={{ color: theme }}>{formatCatalogPrice(it.price)}</p>
                   )}
                   {Array.isArray(it.variants) && it.variants.length > 0 && (
-                    <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">Sizes: {it.variants.join(" · ")}</p>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">Available in: {it.variants.join(" · ")}</p>
                   )}
                   {it.description && <p className="text-xs text-stone-400 dark:text-stone-500 mt-1.5 leading-relaxed">{it.description}</p>}
                   {link && (

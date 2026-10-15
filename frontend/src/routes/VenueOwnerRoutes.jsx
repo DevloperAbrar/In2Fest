@@ -83,6 +83,7 @@ export default function VenueOwnerRoutes() {
         <Route path="billing/new" element={<RequireFeature feature="billing"><DocumentEditor /></RequireFeature>} />
         <Route path="billing/:id/edit" element={<RequireFeature feature="billing"><DocumentEditor /></RequireFeature>} />
         <Route path="billing/services" element={<RequireFeature feature="billing"><ServiceCatalog /></RequireFeature>} />
+        <Route path="catalog" element={<RequireFeature feature="billing"><ServiceCatalog /></RequireFeature>} />
 
         <Route path="analytics" element={<RequireOwner><OwnerAnalytics /></RequireOwner>} />
 

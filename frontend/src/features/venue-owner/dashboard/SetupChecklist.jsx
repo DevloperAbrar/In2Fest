@@ -3,14 +3,27 @@ import { Link } from "react-router-dom";
 import { Check, Circle, X, Sparkles } from "lucide-react";
 import { useVenueStore } from "../../../store/venueStore";
 import { SECTION_TYPES } from "../../../lib/sectionLibrary";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 
-function buildSteps(pageSections) {
+function buildSteps(pageSections, { isShop, hasSlots, hasBilling }) {
   const sections = pageSections || [];
   const isVisible = (type) => sections.some((s) => s.type === type && s.visible !== false);
+
+  // Shops manage products on the dedicated "Products & Catalog" page (needs the billing module).
+  const catalogOnShopPage = isShop && hasBilling;
 
   const steps = [
     { key: "hero_image", label: "Upload hero image", path: "/dashboard/website/hero", feature: "website_builder" }
   ];
+
+  if (catalogOnShopPage && isVisible("product_catalog")) {
+    steps.push({
+      key: "product_catalog",
+      label: "Add your products (photo + price)",
+      path: "/dashboard/catalog",
+      feature: "billing"
+    });
+  }
 
   if (isVisible("about")) {
     steps.push({ key: "about", label: "Write about section", path: "/dashboard/website/about", feature: "website_builder" });
@@ -22,16 +35,19 @@ function buildSteps(pageSections) {
     steps.push({ key: "gallery", label: "Add gallery photos", path: "/dashboard/website/gallery", feature: "website_builder" });
   }
 
-  steps.push({ key: "slots", label: "Configure slots", path: "/dashboard/slots", feature: "slots" });
+  // Slots only make sense for business types that actually take appointments/bookings.
+  if (hasSlots) {
+    steps.push({ key: "slots", label: "Configure slots", path: "/dashboard/slots", feature: "slots" });
+  }
 
-  // One entry per pluggable section the vendor actually has on their site  -
-  // this is what makes the checklist different for a Mehendi Artist vs a
-  // Card Printing shop vs a Tent House.
+  // One entry per pluggable section the vendor actually has on their site.
   sections.forEach((section) => {
     const def = SECTION_TYPES[section.type];
     if (!def?.removable || section.visible === false) return;
     // Packages are managed on the Slots page, not as a website section step
     if (section.type === "packages") return;
+    // Already added above for shops
+    if (section.type === "product_catalog" && catalogOnShopPage) return;
     steps.push({
       key: section.type,
       label: `Fill in your ${def.label}`,
@@ -45,10 +61,18 @@ function buildSteps(pageSections) {
 
 export default function SetupChecklist({ completedSteps = [], planFeatures = [], pageSections = [] }) {
   const { setupChecklistOpen, closeSetupChecklist } = useVenueStore();
+  const { profile, loading: profileLoading } = useBusinessProfile();
 
   if (!setupChecklistOpen) return null;
+  // Wait for the business type so the list never flashes steps that don't apply.
+  if (profileLoading) return null;
 
-  const steps = buildSteps(pageSections);
+  const modules = profile?.modules || [];
+  const steps = buildSteps(pageSections, {
+    isShop: profile?.key === "retail",
+    hasSlots: modules.includes("slots"),
+    hasBilling: planFeatures.includes("billing") && modules.includes("billing")
+  });
   const availableSteps = steps.filter((step) => planFeatures.includes(step.feature));
 
   if (availableSteps.length === 0) {

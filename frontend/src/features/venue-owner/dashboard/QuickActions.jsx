@@ -1,18 +1,30 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { MessageSquare, CalendarCheck, Users, Globe, Receipt, Star } from "lucide-react";
+import { MessageSquare, CalendarCheck, Users, Globe, Receipt, Star, Package } from "lucide-react";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 
 const ACTIONS = [
-  { label: "Inquiries", to: "/dashboard/inquiries", icon: MessageSquare, feature: "inquiries" },
-  { label: "Bookings", to: "/dashboard/bookings", icon: CalendarCheck, feature: "bookings" },
-  { label: "Clients", to: "/dashboard/clients", icon: Users, feature: "clients" },
+  { label: "Products", to: "/dashboard/catalog", icon: Package, feature: "billing", businessTypes: ["retail"] },
+  { label: "Inquiries", to: "/dashboard/inquiries", icon: MessageSquare, feature: "inquiries", term: "inquiries" },
+  { label: "Bookings", to: "/dashboard/bookings", icon: CalendarCheck, feature: "bookings", term: "bookings" },
+  { label: "Clients", to: "/dashboard/clients", icon: Users, feature: "clients", term: "clients" },
   { label: "Edit Website", to: "/dashboard/website", icon: Globe, feature: "website_builder" },
   { label: "New Invoice", to: "/dashboard/billing/invoice", icon: Receipt, feature: "billing" },
   { label: "Reviews", to: "/dashboard/reviews", icon: Star, feature: "reviews" }
 ];
 
 export default function QuickActions({ planFeatures = [] }) {
-  const available = ACTIONS.filter((a) => planFeatures.includes(a.feature));
+  const { profile, terms, loading } = useBusinessProfile();
+  if (loading) return null;
+
+  const modules = profile?.modules || null;
+  const available = ACTIONS.filter((a) => {
+    if (!planFeatures.includes(a.feature)) return false;
+    if (modules && !modules.includes(a.feature)) return false; // e.g. no Bookings for a shop
+    if (a.businessTypes && !(profile && a.businessTypes.includes(profile.key))) return false;
+    return true;
+  }).map((a) => (a.term && terms[a.term] ? { ...a, label: terms[a.term] } : a));
+
   if (available.length === 0) return null;
 
   return (
