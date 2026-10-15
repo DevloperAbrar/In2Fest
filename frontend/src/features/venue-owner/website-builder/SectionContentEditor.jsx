@@ -132,7 +132,16 @@ export default function SectionContentEditor() {
     setSaving(true);
     try {
       const nextSections = venue.page_sections.map((s) =>
-        s.type === type ? { ...s, config: { title, items: items.filter((it) => it.title?.trim()) } } : s
+        s.type === type
+          ? {
+              ...s,
+              config: {
+                title,
+                // Keep an entry if it has a title, or (for the banner) just a description.
+                items: items.filter((it) => it.title?.trim() || (type === "cta_banner" && it.description?.trim()))
+              }
+            }
+          : s
       );
       await venueService.update(venue.id, { page_sections: nextSections });
       await refetchVenue();
@@ -144,7 +153,7 @@ export default function SectionContentEditor() {
       setSaving(false);
     }
   };
-
+  
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={def.label}>
       <div className="max-w-2xl bg-white p-6 rounded-xl border border-gray-100 space-y-5">

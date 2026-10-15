@@ -569,6 +569,32 @@ async function deleteVenue(venueId) {
   await venue.destroy();
   return true;
 }
+function hasText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+// Decides whether a pluggable website section counts as "filled in" for the setup checklist.
+function isPluggableSectionFilled(section, venue) {
+  const items = Array.isArray(section.config?.items) ? section.config.items : [];
+
+  // Opening hours are saved by the Opening Hours editor into venue.business_hours,
+  // not into the section's items, so check that instead.
+  if (section.type === "hours") {
+    const bh = venue.business_hours;
+    if (bh && typeof bh === "object" && !Array.isArray(bh)) return true;
+    return items.length > 0;
+  }
+
+  // The banner is filled once it has an entry with text, or the vendor changed the default heading.
+  if (section.type === "cta_banner") {
+    if (items.some((it) => it && (hasText(it.title) || hasText(it.description)))) return true;
+    const heading = section.config?.title;
+    const defaultHeading = SECTION_TYPES.cta_banner?.defaultConfig?.title;
+    return hasText(heading) && heading.trim() !== defaultHeading;
+  }
+
+  return items.length > 0;
+}
 
 async function recalculateSetupChecklist(venue) {
   const { Slot } = require("../../database/models");
@@ -617,7 +643,7 @@ async function recalculateSetupChecklist(venue) {
       return;
     }
 
-    if (section.config?.items?.length > 0) {
+    if (isPluggableSectionFilled(section, venue)) {
       steps.push(section.type);
       hasFilledPluggableSection = true;
     }

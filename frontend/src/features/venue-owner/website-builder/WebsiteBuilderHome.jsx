@@ -10,8 +10,22 @@ import { SECTION_TYPES } from "../../../lib/sectionLibrary";
 import SectionPickerModal from "./SectionPickerModal.jsx";
 import DisplayOptionsCard from "./DisplayOptionsCard.jsx";
 import NavbarOptionsCard from "./NavbarOptionsCard.jsx";
+import BuilderCard from "./BuilderCard.jsx";
 import { BASE_DOMAIN } from "../../../lib/constants";
-import { GripVertical, Eye, EyeOff, Trash2, Pencil, Plus, Layers } from "lucide-react";
+import { GripVertical, Eye, EyeOff, Trash2, Pencil, Plus, Copy, ExternalLink, ChevronUp, ChevronDown } from "lucide-react";
+
+import auroraPreview from "../../../assets/templates/aurora.png";
+import bloomPreview from "../../../assets/templates/bloom.png";
+import slatePreview from "../../../assets/templates/slate.png";
+import classicPreview from "../../../assets/templates/classic.png";
+
+// Same ids the Template picker uses. Any other value (for example the default "template-1") renders as Classic.
+const TEMPLATE_INFO = {
+  aurora: { name: "Aurora", tagline: "Dark luxury", image: auroraPreview },
+  bloom: { name: "Bloom", tagline: "Warm editorial", image: bloomPreview },
+  slate: { name: "Slate", tagline: "Bold minimal", image: slatePreview },
+  classic: { name: "Classic", tagline: "Clean and versatile", image: classicPreview }
+};
 
 export default function WebsiteBuilderHome() {
   const navigate = useNavigate();
@@ -24,7 +38,7 @@ export default function WebsiteBuilderHome() {
 
   useEffect(() => {
     // Don't overwrite unsaved layout changes when the venue refetches
-    // (e.g. after toggling a "Show on my website" option).
+    // (e.g. after toggling a "What visitors can see" option).
     if (venue?.page_sections && !dirty) setSections(venue.page_sections);
   }, [venue]);
 
@@ -35,13 +49,15 @@ export default function WebsiteBuilderHome() {
       : `https://${venue.subdomain}.${BASE_DOMAIN}`
     : null;
 
+  const activeTemplate = TEMPLATE_INFO[venue?.template_id] || TEMPLATE_INFO.classic;
+
   const markDirty = (next) => {
     setSections(next);
     setDirty(true);
   };
 
   const toggleVisible = (type) => {
-    markDirty(sections.map((s) => (s.type === type ? { ...s, visible: !s.visible } : s)));
+    markDirty(sections.map((s) => (s.type === type ? { ...s, visible: s.visible === false } : s)));
   };
 
   const removeSection = (type) => {
@@ -53,6 +69,14 @@ export default function WebsiteBuilderHome() {
     if (!def || sections.some((s) => s.type === type)) return;
     markDirty([...sections, { type, visible: true, config: def.defaultConfig ? { ...def.defaultConfig, items: [] } : null }]);
     setPickerOpen(false);
+  };
+
+  const moveSection = (index, dir) => {
+    const target = index + dir;
+    if (target < 0 || target >= sections.length) return;
+    const next = [...sections];
+    [next[index], next[target]] = [next[target], next[index]];
+    markDirty(next);
   };
 
   const handleDragStart = (index) => setDragIndex(index);
@@ -70,6 +94,15 @@ export default function WebsiteBuilderHome() {
     const def = SECTION_TYPES[type];
     if (!def) return;
     navigate(def.editorRoute || `/dashboard/website/section/${type}`);
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      showSuccess("Link copied");
+    } catch {
+      showError("Could not copy the link");
+    }
   };
 
   const save = async () => {
@@ -90,137 +123,198 @@ export default function WebsiteBuilderHome() {
     (type) => SECTION_TYPES[type].removable && !sections.some((s) => s.type === type)
   );
 
+  const visibleSections = sections.filter((s) => SECTION_TYPES[s.type]);
+
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Website Builder">
-      <div className="max-w-4xl">
+      <div className="max-w-4xl space-y-6 pb-10">
+        {/* Public link */}
         {publicUrl && (
-          <div className="bg-primary-50 border border-primary-100 rounded-xl p-4 mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Your public website</p>
-              <p className="font-medium text-primary-700">{publicUrl}</p>
+          <div className="flex flex-col gap-3 rounded-2xl border border-primary-100 bg-primary-50/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Your public website</p>
+              <p className="mt-1 break-all text-sm font-semibold text-primary-700 sm:text-base">{publicUrl}</p>
             </div>
-            <a href={publicUrl} target="_blank" rel="noreferrer" className="text-sm text-primary-600 hover:underline">
-              Preview →
-            </a>
+            <div className="flex flex-shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={copyLink}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-primary-200 bg-white px-3.5 py-2 text-sm font-medium text-primary-700 transition-colors hover:bg-primary-50 sm:flex-none"
+              >
+                <Copy size={15} /> Copy link
+              </button>
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 sm:flex-none"
+              >
+                <ExternalLink size={15} /> Open site
+              </a>
+            </div>
           </div>
         )}
 
-        {/* Template selector banner */}
-        <div className="bg-white border border-navy-100 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
-              <Layers size={17} className="text-primary-600" />
-            </div>
+        {/* 1. Template */}
+        <BuilderCard
+          step="1"
+          title="Template"
+          description="The look and feel of your public website."
+          action={
+            <Button variant="outline" onClick={() => navigate("/dashboard/website/template")} className="w-full sm:w-auto">
+              Change template
+            </Button>
+          }
+        >
+          <div className="flex items-center gap-4">
+            <img
+              src={activeTemplate.image}
+              alt={`${activeTemplate.name} template preview`}
+              className="h-16 w-24 flex-shrink-0 rounded-lg border border-gray-200 object-cover object-top"
+            />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-navy-800">
-                Template:{" "}
-                <span className="text-primary-600 capitalize">
-                  {venue?.template_id || "Classic"}
-                </span>
-              </p>
-              <p className="text-xs text-navy-400 truncate">Change the look and feel of your public website</p>
+              <p className="text-sm font-semibold text-gray-900">{activeTemplate.name}</p>
+              <p className="text-xs text-gray-500">{activeTemplate.tagline}</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate("/dashboard/website/template")}
-            className="flex-shrink-0 text-sm font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 px-4 py-2 rounded-lg transition-colors"
-          >
-            Change Template
-          </button>
-        </div>
+        </BuilderCard>
 
+        {/* 2. What visitors can see */}
         <DisplayOptionsCard />
 
+        {/* 3. Website menu */}
         <NavbarOptionsCard />
 
-        <p className="text-gray-500 mb-6 text-sm">
-          Drag sections to reorder, hide the ones you don't need, and add new ones from the library.
-          Click Save Layout when you're done.
-        </p>
-
-        <div className="space-y-3">
-          {sections.map((section, index) => {
-            const def = SECTION_TYPES[section.type];
-            if (!def) return null;
-            const Icon = def.icon;
-            return (
-              <div
-                key={section.type}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={handleDragOver}
-                onDrop={() => handleDrop(index)}
-                className={`bg-white border rounded-xl p-4 flex items-center gap-3 transition-all ${section.visible === false ? "border-gray-100 opacity-60" : "border-gray-100 hover:border-primary-200"
-                  }`}
-              >
-                <span className="cursor-grab text-gray-300 hover:text-gray-400">
-                  <GripVertical size={18} />
-                </span>
-
-                <div className={`p-2 rounded-lg ${def.color}`}>
-                  <Icon size={18} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 text-sm">{def.label}</p>
-                  <p className="text-xs text-gray-500 truncate">{def.description}</p>
-                </div>
-
-                {def.toggleable && (
-                  <button
-                    onClick={() => toggleVisible(section.type)}
-                    title={section.visible === false ? "Hidden  - click to show" : "Visible  - click to hide"}
-                    className="text-gray-400 hover:text-gray-600 p-1"
+        {/* 4. Page sections */}
+        <BuilderCard
+          step="4"
+          title="Page sections"
+          description="Choose which sections appear on your page and in what order. Use the arrows or drag to reorder."
+          action={
+            addableTypes.length > 0 ? (
+              <Button variant="outline" onClick={() => setPickerOpen(true)} className="w-full sm:w-auto">
+                <Plus size={16} /> Add section
+              </Button>
+            ) : null
+          }
+        >
+          {visibleSections.length === 0 ? (
+            <div className="rounded-xl border-2 border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
+              No sections yet. Add your first one.
+            </div>
+          ) : (
+            <ul className="space-y-2.5">
+              {sections.map((section, index) => {
+                const def = SECTION_TYPES[section.type];
+                if (!def) return null;
+                const Icon = def.icon;
+                const isHidden = section.visible === false;
+                return (
+                  <li
+                    key={section.type}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={handleDragOver}
+                    onDrop={() => handleDrop(index)}
+                    className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border p-3 transition-colors sm:flex-nowrap ${
+                      isHidden ? "border-gray-100 bg-gray-50" : "border-gray-200 bg-white hover:border-primary-200"
+                    }`}
                   >
-                    {section.visible === false ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                )}
+                    <span className="hidden cursor-grab text-gray-300 hover:text-gray-500 sm:block">
+                      <GripVertical size={18} />
+                    </span>
 
-                {def.autoManaged ? (
-                  <span
-                    title="Filled automatically from your Marketplace reviews"
-                    className="text-[10px] font-semibold uppercase tracking-wide text-orange-600 bg-orange-50 px-2 py-1 rounded-full"
-                  >
-                    Auto
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => editSection(section.type)}
-                    title="Edit content"
-                    className="text-gray-400 hover:text-primary-600 p-1"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                )}
+                    <div className={`flex-shrink-0 rounded-lg p-2 ${def.color} ${isHidden ? "opacity-60" : ""}`}>
+                      <Icon size={18} />
+                    </div>
 
-                {def.removable && (
-                  <button
-                    onClick={() => removeSection(section.type)}
-                    title="Remove section"
-                    className="text-gray-400 hover:text-red-500 p-1"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                    <div className={`min-w-0 flex-1 basis-40 ${isHidden ? "opacity-60" : ""}`}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-gray-900">{def.label}</p>
+                        {isHidden && (
+                          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
+                            Hidden
+                          </span>
+                        )}
+                        {def.autoManaged && (
+                          <span
+                            title="Filled automatically from your Marketplace reviews"
+                            className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-600"
+                          >
+                            Auto
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-xs text-gray-500">{def.description}</p>
+                    </div>
 
-        {addableTypes.length > 0 && (
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="w-full mt-4 border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-primary-300 hover:text-primary-500 transition-all flex items-center justify-center gap-2"
-          >
-            <Plus size={16} /> Add Section
-          </button>
-        )}
+                    <div className="ml-auto flex flex-shrink-0 items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => moveSection(index, -1)}
+                        disabled={index === 0}
+                        title="Move up"
+                        className="rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-25 disabled:hover:bg-transparent"
+                      >
+                        <ChevronUp size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveSection(index, 1)}
+                        disabled={index === sections.length - 1}
+                        title="Move down"
+                        className="rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-25 disabled:hover:bg-transparent"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
 
-        <div className="flex gap-3 mt-6">
-          <Button onClick={save} loading={saving} disabled={!dirty} className="flex-1">
-            Save Layout
-          </Button>
-        </div>
+                      {def.toggleable && (
+                        <button
+                          type="button"
+                          onClick={() => toggleVisible(section.type)}
+                          title={isHidden ? "Hidden. Click to show" : "Visible. Click to hide"}
+                          className="rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                        >
+                          {isHidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      )}
+
+                      {!def.autoManaged && (
+                        <button
+                          type="button"
+                          onClick={() => editSection(section.type)}
+                          className="ml-1 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-primary-300 hover:text-primary-600"
+                        >
+                          <Pencil size={13} /> Edit
+                        </button>
+                      )}
+
+                      {def.removable && (
+                        <button
+                          type="button"
+                          onClick={() => removeSection(section.type)}
+                          title="Remove section"
+                          className="ml-1 rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <div className="mt-6 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className={`text-xs ${dirty ? "text-amber-600" : "text-gray-400"}`}>
+              {dirty ? "You have unsaved layout changes." : "Layout is up to date."}
+            </p>
+            <Button onClick={save} loading={saving} disabled={!dirty} className="w-full sm:w-auto">
+              Save layout
+            </Button>
+          </div>
+        </BuilderCard>
 
         {pickerOpen && (
           <SectionPickerModal

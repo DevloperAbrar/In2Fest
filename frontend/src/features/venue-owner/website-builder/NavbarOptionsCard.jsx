@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
+import Button from "../../../components/common/Button";
 import { getNavCandidates, getNavSetting, MAX_INLINE_NAV_LINKS } from "../../../lib/navItems";
-import { Menu, GripVertical, ChevronUp, ChevronDown, ChevronDown as CaretDown, X, Plus } from "lucide-react";
+import { GripVertical, ChevronUp, ChevronDown, ChevronDown as CaretDown, X, Plus } from "lucide-react";
+import BuilderCard from "./BuilderCard.jsx";
 
 export default function NavbarOptionsCard() {
   const { venue, refetchVenue } = useVenue();
@@ -115,32 +117,28 @@ export default function NavbarOptionsCard() {
   const morePreview = shown.slice(MAX_INLINE_NAV_LINKS);
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-5 mb-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <div className="flex items-center gap-2">
-          <Menu size={16} className="text-gray-400" />
-          <h3 className="text-sm font-semibold text-gray-800">Website menu (navbar)</h3>
-          <span className="text-[11px] font-semibold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+    <BuilderCard
+      step="3"
+      title="Website menu"
+      description="Choose the links in your website's top menu, set their order and rename them."
+      action={
+        <>
+          <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-600">
             {shown.length} in menu
           </span>
-        </div>
-        <button
-          type="button"
-          onClick={resetToDefault}
-          className="text-xs font-medium text-gray-400 hover:text-primary-600"
-        >
-          Reset to default
-        </button>
-      </div>
-      <p className="text-xs text-gray-400 mb-4">
-        Pick the sections that get a link in your website's top menu, drag them (or use the arrows) to set the order,
-        and rename any link.
-      </p>
-
+          <button
+            type="button"
+            onClick={resetToDefault}
+            className="text-xs font-medium text-gray-500 hover:text-primary-600"
+          >
+            Reset to default
+          </button>
+        </>
+      }
+    >
       {/* Live preview */}
-      <div className="rounded-lg bg-stone-900 px-4 py-3 mb-5">
-        <p className="text-[10px] uppercase tracking-widest text-stone-500 mb-2">Menu preview</p>
+      <div className="mb-6 rounded-xl bg-stone-900 px-4 py-3.5">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-stone-500">How your menu looks</p>
         {shown.length === 0 ? (
           <p className="text-xs text-stone-400">No links selected. Visitors will see only your name and buttons.</p>
         ) : (
@@ -159,13 +157,13 @@ export default function NavbarOptionsCard() {
       </div>
 
       {/* In the menu (ordered) */}
-      <p className="text-xs font-semibold text-gray-600 mb-2">Shown in menu</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">In the menu</p>
       {shown.length === 0 ? (
-        <div className="border-2 border-dashed border-gray-200 rounded-lg py-5 text-center text-xs text-gray-400 mb-5">
+        <div className="mb-6 rounded-xl border-2 border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
           Nothing here yet. Add sections from the list below.
         </div>
       ) : (
-        <ul className="space-y-2 mb-5">
+        <ul className="mb-6 space-y-2">
           {shown.map((key, i) => {
             const c = byKey[key];
             const inMore = i >= MAX_INLINE_NAV_LINKS;
@@ -179,10 +177,10 @@ export default function NavbarOptionsCard() {
                   }
                 }}
                 onDrop={() => dropOn(key)}
-                className={`flex items-center gap-3 px-3 py-2.5 bg-white border rounded-lg transition-all ${
+                className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-white px-3 py-2.5 transition-colors sm:flex-nowrap ${
                   overKey === key && dragKey !== key
                     ? "border-primary-400 ring-2 ring-primary-100"
-                    : "border-gray-100 hover:border-gray-200"
+                    : "border-gray-200 hover:border-gray-300"
                 } ${dragKey === key ? "opacity-40" : ""}`}
               >
                 <span
@@ -199,40 +197,39 @@ export default function NavbarOptionsCard() {
                     setDragKey(null);
                     setOverKey(null);
                   }}
-                  className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500"
+                  className="hidden cursor-grab text-gray-300 hover:text-gray-500 active:cursor-grabbing sm:block"
                 >
                   <GripVertical size={18} />
                 </span>
 
-                <span className="w-6 h-6 flex-shrink-0 rounded-full bg-primary-50 text-primary-600 text-xs font-bold flex items-center justify-center">
+                <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
                   {i + 1}
                 </span>
 
-                <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
-                  <div className="sm:w-44 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{c.label}</p>
-                    {inMore && <p className="text-[10px] text-amber-600">Goes under "More"</p>}
-                  </div>
-                  <input
-                    type="text"
-                    value={labels[key] || ""}
-                    maxLength={24}
-                    placeholder={`Menu name (${c.label})`}
-                    onChange={(e) => {
-                      setLabels((l) => ({ ...l, [key]: e.target.value }));
-                      touch();
-                    }}
-                    className="flex-1 min-w-0 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary-400"
-                  />
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="truncate text-sm font-medium text-gray-900">{c.label}</p>
+                  {inMore && <p className="text-[11px] text-amber-600">Goes under "More"</p>}
                 </div>
 
-                <div className="flex items-center flex-shrink-0">
+                <input
+                  type="text"
+                  value={labels[key] || ""}
+                  maxLength={24}
+                  placeholder={`Menu name (${c.label})`}
+                  onChange={(e) => {
+                    setLabels((l) => ({ ...l, [key]: e.target.value }));
+                    touch();
+                  }}
+                  className="order-last w-full min-w-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 sm:order-none sm:w-52"
+                />
+
+                <div className="ml-auto flex flex-shrink-0 items-center sm:ml-0">
                   <button
                     type="button"
                     onClick={() => move(key, -1)}
                     disabled={i === 0}
                     title="Move up"
-                    className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-25 disabled:hover:bg-transparent"
+                    className="rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-25 disabled:hover:bg-transparent"
                   >
                     <ChevronUp size={16} />
                   </button>
@@ -241,7 +238,7 @@ export default function NavbarOptionsCard() {
                     onClick={() => move(key, 1)}
                     disabled={i === shown.length - 1}
                     title="Move down"
-                    className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-25 disabled:hover:bg-transparent"
+                    className="rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:opacity-25 disabled:hover:bg-transparent"
                   >
                     <ChevronDown size={16} />
                   </button>
@@ -249,7 +246,7 @@ export default function NavbarOptionsCard() {
                     type="button"
                     onClick={() => removeKey(key)}
                     title="Remove from menu"
-                    className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50"
+                    className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
                   >
                     <X size={16} />
                   </button>
@@ -263,14 +260,14 @@ export default function NavbarOptionsCard() {
       {/* Not in the menu */}
       {hidden.length > 0 && (
         <>
-          <p className="text-xs font-semibold text-gray-600 mb-2">Not in menu</p>
-          <div className="flex flex-wrap gap-2 mb-2">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Not in the menu</p>
+          <div className="flex flex-wrap gap-2">
             {hidden.map((key) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => addKey(key)}
-                className="flex items-center gap-1.5 text-sm text-gray-600 border border-dashed border-gray-300 rounded-full pl-3 pr-3.5 py-1.5 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-full border border-dashed border-gray-300 py-1.5 pl-3 pr-3.5 text-sm text-gray-600 transition-colors hover:border-primary-400 hover:bg-primary-50 hover:text-primary-600"
               >
                 <Plus size={14} /> {byKey[key].label}
               </button>
@@ -280,17 +277,14 @@ export default function NavbarOptionsCard() {
       )}
 
       {/* Footer */}
-      <div className="mt-5 flex items-center justify-end gap-3">
-        {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving}
-          className="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? "Saving..." : "Save menu"}
-        </button>
+      <div className="mt-6 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className={`text-xs ${dirty ? "text-amber-600" : "text-gray-400"}`}>
+          {dirty ? "You have unsaved changes." : "Menu is up to date."}
+        </p>
+        <Button onClick={save} loading={saving} disabled={!dirty} className="w-full sm:w-auto">
+          Save menu
+        </Button>
       </div>
-    </div>
+    </BuilderCard>
   );
 }
