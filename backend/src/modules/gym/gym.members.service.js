@@ -73,7 +73,10 @@ function memberFields(b, creating) {
   if (b.trainer_name !== undefined) o.trainer_name = String(b.trainer_name || "").slice(0, 100) || null;
   if (b.source !== undefined) o.source = String(b.source || "").slice(0, 30) || null;
   if (b.notes !== undefined) o.notes = String(b.notes || "").slice(0, 1000) || null;
-  if (b.photo_url !== undefined) o.photo_url = b.photo_url || null;
+  if (b.photo_url !== undefined) {
+    const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
+    o.photo_url = b.photo_url && base && String(b.photo_url).startsWith(`${base}/`) ? b.photo_url : null;
+  }
   return o;
 }
 

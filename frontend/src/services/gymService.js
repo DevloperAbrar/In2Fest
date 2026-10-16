@@ -32,6 +32,7 @@ export const gymService = {
   cancelPayment: (v, id) => api.post(`${b(v)}/payments/${id}/cancel`),
   refreshPayment: (v, id) => api.post(`${b(v)}/payments/${id}/refresh`),
   receiptPdf: (v, id) => api.get(`${b(v)}/payments/${id}/receipt`, { responseType: "blob" }),
+  memberCard: (v, id) => api.get(`${b(v)}/members/${id}/card`, { responseType: "blob" }),
 
   listWorkouts: (v, params) => api.get(`${b(v)}/workout-plans`, { params }),
   getWorkout: (v, id) => api.get(`${b(v)}/workout-plans/${id}`),

@@ -11,8 +11,10 @@ export default function BottomNav() {
   const visibleItems = useVisibleNavItems(ownerSidebarItems);
   const { t } = useTranslation();
 
-  const primaryItems = visibleItems.filter((i) => i.primaryNav);
-  const moreItems = visibleItems.filter((i) => !i.primaryNav);
+  // At most 4 tabs + "More". The grid adapts when a segment has fewer tabs.
+  const primaryItems = visibleItems.filter((i) => i.primaryNav).slice(0, 4);
+  const moreItems = visibleItems.filter((i) => !primaryItems.includes(i));
+  const cols = primaryItems.length + 1;
 
   return (
     <>
@@ -20,7 +22,7 @@ export default function BottomNav() {
         className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-navy-100 shadow-nav
                    pb-safe-b"
       >
-        <div className="grid grid-cols-5 h-16">
+        <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {primaryItems.map((item) => (
             <NavLink
               key={item.path}

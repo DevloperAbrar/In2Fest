@@ -13,6 +13,7 @@ const payments = require("./gym.payments.service");
 const insights = require("./gym.insights.service");
 const messages = require("./gym.messages.service");
 const receipt = require("./gym.receipt");
+const card = require("./gym.card");
 const workout = require("./gym.workout.service");
 
 const router = express.Router({ mergeParams: true });
@@ -68,6 +69,9 @@ router.get("/members", h((req) => members.listMembers(req.gymVenue.id, req.query
 router.post("/members", h((req) => members.enroll(ctx(req), req.body), 201));
 router.get("/members/:id", h((req) => members.getDetail(ctx(req), req.params.id)));
 router.get("/members/:id/message", h((req) => messages.compose(ctx(req), req.params.id, req.query)));
+router.get("/members/:id/card", async (req, res, next) => {
+  try { await card.memberCardPng(ctx(req), req.params.id, res); } catch (e) { next(e); }
+});
 router.patch("/members/:id", h((req) => members.updateMember(req.gymVenue.id, req.params.id, req.body)));
 router.delete("/members/:id", h((req) => members.archiveMember(req.gymVenue.id, req.params.id)));
 router.post("/members/:id/photo", upload.single("photo"), h(async (req) => {

@@ -43,7 +43,12 @@ async function listBusinessTypes(req, res, next) {
 
 async function getCategoryBusinessProfile(req, res, next) {
   try {
-    res.json({ success: true, data: getBusinessProfile(req.params.categorySlug) });
+    const secondary = String(req.query.secondary || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 2);
+    res.json({ success: true, data: getBusinessProfile(req.params.categorySlug, secondary) });
   } catch (error) {
     next(error);
   }

@@ -12,38 +12,51 @@ export const FALLBACK_TERMS = {
   offering: "Service", offerings: "Services"
 };
 
-// Returns the business-type profile (labels, modules, billing config) for the current venue,
-// or for an explicit category slug. Safe outside VenueProvider (returns fallbacks).
-export function useBusinessProfile(categorySlug) {
+// Returns the business profile (labels, modules, sidebar entries, billing config) for the current
+// venue, or for an explicit category slug (+ optional secondary slugs). Safe outside VenueProvider.
+export function useBusinessProfile(categorySlug, secondarySlugs) {
   const venueCtx = useContext(VenueContext);
   const slug = categorySlug || venueCtx?.venue?.business_category || null;
-  const [profile, setProfile] = useState(slug && cache.has(slug) ? cache.get(slug) : null);
+  const rawSecondary = Array.isArray(secondarySlugs)
+    ? secondarySlugs
+    : !categorySlug
+      ? venueCtx?.venue?.secondary_categories
+      : null;
+  const secondaryKey = (rawSecondary || []).filter(Boolean).slice(0, 2).join(",");
+  const cacheKey = slug ? `${slug}|${secondaryKey}` : null;
+
+  const [loaded, setLoaded] = useState({ key: null, data: null });
+  const [failedKey, setFailedKey] = useState(null);
+
+  const profile = !cacheKey ? null : cache.get(cacheKey) || (loaded.key === cacheKey ? loaded.data : null);
+  const failed = failedKey === cacheKey;
 
   useEffect(() => {
-    if (!slug) return undefined;
-    if (cache.has(slug)) {
-      setProfile(cache.get(slug));
-      return undefined;
-    }
+    if (!cacheKey || cache.has(cacheKey)) return undefined;
+    const [s, sec] = cacheKey.split("|");
     let cancelled = false;
     businessProfileService
-      .getForCategory(slug)
+      .getForCategory(s, sec ? sec.split(",") : [])
       .then((res) => {
         const data = res.data?.data;
         if (data) {
-          cache.set(slug, data);
-          if (!cancelled) setProfile(data);
+          cache.set(cacheKey, data);
+          if (!cancelled) setLoaded({ key: cacheKey, data });
+        } else if (!cancelled) {
+          setFailedKey(cacheKey);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setFailedKey(cacheKey);
+      });
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [cacheKey]);
 
   return {
     profile,
     terms: profile?.terms || FALLBACK_TERMS,
-    loading: Boolean(slug) && !profile
+    loading: Boolean(cacheKey) && !profile && !failed
   };
 }

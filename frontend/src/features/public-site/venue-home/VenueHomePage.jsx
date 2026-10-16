@@ -14,6 +14,7 @@ import DynamicSectionRenderer from "./venue-home/DynamicSectionRenderer.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import { getTemplateSections } from "./templates/index.jsx";
 import { resolveNav } from "../../lib/navItems";
+import { useBusinessProfile } from "../../hooks/useBusinessProfile";
 
 const DEFAULT_SECTIONS = {
   HeroSection,
@@ -60,6 +61,8 @@ export default function VenueHomePage() {
     subdomain ? `/venues/public/${subdomain}` : null
   );
 
+  const { profile: bizProfile } = useBusinessProfile(venue?.business_category, venue?.secondary_categories || []);
+
   // PUBLIC slots + packages endpoints (no login needed). Used for the
   // "Slots & Packages" section and the "Select Slot" dropdown in the
   // enquiry form - the availability calendar fetches its own data.
@@ -105,7 +108,7 @@ export default function VenueHomePage() {
   let dynamicIdx = 0;
 
   // Vendor controls from Website Builder > "Show on my website"
-  const showAvailability = venue.show_availability !== false;
+  const showAvailability = venue.show_availability !== false && !!bizProfile?.modules?.includes("slots");
   const showSlotsPackages = venue.show_slots_packages !== false;
 
   // Navbar links chosen by the vendor in Website Builder > "Website menu"

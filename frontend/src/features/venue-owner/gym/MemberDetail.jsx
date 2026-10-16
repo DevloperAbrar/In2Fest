@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Phone, RefreshCw, IndianRupee, Snowflake, Link2, Dumbbell, Camera, Pencil, MessageSquare, FileText, Share2, Copy } from "lucide-react";
+import {
+  Phone, RefreshCw, IndianRupee, Snowflake, Link2, Dumbbell, Camera, Pencil,
+  MessageSquare, FileText, Share2, Copy, CreditCard
+} from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
@@ -13,9 +16,10 @@ import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { Phone, RefreshCw, IndianRupee, Snowflake, Link2, Dumbbell, Camera, Pencil, MessageSquare, FileText, Share2, Copy } from "lucide-react";
+import {
+  GymPage, StatusPill, Field, TextArea, MessageModal,
+  inr, fmtDate, errMsg, MODES, GOALS, downloadBlob, copyText, shareContent
+} from "./gymShared.jsx";
 
 function RenewModal({ isOpen, onClose, vid, member, onDone }) {
   const { data: plans } = useFetch(isOpen ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen });
@@ -166,6 +170,62 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     );
   }
 
+  function MemberCardModal({ isOpen, onClose, vid, member }) {
+    const [url, setUrl] = useState("");
+    const [blob, setBlob] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const fileName = `${member.member_code || "member"}-membership-card.png`;
+  
+    useEffect(() => {
+      if (!isOpen) return undefined;
+      let off = false;
+      let objectUrl = "";
+      setLoading(true);
+      setError("");
+      setUrl("");
+      setBlob(null);
+      gymService.memberCard(vid, member.id)
+        .then((r) => {
+          if (off) return;
+          objectUrl = URL.createObjectURL(r.data);
+          setBlob(r.data);
+          setUrl(objectUrl);
+        })
+        .catch(() => { if (!off) setError("Could not create the membership card"); })
+        .finally(() => { if (!off) setLoading(false); });
+      return () => {
+        off = true;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      };
+    }, [isOpen, vid, member.id, member.plan_name, member.end_date, member.photo_url]);
+  
+    const share = async () => {
+      const file = new File([blob], fileName, { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Membership card" }); }
+        catch (e) { if (e?.name !== "AbortError") showError("Could not share the card"); }
+      } else {
+        downloadBlob(blob, fileName);
+      }
+    };
+  
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Membership card" size="md">
+        <div className="space-y-3">
+          {loading && <Loader />}
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          {url && <img src={url} alt="Membership card" className="w-full rounded-2xl shadow" />}
+          <p className="text-xs text-gray-500">Card shows the gym name, member details, plan validity and a QR of the member ID. Download it or share it from your phone.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={share} disabled={!blob}>Share</Button>
+            <Button onClick={() => downloadBlob(blob, fileName)} disabled={!blob}>Download</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   export default function MemberDetail() {
     const { id } = useParams();
     const nav = useNavigate();
@@ -235,6 +295,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
             : <Button variant="outline" onClick={() => setModal("freeze")} disabled={!m.end_date || m.days_left < 0 || (plan && !plan.freeze_allowed)}><Snowflake size={14} /> Freeze</Button>}
           <Button variant="outline" onClick={() => setMsg({ title: "Message", types: msgTypes })}><MessageSquare size={14} /> Message</Button>
           <Button variant="outline" onClick={() => setModal("workout")}><Dumbbell size={14} /> Workout</Button>
+          <Button variant="outline" onClick={() => setModal("card")}><CreditCard size={14} /> Card</Button>
           <Button variant="outline" className="col-span-2 sm:col-span-2 text-red-600" onClick={() => setModal("archive")}>Archive member</Button>
         </div>
         {!pr.razorpay && !pr.upi && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">Add your UPI ID (Settings &gt; Payment) or connect Razorpay in Gym Settings to create payment links.</p>}
@@ -291,6 +352,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
   
         {msg && <MessageModal key={msg.title} onClose={() => setMsg(null)} vid={vid} memberId={m.id} title={msg.title} types={msg.types} params={msg.params} />}
         <RenewModal isOpen={modal === "renew"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Renewed")} />
+        <MemberCardModal isOpen={modal === "card"} onClose={() => setModal(null)} vid={vid} member={m} />
         <PayModal isOpen={modal === "pay"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <LinkModal isOpen={modal === "link"} onClose={() => setModal(null)} vid={vid} member={m} hasDue={hasDue} />
         <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />

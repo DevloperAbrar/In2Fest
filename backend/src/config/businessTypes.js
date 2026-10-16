@@ -1,6 +1,7 @@
 const { FIXED_CATEGORIES } = require("./categories");
 const { PLAN_FEATURES } = require("./planFeatures");
 const { resolveBilling } = require("./billingProfiles");
+const { resolveSegment } = require("./vendorSegments");
 
 const ALL_MODULES = PLAN_FEATURES.map((f) => f.key);
 const CORE_MODULES = ["website_builder", "marketplace_profile", "reviews", "inquiries", "clients", "billing"];
@@ -288,19 +289,34 @@ function getBusinessTypeKey(categorySlug) {
 }
 
 // secondarySlugs (optional): a vendor running two lines of business gets the union of modules.
+// secondarySlugs (optional): a vendor running two lines of business gets the union of modules.
+// Categories that belong to a vendor segment (see vendorSegments.js) get the segment's modules + sidebar.
 function getBusinessProfile(categorySlug, secondarySlugs = []) {
   const key = getBusinessTypeKey(categorySlug);
   const type = BUSINESS_TYPES[key] || BUSINESS_TYPES.general;
-  const modules = new Set(type.modules);
-  (secondarySlugs || []).forEach((slug) => {
-    (BUSINESS_TYPES[getBusinessTypeKey(slug)]?.modules || []).forEach((m) => modules.add(m));
-  });
+  const secondary = (secondarySlugs || []).filter(Boolean);
+
+  const seg = resolveSegment(categorySlug, secondary, (slug) => BUSINESS_TYPES[getBusinessTypeKey(slug)]?.modules || []);
+
+  let modules;
+  if (seg) {
+    modules = seg.modules;
+  } else {
+    const set = new Set(type.modules);
+    secondary.forEach((slug) => {
+      (BUSINESS_TYPES[getBusinessTypeKey(slug)]?.modules || []).forEach((m) => set.add(m));
+    });
+    modules = [...set];
+  }
+
   return {
     key: type.key,
     label: type.label,
     icon: type.icon,
     terms: type.terms,
-    modules: [...modules],
+    modules,
+    segment: seg ? seg.segment : null,
+    nav: seg ? seg.nav : null,
     billing: resolveBilling(type.billing, type.key, categorySlug)
   };
 }

@@ -8,7 +8,7 @@
 // CATEGORY_ATTRIBUTES (fields). No database change is needed: attribute values
 // live in venues.profile_attributes (JSONB).
 
-const { BUSINESS_TYPES, getBusinessTypeKey } = require("./businessTypes");
+const { BUSINESS_TYPES, getBusinessTypeKey, getBusinessProfile } = require("./businessTypes");
 const { AppError } = require("../middleware/error.middleware");
 
 /* ------------------------------------------------------------------ */
@@ -706,7 +706,7 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
     price_units: units(override.priceUnits || BASE_PROFILE.priceUnits),
     services_suggestions: CATEGORY_SUGGESTIONS[slug] || override.servicesSuggestions || BASE_PROFILE.servicesSuggestions,
     stats: override.stats || BASE_PROFILE.stats,
-    features: { availability: Array.isArray(type.modules) && type.modules.includes("slots") },
+    features: { availability: getBusinessProfile(slug, secondary).modules.includes("slots") },
     attributes,
     groups: [...new Set(attributes.map((a) => a.group))]
   };

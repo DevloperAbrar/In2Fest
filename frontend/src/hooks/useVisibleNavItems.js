@@ -5,6 +5,9 @@ import { useBusinessProfile } from "./useBusinessProfile";
 
 const OWNER_ONLY_PATHS = ["/dashboard/settings", "/dashboard/analytics"];
 
+// Shown even while the business profile is still loading, so nothing flashes in and out.
+const ALWAYS_NAV = ["dashboard", "settings"];
+
 // Sidebar labels follow the business type (Clients -> Students, Bookings -> Admissions, ...)
 const LABEL_TERM = {
   "/dashboard/inquiries": "inquiries",
@@ -16,7 +19,7 @@ const LABEL_TERM = {
 export function useVisibleNavItems(items = []) {
   const { user } = useAuth();
   const venueCtx = useContext(VenueContext); // null outside VenueProvider (e.g. admin panel)
-  const { profile, terms } = useBusinessProfile();
+  const { profile, terms, loading: profileLoading } = useBusinessProfile();
   const isTeamMember = user?.role === "team_member";
 
   // Only filter by plan once the venue has really loaded. In the admin panel
@@ -24,6 +27,7 @@ export function useVisibleNavItems(items = []) {
   const venueReady = !!venueCtx && !venueCtx.loading && !!venueCtx.venue;
   const planFeatures = venueCtx?.venue?.subscription?.plan?.features || [];
   const modules = profile?.modules || null; // modules relevant to this business type
+  const navAllow = profile?.nav || null; // sidebar entries for this vendor segment (null = no segment rules)
   const venueCategories = venueReady
     ? [venueCtx.venue.business_category, ...(venueCtx.venue.secondary_categories || [])].filter(Boolean)
     : [];
@@ -31,6 +35,15 @@ export function useVisibleNavItems(items = []) {
   return items
     .filter((item) => {
       if (isTeamMember && OWNER_ONLY_PATHS.includes(item.path)) return false;
+
+      // Vendor segment: a gym does not see Slots, a shop does not see Bookings, and so on.
+      if (item.navKey && venueReady) {
+        if (profileLoading) {
+          if (!ALWAYS_NAV.includes(item.navKey)) return false;
+        } else if (navAllow && !navAllow.includes(item.navKey)) {
+          return false;
+        }
+      }
 
       // Items meant only for some business types (e.g. "Products & Catalog" for shops).
       if (item.businessTypes && venueReady && !(profile && item.businessTypes.includes(profile.key))) return false;
