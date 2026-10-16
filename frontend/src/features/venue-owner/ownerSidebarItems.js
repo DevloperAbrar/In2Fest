@@ -1,10 +1,11 @@
 import {
   LayoutDashboard, Globe, CalendarClock, MessageSquare, CalendarCheck,
-  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package
+  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell
 } from "lucide-react";
 
 export const ownerSidebarItems = [
   { path: "/dashboard",                     label: "Dashboard",           icon: LayoutDashboard, primaryNav: true },
+  { path: "/dashboard/gym",                 label: "Gym",                 icon: Dumbbell,        requiredFeature: "gym", categorySlugs: ["gym-fitness"], primaryNav: true },
   { path: "/dashboard/inquiries",           label: "Inquiries",           icon: MessageSquare,   requiredFeature: "inquiries",          primaryNav: true },
   { path: "/dashboard/bookings",            label: "Bookings",            icon: CalendarCheck,   requiredFeature: "bookings",           primaryNav: true },
   { path: "/dashboard/catalog",             label: "Products & Catalog",  icon: Package,         requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },

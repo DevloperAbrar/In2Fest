@@ -155,6 +155,13 @@ async function applyAll() {
     }
   }
 
+  try {
+    await require("../modules/gym/gym.bootstrap").ensureGymSchema();
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] gym schema failed:", e.message);
+  }
+
   for (let i = 0; i < NEW_CATEGORIES.length; i++) {
     const c = NEW_CATEGORIES[i];
     try {

@@ -161,6 +161,20 @@ Referral.belongsTo(Venue, { foreignKey: "referred_venue_id", as: "referredVenue"
 Venue.hasMany(ReferralCreditLedger, { foreignKey: "venue_id", as: "creditLedger" });
 ReferralCreditLedger.belongsTo(Venue, { foreignKey: "venue_id" });
 
+// ---- Gym engine ----
+const gym = require("./gym.models")(sequelize, DataTypes);
+const {
+  GymSettings, GymPlan, GymMember, GymMembership, GymPayment,
+  GymExercise, GymWorkoutPlan, GymLead
+} = gym;
+
+GymMember.hasMany(GymMembership, { foreignKey: "member_id", as: "memberships", constraints: false });
+GymMembership.belongsTo(GymMember, { foreignKey: "member_id", as: "member", constraints: false });
+GymMember.hasMany(GymPayment, { foreignKey: "member_id", as: "payments", constraints: false });
+GymPayment.belongsTo(GymMember, { foreignKey: "member_id", as: "member", constraints: false });
+GymPayment.belongsTo(GymMembership, { foreignKey: "membership_id", as: "membership", constraints: false });
+GymWorkoutPlan.belongsTo(GymMember, { foreignKey: "member_id", as: "member", constraints: false });
+
 module.exports = {
   sequelize,
   User, Venue, Plan, Subscription, Payment,
@@ -172,5 +186,7 @@ module.exports = {
   VendorListing, Review, ReviewRequest,
   PublicUser, SavedVendor, CityRequest,
   Announcement, LoginEvent,
-  Referral, ReferralCreditLedger
+  Referral, ReferralCreditLedger,
+  GymSettings, GymPlan, GymMember, GymMembership, GymPayment,
+  GymExercise, GymWorkoutPlan, GymLead
 };

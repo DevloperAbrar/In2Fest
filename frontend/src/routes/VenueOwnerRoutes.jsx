@@ -47,6 +47,15 @@ import OwnerReviews from "../features/venue-owner/reviews/OwnerReviews.jsx";
 // ✅ NEW: Referrals page
 import ReferralsPage from "../features/venue-owner/referrals/ReferralsPage.jsx";
 
+import GymDashboard from "../features/venue-owner/gym/GymDashboard.jsx";
+import GymMembers from "../features/venue-owner/gym/GymMembers.jsx";
+import MemberDetail from "../features/venue-owner/gym/MemberDetail.jsx";
+import GymPlans from "../features/venue-owner/gym/GymPlans.jsx";
+import WorkoutPlans from "../features/venue-owner/gym/WorkoutPlans.jsx";
+import WorkoutBuilder from "../features/venue-owner/gym/WorkoutBuilder.jsx";
+import GymLeads from "../features/venue-owner/gym/GymLeads.jsx";
+import GymSettings from "../features/venue-owner/gym/GymSettings.jsx";
+
 export default function VenueOwnerRoutes() {
   return (
     <VenueProvider>
@@ -94,6 +103,15 @@ export default function VenueOwnerRoutes() {
         <Route path="settings/team" element={<RequireOwner><TeamMembers /></RequireOwner>} />
         <Route path="settings/subscription" element={<RequireOwner><SubscriptionDetails /></RequireOwner>} />
         <Route path="reviews" element={<RequireFeature feature="reviews"><OwnerReviews /></RequireFeature>} />
+
+        <Route path="gym" element={<RequireFeature feature="gym"><GymDashboard /></RequireFeature>} />
+        <Route path="gym/members" element={<RequireFeature feature="gym"><GymMembers /></RequireFeature>} />
+        <Route path="gym/members/:id" element={<RequireFeature feature="gym"><MemberDetail /></RequireFeature>} />
+        <Route path="gym/plans" element={<RequireFeature feature="gym"><GymPlans /></RequireFeature>} />
+        <Route path="gym/workouts" element={<RequireFeature feature="gym"><WorkoutPlans /></RequireFeature>} />
+        <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><WorkoutBuilder /></RequireFeature>} />
+        <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
+        <Route path="gym/settings" element={<RequireOwner><RequireFeature feature="gym"><GymSettings /></RequireFeature></RequireOwner>} />
 
         {/* ✅ NEW: Referrals route */}
         <Route path="referrals" element={<RequireOwner><ReferralsPage /></RequireOwner>} />

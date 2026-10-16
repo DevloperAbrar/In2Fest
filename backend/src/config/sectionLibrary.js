@@ -214,7 +214,7 @@ const CATEGORY_SECTION_DEFAULTS = {
   "cloud-kitchen": ["menu", "process", "cta_banner", "faq"],
 
   // health & wellness
-  "gym-fitness": ["packages", "team", "hours", "faq"],
+  "gym-fitness": ["packages", "team", "hours", "faq", "cta_banner"],
   "salon-spa": ["menu", "portfolio", "team", "hours", "faq"],
   clinic: ["team", "hours", "cta_banner", "faq"],
   "yoga-center": ["packages", "team", "hours", "faq"],

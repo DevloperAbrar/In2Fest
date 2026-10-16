@@ -24,6 +24,9 @@ export function useVisibleNavItems(items = []) {
   const venueReady = !!venueCtx && !venueCtx.loading && !!venueCtx.venue;
   const planFeatures = venueCtx?.venue?.subscription?.plan?.features || [];
   const modules = profile?.modules || null; // modules relevant to this business type
+  const venueCategories = venueReady
+    ? [venueCtx.venue.business_category, ...(venueCtx.venue.secondary_categories || [])].filter(Boolean)
+    : [];
 
   return items
     .filter((item) => {
@@ -31,6 +34,9 @@ export function useVisibleNavItems(items = []) {
 
       // Items meant only for some business types (e.g. "Products & Catalog" for shops).
       if (item.businessTypes && venueReady && !(profile && item.businessTypes.includes(profile.key))) return false;
+
+      // Items meant only for specific categories (e.g. Gym tools for "gym-fitness").
+      if (item.categorySlugs && venueReady && !item.categorySlugs.some((s) => venueCategories.includes(s))) return false;
 
       // Hide modules that don't make sense for this business type (e.g. slots for a shop).
       if (item.requiredFeature && venueReady && modules && !modules.includes(item.requiredFeature)) return false;

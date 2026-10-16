@@ -128,7 +128,7 @@ const BUSINESS_TYPES = {
     label: "Health, Fitness & Beauty",
     description: "Gyms, salons, clinics and yoga centres",
     icon: "heart-pulse",
-    modules: APPOINTMENT_MODULES,
+    modules: [...APPOINTMENT_MODULES, "gym"],
     terms: terms({
       client: "Client", clients: "Clients",
       booking: "Appointment", bookings: "Appointments",

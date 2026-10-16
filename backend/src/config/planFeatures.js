@@ -8,7 +8,8 @@ const PLAN_FEATURES = [
   { key: "inquiries", label: "Inquiry Form" },
   { key: "bookings", label: "Bookings" },
   { key: "clients", label: "Clients" },
-  { key: "billing", label: "Billing" }
+  { key: "billing", label: "Billing" },
+  { key: "gym", label: "Gym Management" }
 ];
 
 module.exports = { PLAN_FEATURES };

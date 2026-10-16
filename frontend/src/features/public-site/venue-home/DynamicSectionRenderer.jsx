@@ -3,6 +3,7 @@ import BusinessHoursDisplay from "./BusinessHoursDisplay.jsx";
 import { ChevronDown } from "lucide-react";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
 import SocialLinks from "./SocialLinksSection.jsx";
+import FreeTrialModal from "./FreeTrialModal.jsx";
 
 /* ─── Reveal helper ─── */
 function Reveal({ children, delay = 0, className = "", from = "bottom" }) {
@@ -557,12 +558,14 @@ function Results({ config, theme, toneIdx }) {
 
 /* ─── CTA banner (first entry) ─── */
 function CtaBanner({ config, theme, venue }) {
+  const [trialOpen, setTrialOpen] = React.useState(false);
   const first = (config?.items || [])[0];
   const headline = first?.title || config?.title;
   if (!headline) return null;
 
   const rawPhone = String(venue?.whatsapp_number || venue?.phone || "").replace(/\D/g, "");
   const waNumber = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+  const isGym = [venue?.business_category, ...(venue?.secondary_categories || [])].includes("gym-fitness");
 
   return (
     <section className="px-6 py-16 bg-white dark:bg-stone-950">
@@ -574,11 +577,21 @@ function CtaBanner({ config, theme, venue }) {
           <h2 className="text-3xl md:text-4xl font-extrabold" style={{ letterSpacing: "-0.02em" }}>{headline}</h2>
           {first?.description && <p className="mt-3 text-white/90 text-lg">{first.description}</p>}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {isGym && venue?.id && (
+              <button
+                type="button"
+                onClick={() => setTrialOpen(true)}
+                className="px-7 py-3 rounded-full bg-white font-bold text-sm shadow-lg hover:-translate-y-0.5 transition-transform"
+                style={{ color: theme }}
+              >
+                Book Free Trial
+              </button>
+            )}
             {rawPhone && (
               <a
                 href={`tel:+${waNumber}`}
-                className="px-7 py-3 rounded-full bg-white font-bold text-sm shadow-lg hover:-translate-y-0.5 transition-transform"
-                style={{ color: theme }}
+                className={`px-7 py-3 rounded-full font-bold text-sm transition-transform ${isGym ? "border-2 border-white hover:bg-white/10" : "bg-white shadow-lg hover:-translate-y-0.5"}`}
+                style={isGym ? undefined : { color: theme }}
               >
                 Call Now
               </a>
@@ -596,6 +609,7 @@ function CtaBanner({ config, theme, venue }) {
           </div>
         </div>
       </Reveal>
+      {trialOpen && <FreeTrialModal venueId={venue.id} theme={theme} onClose={() => setTrialOpen(false)} />}
     </section>
   );
 }

@@ -6,6 +6,7 @@ const { startFreeListingNudge } = require("./freeListingNudge");
 const { startWeeklyStats } = require("./weeklyStats");
 const { startSitemapRebuilder } = require("./sitemapRebuilder");
 const { startReferralCron } = require("./referralCron");
+const { startGymJobs } = require("./gymJobs");
 
 function startJobs() {
   startTrialExpiryChecker();
@@ -16,6 +17,7 @@ function startJobs() {
   startWeeklyStats();
   startSitemapRebuilder();
   startReferralCron();
+  startGymJobs();
   console.log("[JOBS] All background jobs started.");
 }
 
