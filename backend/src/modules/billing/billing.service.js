@@ -3,7 +3,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { getSequelize } = require("../../utils/db");
 const { calculateDocument, r2 } = require("../../utils/taxEngine");
 const { generateInvoiceNumber } = require("../../utils/invoiceNumberGenerator");
-const { getBusinessProfile } = require("../../config/businessTypes");
+const { getBusinessProfile, getBusinessTypeKey } = require("../../config/businessTypes");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const { generateUpiQr } = require("./qr.generator");
 const { generateInvoicePdf } = require("./pdf.generator");
@@ -72,6 +72,25 @@ async function resolveCustomer(venue, body, existing) {
     gstin,
     state_code: stateCode
   };
+
+  // Shops have no bookings, so a customer is saved from the bill itself (matched by phone).
+  // Only when both a name and a valid phone are typed; otherwise it stays a walk-in.
+  if (!clientRecord && !clientId && getBusinessTypeKey(venue.business_category) === "retail") {
+    const digits = snapshot.phone.replace(/\D/g, "");
+    if (digits.length >= 10 && snapshot.name !== "Walk-in Customer") {
+      clientRecord = await Client.findOne({ where: { venue_id: venue.id, phone: snapshot.phone } });
+      if (!clientRecord) {
+        clientRecord = await Client.create({
+          venue_id: venue.id,
+          name: snapshot.name,
+          phone: snapshot.phone,
+          email: snapshot.email || null,
+          source: "manual"
+        });
+      }
+      clientId = clientRecord.id;
+    }
+  }
 
   return { clientId, clientRecord, snapshot };
 }

@@ -31,6 +31,7 @@ import ClientDetail from "../features/venue-owner/clients/ClientDetail.jsx";
 import BillingHome from "../features/venue-owner/billing/BillingHome.jsx";
 import DocumentEditor from "../features/venue-owner/billing/DocumentEditor.jsx";
 import ServiceCatalog from "../features/venue-owner/billing/ServiceCatalog.jsx";
+import BillingCustomers from "../features/venue-owner/billing/BillingCustomers.jsx";
 import InventoryHome from "../features/venue-owner/inventory/InventoryHome.jsx";
 
 import OwnerAnalytics from "../features/venue-owner/analytics/OwnerAnalytics.jsx";
@@ -93,6 +94,7 @@ export default function VenueOwnerRoutes() {
         <Route path="billing/new" element={<RequireFeature feature="billing"><DocumentEditor /></RequireFeature>} />
         <Route path="billing/:id/edit" element={<RequireFeature feature="billing"><DocumentEditor /></RequireFeature>} />
         <Route path="billing/services" element={<RequireFeature feature="billing"><ServiceCatalog /></RequireFeature>} />
+        <Route path="billing/customers" element={<RequireFeature feature="billing"><BillingCustomers /></RequireFeature>} />
         <Route path="catalog" element={<RequireFeature feature="billing"><ServiceCatalog /></RequireFeature>} />
         <Route path="inventory" element={<RequireFeature feature="billing"><InventoryHome /></RequireFeature>} />
         <Route path="analytics" element={<RequireOwner><OwnerAnalytics /></RequireOwner>} />

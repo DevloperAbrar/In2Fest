@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import {
   Plus, Search, Download, Copy, Pencil, Trash2, X, ArrowRight,
-  ChevronDown, ChevronLeft, ChevronRight, FileText, Wallet, Clock, AlertCircle, IndianRupee, Package
+  ChevronDown, ChevronLeft, ChevronRight, FileText, Wallet, Clock, AlertCircle, IndianRupee, Package, Users
 } from "lucide-react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import Modal from "../../../components/common/Modal";
@@ -406,6 +406,11 @@ export default function BillingHome({ initialTab = "invoice" }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <p className="text-sm text-navy-400">Quotations, invoices and payments in one place.</p>
         <div className="flex items-center gap-2">
+          {profile?.key === "retail" && (
+            <Link to="/dashboard/billing/customers" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-navy-200 text-sm font-medium text-navy-700 hover:bg-navy-50">
+              <Users size={15} /> {terms.clients}
+            </Link>
+          )}
           <Link to="/dashboard/billing/services" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-navy-200 text-sm font-medium text-navy-700 hover:bg-navy-50">
             <Package size={15} /> Items
           </Link>

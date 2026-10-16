@@ -1,6 +1,7 @@
-const { Client, Booking, Slot } = require("../../database/models");
+const { Client, Booking, Slot, Venue, Invoice } = require("../../database/models");
 const { Op } = require("sequelize");
 const { AppError } = require("../../middleware/error.middleware");
+const { getBusinessTypeKey } = require("../../config/businessTypes");
 
 async function createClient(req, res, next) {
   try {
@@ -15,11 +16,22 @@ async function createClient(req, res, next) {
   }
 }
 
-// A client = someone who has at least one booking. People without any booking
+// Event-type vendors: a client = someone who has at least one booking. People without any booking
 // (added manually earlier, or only sent an inquiry) are not listed.
+// Shops: there are no bookings, so every saved customer is listed.
 async function getClients(req, res, next) {
   try {
     const venueId = req.params.venueId;
+
+    const venue = await Venue.findByPk(venueId, { attributes: ["id", "business_category"] });
+    if (venue && getBusinessTypeKey(venue.business_category) === "retail") {
+      const all = await Client.findAll({
+        where: { venue_id: venueId },
+        include: [{ model: Slot, as: "slot" }],
+        order: [["created_at", "DESC"]]
+      });
+      return res.json({ success: true, data: all });
+    }
 
     const booked = await Booking.findAll({
       where: { venue_id: venueId, client_id: { [Op.ne]: null } },
@@ -80,6 +92,7 @@ async function updateClient(req, res, next) {
  * Blocks deletion if the client has any existing bookings, to avoid
  * orphaning booking/payment/invoice records. Owner must handle those
  * bookings first (cancel/reassign) before the client record can be removed.
+ * Invoices keep their own customer snapshot, so they are detached (not deleted).
  */
 async function deleteClient(req, res, next) {
   try {
@@ -94,6 +107,7 @@ async function deleteClient(req, res, next) {
       );
     }
 
+    await Invoice.update({ client_id: null }, { where: { client_id: client.id, venue_id: req.params.venueId } });
     await client.destroy();
     res.json({ success: true, message: "Client deleted" });
   } catch (error) {
