@@ -328,13 +328,24 @@ function ProductCatalog({ config, theme, toneIdx, venue }) {
                     {soldOut && (
                       <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/70 text-white text-[10px] font-bold">Out of stock</span>
                     )}
+                    {!soldOut && it.discount_percent > 0 && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold">{it.discount_percent}% OFF</span>
+                    )}
+                    {!soldOut && it.offer_label && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-400 text-stone-900 text-[10px] font-bold">{it.offer_label}</span>
+                    )}
                   </div>
                 )}
                 <div className="p-4 flex-1 flex flex-col">
                   <h3 className="font-bold text-stone-900 dark:text-white text-sm">{it.title}</h3>
+                  {it.brand && <p className="text-[11px] uppercase tracking-wide text-stone-400 mt-0.5">{it.brand}</p>}
                   {it.price !== undefined && it.price !== "" && (
-                    <p className="font-extrabold mt-1 text-base" style={{ color: theme }}>{formatCatalogPrice(it.price)}</p>
+                    <p className="font-extrabold mt-1 text-base" style={{ color: theme }}>
+                      {formatCatalogPrice(it.price)}
+                      {it.mrp > 0 && <span className="ml-2 text-xs font-normal text-stone-400 line-through">{formatCatalogPrice(it.mrp)}</span>}
+                    </p>
                   )}
+                  {it.low_stock && !soldOut && <p className="text-[11px] font-semibold text-amber-600 mt-1">Only a few left</p>}
                   {Array.isArray(it.variants) && it.variants.length > 0 && (
                     <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">Available in: {it.variants.join(" · ")}</p>
                   )}

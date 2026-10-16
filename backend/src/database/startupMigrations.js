@@ -51,6 +51,18 @@ const SCHEMA_STATEMENTS = [
      ADD COLUMN IF NOT EXISTS show_on_website BOOLEAN NOT NULL DEFAULT false`,
   `CREATE INDEX IF NOT EXISTS service_items_venue_web_idx ON service_items (venue_id, show_on_website)`,
 
+  // ---- shop inventory + offers ----
+  `ALTER TABLE service_items
+     ADD COLUMN IF NOT EXISTS mrp DECIMAL(10,2),
+     ADD COLUMN IF NOT EXISTS offer_label VARCHAR(60),
+     ADD COLUMN IF NOT EXISTS offer_ends_at DATE,
+     ADD COLUMN IF NOT EXISTS brand VARCHAR(80),
+     ADD COLUMN IF NOT EXISTS barcode VARCHAR(50),
+     ADD COLUMN IF NOT EXISTS cost_price DECIMAL(10,2),
+     ADD COLUMN IF NOT EXISTS low_stock_threshold DECIMAL(12,2),
+     ADD COLUMN IF NOT EXISTS variant_stock JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `CREATE INDEX IF NOT EXISTS service_items_venue_barcode_idx ON service_items (venue_id, barcode)`,
+
   // ---- atomic document numbering ----
   `CREATE TABLE IF NOT EXISTS invoice_counters (
      venue_id UUID NOT NULL,
@@ -160,6 +172,13 @@ async function applyAll() {
   } catch (e) {
     if (errCode(e) === "42P01") missingTable = true;
     else console.error("[MIGRATE] gym schema failed:", e.message);
+  }
+
+  try {
+    await require("../modules/inventory/inventory.bootstrap").ensureInventorySchema();
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] inventory schema failed:", e.message);
   }
 
   for (let i = 0; i < NEW_CATEGORIES.length; i++) {

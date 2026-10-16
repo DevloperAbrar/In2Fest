@@ -68,6 +68,13 @@ const blank = (cfg, keep = {}) => ({
   category: "",
   variants: [],
   show_on_website: cfg.itemType === "product",
+  mrp: "",
+  offer_label: "",
+  offer_ends_at: "",
+  brand: "",
+  barcode: "",
+  cost_price: "",
+  low_stock_threshold: "",
   ...keep
 });
 
@@ -110,9 +117,8 @@ function Chip({ active, onClick, small, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`${small ? "px-3 h-8 text-xs" : "px-4 h-9 text-sm"} rounded-full font-medium border whitespace-nowrap ${
-        active ? "bg-navy-800 text-white border-navy-800" : "bg-white text-navy-500 border-navy-200 hover:bg-navy-50"
-      }`}
+      className={`${small ? "px-3 h-8 text-xs" : "px-4 h-9 text-sm"} rounded-full font-medium border whitespace-nowrap ${active ? "bg-navy-800 text-white border-navy-800" : "bg-white text-navy-500 border-navy-200 hover:bg-navy-50"
+        }`}
     >
       {children}
     </button>
@@ -301,7 +307,14 @@ export default function ServiceCatalog() {
       image_url: i.image_url || "",
       category: i.category || "",
       variants: Array.isArray(i.variants) ? i.variants.map((v) => v.label).filter(Boolean) : [],
-      show_on_website: Boolean(i.show_on_website)
+      show_on_website: Boolean(i.show_on_website),
+      mrp: i.mrp !== null && i.mrp !== undefined ? String(Number(i.mrp)) : "",
+      offer_label: i.offer_label || "",
+      offer_ends_at: i.offer_ends_at || "",
+      brand: i.brand || "",
+      barcode: i.barcode || "",
+      cost_price: i.cost_price !== null && i.cost_price !== undefined ? String(Number(i.cost_price)) : "",
+      low_stock_threshold: i.low_stock_threshold !== null && i.low_stock_threshold !== undefined ? String(Number(i.low_stock_threshold)) : ""
     });
     setCustomSize("");
     setEditing(i.id);
@@ -360,7 +373,14 @@ export default function ServiceCatalog() {
       image_url: form.image_url || null,
       category: form.category.trim() || null,
       variants: isProduct ? form.variants : [],
-      show_on_website: isProduct && form.show_on_website
+      show_on_website: isProduct && form.show_on_website,
+      mrp: form.mrp === "" ? null : Number(form.mrp),
+      offer_label: form.offer_label.trim() || null,
+      offer_ends_at: form.offer_ends_at || null,
+      brand: form.brand.trim() || null,
+      barcode: form.barcode.trim() || null,
+      cost_price: form.cost_price === "" ? null : Number(form.cost_price),
+      low_stock_threshold: form.low_stock_threshold === "" ? null : Number(form.low_stock_threshold)
     };
     setSaving(true);
     try {
@@ -583,7 +603,9 @@ export default function ServiceCatalog() {
                   {Array.isArray(i.variants) && i.variants.length ? ` · ${i.variants.map((v) => v.label).join(", ")}` : ""}
                   {i.hsn_sac ? ` · ${taxLabel} ${i.hsn_sac}` : ""}
                   {i.tax_rate !== null && i.tax_rate !== undefined ? ` · GST ${Number(i.tax_rate)}%` : ""}
-                  {i.track_stock ? ` · Stock ${Number(i.stock_qty ?? 0)}` : ""}
+                  {i.track_stock
+                    ? ` · ${Number(i.stock_qty ?? 0) <= 0 ? "Out of stock" : Number(i.stock_qty) <= Number(i.low_stock_threshold ?? 5) ? `Low: ${Number(i.stock_qty)} left` : `Stock ${Number(i.stock_qty)}`}`
+                    : ""}
                   {i.sku ? ` · ${i.sku}` : ""}
                 </p>
               </div>
@@ -797,6 +819,34 @@ export default function ServiceCatalog() {
                   </select>
                 </Field>
               </div>
+              {isProduct && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="MRP (₹)" hint="Shows a % OFF badge on your website">
+                      <input className={inputCls} type="number" min="0" value={form.mrp} onChange={(e) => setF({ mrp: e.target.value })} />
+                    </Field>
+                    <Field label="Cost price (₹)" hint="What you paid">
+                      <input className={inputCls} type="number" min="0" value={form.cost_price} onChange={(e) => setF({ cost_price: e.target.value })} />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Offer tag (optional)">
+                      <input className={inputCls} maxLength={60} placeholder="Diwali Sale" value={form.offer_label} onChange={(e) => setF({ offer_label: e.target.value })} />
+                    </Field>
+                    <Field label="Offer ends on">
+                      <input className={inputCls} type="date" value={form.offer_ends_at} onChange={(e) => setF({ offer_ends_at: e.target.value })} />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Brand">
+                      <input className={inputCls} maxLength={80} value={form.brand} onChange={(e) => setF({ brand: e.target.value })} />
+                    </Field>
+                    <Field label="Barcode" hint="Scan it at billing">
+                      <input className={inputCls} maxLength={50} value={form.barcode} onChange={(e) => setF({ barcode: e.target.value })} />
+                    </Field>
+                  </div>
+                </>
+              )}
               <Field label="SKU / code (optional)">
                 <input className={inputCls} maxLength={50} value={form.sku} onChange={(e) => setF({ sku: e.target.value })} />
               </Field>
@@ -805,11 +855,18 @@ export default function ServiceCatalog() {
               </Field>
               {isProduct && (
                 <div className="rounded-xl border border-navy-100/70 px-4 py-1">
-                  <Toggle label="Track stock" checked={form.track_stock} onChange={(v) => setF({ track_stock: v })} hint="Stock is recorded here; automatic deduction on billing comes next" />
+                  <Toggle label="Track stock" checked={form.track_stock} onChange={(v) => setF({ track_stock: v })} hint="Stock reduces automatically when you create an invoice" />
                   {form.track_stock && (
-                    <div className="pb-3">
-                      <Field label="Quantity in stock">
-                        <input className={inputCls} type="number" min="0" value={form.stock_qty} onChange={(e) => setF({ stock_qty: e.target.value })} />
+                    <div className="pb-3 space-y-3">
+                      {form.variants.length > 0 ? (
+                        <p className="text-xs text-navy-400">This product has sizes. Set the stock of each size from the Inventory page.</p>
+                      ) : (
+                        <Field label="Quantity in stock">
+                          <input className={inputCls} type="number" min="0" value={form.stock_qty} onChange={(e) => setF({ stock_qty: e.target.value })} />
+                        </Field>
+                      )}
+                      <Field label="Low stock alert at" hint="Blank = 5">
+                        <input className={inputCls} type="number" min="0" value={form.low_stock_threshold} onChange={(e) => setF({ low_stock_threshold: e.target.value })} />
                       </Field>
                     </div>
                   )}

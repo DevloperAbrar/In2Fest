@@ -31,6 +31,8 @@ const GRID_NO_TAX = "md:grid-cols-[minmax(0,1fr)_72px_84px_104px_124px_104px_28p
 let lineSeq = 0;
 const newLine = (over = {}) => ({
   _k: ++lineSeq,
+  item_id: "",
+  variant: "",
   description: "",
   hsn_sac: "",
   quantity: "1",
@@ -124,23 +126,74 @@ function ClientPicker({ clients, value, onSelect, onClear, noun }) {
 
 function CatalogPicker({ items, onPick, onClose, cfg }) {
   const [q, setQ] = useState("");
-  const list = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()) || String(i.sku || "").toLowerCase().includes(q.toLowerCase()));
+  const [openId, setOpenId] = useState(null);
+  const s = q.trim().toLowerCase();
+  const labelsOf = (i) => (Array.isArray(i.variants) ? i.variants.map((v) => v.label).filter(Boolean) : []);
+  const stockOf = (i, label) => {
+    if (!i.track_stock) return null;
+    return label ? Number((i.variant_stock || {})[label] || 0) : Number(i.stock_qty || 0);
+  };
+  const list = items.filter((i) =>
+    [i.name, i.sku, i.barcode, i.brand].some((v) => String(v || "").toLowerCase().includes(s))
+  );
+
+  // A barcode scanner types the code and presses Enter: add that product straight away.
+  const onKeyDown = (e) => {
+    if (e.key !== "Enter" || !s) return;
+    const exact = items.find((i) => i.barcode && String(i.barcode).toLowerCase() === s);
+    if (exact && labelsOf(exact).length === 0) {
+      e.preventDefault();
+      onPick(exact, "");
+    }
+  };
+
   return (
     <Modal isOpen onClose={onClose} title="Add from item catalog" size="md">
-      <input autoFocus className={`${inputCls} mb-3`} placeholder="Search items" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input autoFocus className={`${inputCls} mb-3`} placeholder="Search or scan barcode" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown} />
       {list.length === 0 ? (
         <p className="text-sm text-navy-400 py-8 text-center">No items found. Add items in the catalog first.</p>
       ) : (
         <div className="divide-y divide-navy-100/70 rounded-xl border border-navy-100/70 max-h-80 overflow-y-auto">
-          {list.map((i) => (
-            <button type="button" key={i.id} onClick={() => onPick(i)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-paper">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-navy-800 truncate">{i.name}</p>
-                <p className="text-xs text-navy-400">{i.unit || cfg.defaultUnit}{i.hsn_sac ? ` · ${i.hsn_sac}` : ""}</p>
+          {list.map((i) => {
+            const labels = labelsOf(i);
+            const stock = stockOf(i, "");
+            return (
+              <div key={i.id}>
+                <button
+                  type="button"
+                  onClick={() => (labels.length ? setOpenId(openId === i.id ? null : i.id) : onPick(i, ""))}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-paper"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-navy-800 truncate">{i.name}</p>
+                    <p className="text-xs text-navy-400">
+                      {i.unit || cfg.defaultUnit}{i.hsn_sac ? ` · ${i.hsn_sac}` : ""}
+                      {labels.length ? " · choose size" : ""}
+                      {stock !== null ? ` · Stock ${stock}` : ""}
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-navy-900 tabular-nums shrink-0">{inr(i.default_price)}</p>
+                </button>
+                {labels.length > 0 && openId === i.id && (
+                  <div className="flex flex-wrap gap-2 px-4 pb-3">
+                    {labels.map((l) => {
+                      const left = stockOf(i, l);
+                      return (
+                        <button
+                          type="button"
+                          key={l}
+                          onClick={() => onPick(i, l)}
+                          className={`px-3 h-9 rounded-full border text-sm ${left !== null && left <= 0 ? "border-red-200 text-red-500" : "border-navy-200 text-navy-700 hover:bg-navy-50"}`}
+                        >
+                          {l}{left !== null ? ` (${left})` : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <p className="text-sm font-medium text-navy-900 tabular-nums shrink-0">{inr(i.default_price)}</p>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </Modal>
@@ -232,6 +285,8 @@ export default function DocumentEditor() {
           },
           lines: (doc.line_items || []).map((li) =>
             newLine({
+              item_id: li.item_id || "",
+              variant: li.variant || "",
               description: li.description || "",
               hsn_sac: li.hsn_sac || "",
               quantity: String(li.quantity ?? 1),
@@ -326,9 +381,11 @@ export default function DocumentEditor() {
 
   const clearClient = () => set({ clientId: "" });
 
-  const addFromCatalog = (item) => {
+  const addFromCatalog = (item, variant = "") => {
     const line = newLine({
-      description: item.name,
+      item_id: item.id,
+      variant,
+      description: variant ? `${item.name} (${variant})` : item.name,
       rate: String(item.default_price ?? ""),
       unit: item.unit || cfg.defaultUnit,
       hsn_sac: item.hsn_sac || "",
@@ -379,6 +436,8 @@ export default function DocumentEditor() {
       line_items: f.lines
         .filter((l) => !isBlank(l))
         .map((l) => ({
+          item_id: l.item_id || undefined,
+          variant: l.variant || undefined,
           description: l.description.trim(),
           quantity: Number(l.quantity),
           rate: Number(l.rate),
@@ -540,7 +599,7 @@ export default function DocumentEditor() {
                     <button
                       type="button"
                       key={i.id}
-                      onClick={() => addFromCatalog(i)}
+                      onClick={() => (Array.isArray(i.variants) && i.variants.length ? setPickerOpen(true) : addFromCatalog(i))}
                       className="shrink-0 inline-flex items-center gap-1.5 px-3 h-8 rounded-full border border-navy-200 text-xs text-navy-600 hover:bg-navy-50"
                     >
                       <Plus size={12} /> {i.name} <span className="text-navy-300">{inr(i.default_price, 0)}</span>

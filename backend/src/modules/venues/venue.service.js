@@ -451,26 +451,46 @@ async function venueHasWebsiteFeature(venueId) {
 
 
 
-// Products the vendor chose to show on the website. Never exposes SKU, tax or exact stock.
+// Products the vendor chose to show on the website. Never exposes SKU, tax, cost or exact stock.
 async function attachCatalogItems(venue) {
   let items = [];
   try {
     const rows = await ServiceItem.findAll({
       where: { venue_id: venue.id, item_type: "product", is_active: true, show_on_website: true },
-      attributes: ["id", "name", "default_price", "description", "image_url", "category", "variants", "track_stock", "stock_qty"],
+      attributes: [
+        "id", "name", "default_price", "mrp", "offer_label", "offer_ends_at", "brand", "description",
+        "image_url", "category", "variants", "variant_stock", "track_stock", "stock_qty", "low_stock_threshold"
+      ],
       order: [["createdAt", "DESC"]],
       limit: 300
     });
-    items = rows.map((r) => ({
-      id: r.id,
-      title: r.name,
-      price: Number(r.default_price),
-      description: r.description || "",
-      image_url: r.image_url || "",
-      category: r.category || "",
-      variants: Array.isArray(r.variants) ? r.variants.map((v) => v.label).filter(Boolean) : [],
-      in_stock: !r.track_stock || Number(r.stock_qty || 0) > 0
-    }));
+    const today = new Date().toISOString().slice(0, 10);
+    items = rows.map((r) => {
+      const price = Number(r.default_price);
+      const mrp = r.mrp !== null && r.mrp !== undefined ? Number(r.mrp) : 0;
+      const labels = Array.isArray(r.variants) ? r.variants.map((v) => v.label).filter(Boolean) : [];
+      const vs = r.variant_stock || {};
+      const perSize = r.track_stock && labels.length > 0 && Object.keys(vs).length > 0;
+      const qty = Number(r.stock_qty || 0);
+      const threshold = r.low_stock_threshold !== null && r.low_stock_threshold !== undefined ? Number(r.low_stock_threshold) : 5;
+      const offerLive = !r.offer_ends_at || String(r.offer_ends_at) >= today;
+      return {
+        id: r.id,
+        title: r.name,
+        brand: r.brand || "",
+        price,
+        mrp: mrp > price ? mrp : null,
+        discount_percent: mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0,
+        offer_label: offerLive ? r.offer_label || "" : "",
+        description: r.description || "",
+        image_url: r.image_url || "",
+        category: r.category || "",
+        // only sizes that are still available when stock is tracked per size
+        variants: perSize ? labels.filter((l) => Number(vs[l] || 0) > 0) : labels,
+        in_stock: !r.track_stock || qty > 0,
+        low_stock: Boolean(r.track_stock) && qty > 0 && qty <= threshold
+      };
+    });
   } catch (e) {
     console.error("[CATALOG] could not load website catalog:", e.message);
   }

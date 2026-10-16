@@ -7,6 +7,7 @@ const { getBusinessProfile } = require("../../config/businessTypes");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const { generateUpiQr } = require("./qr.generator");
 const { generateInvoicePdf } = require("./pdf.generator");
+const inventory = require("../inventory/inventory.service");
 const dayjs = require("dayjs");
 
 const DOC_TYPES = ["quotation", "invoice", "proforma", "credit_note"];
@@ -194,6 +195,7 @@ async function safeRollback(t) {
 }
 
 /** Creates a document atomically: number + row + PDF succeed together or not at all. */
+/** Creates a document atomically: number + row + stock + PDF succeed together or not at all. */
 async function createDocument(venue, body, hooks = {}) {
   const { fields, clientRecord } = await buildDocumentFields(venue, body, null);
 
@@ -205,6 +207,12 @@ async function createDocument(venue, body, hooks = {}) {
     const invoice = await Invoice.create(
       { ...fields, venue_id: venue.id, invoice_number: number, status: "draft", qr_code_url: null },
       { transaction: t }
+    );
+
+    // Shop stock: invoice lines take stock out, credit notes put it back.
+    await inventory.reconcileDocument(
+      { venueId: venue.id, docType: invoice.type, oldLines: [], newLines: invoice.line_items, invoice },
+      t
     );
 
     invoice.pdf_url = await renderAndStorePdf(invoice, venue, buildPdfCustomer(clientRecord, fields.customer_snapshot));
@@ -222,10 +230,24 @@ async function createDocument(venue, body, hooks = {}) {
 
 async function updateDocument(venue, invoice, body) {
   const { fields, clientRecord } = await buildDocumentFields(venue, body, invoice);
-  invoice.set(fields);
-  invoice.pdf_url = await renderAndStorePdf(invoice, venue, buildPdfCustomer(clientRecord, fields.customer_snapshot));
-  await invoice.save();
-  return invoice;
+  const oldLines = JSON.parse(JSON.stringify(invoice.line_items || []));
+
+  const sequelize = getSequelize();
+  const t = await sequelize.transaction();
+  try {
+    invoice.set(fields);
+    await inventory.reconcileDocument(
+      { venueId: venue.id, docType: invoice.type, oldLines, newLines: invoice.line_items, invoice },
+      t
+    );
+    invoice.pdf_url = await renderAndStorePdf(invoice, venue, buildPdfCustomer(clientRecord, fields.customer_snapshot));
+    await invoice.save({ transaction: t });
+    await t.commit();
+    return invoice;
+  } catch (error) {
+    await safeRollback(t);
+    throw error;
+  }
 }
 
 // Keeps the existing UI working: walk-in documents still get a `client` object.

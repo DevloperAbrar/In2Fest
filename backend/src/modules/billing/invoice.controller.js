@@ -4,6 +4,7 @@ const { getSequelize } = require("../../utils/db");
 const { calculateDocument, r2 } = require("../../utils/taxEngine");
 const { sendWhatsApp } = require("../whatsapp/whatsapp.service");
 const billingService = require("./billing.service");
+const inventory = require("../inventory/inventory.service");
 const crypto = require("crypto");
 
 const PAYMENT_METHODS = ["cash", "upi", "card", "bank_transfer", "cheque", "other"];
@@ -72,17 +73,28 @@ async function updateInvoice(req, res, next) {
 }
 
 async function deleteInvoice(req, res, next) {
+  const t = await getSequelize().transaction();
   try {
-    const invoice = await Invoice.findOne({ where: { id: req.params.invoiceId, venue_id: req.params.venueId } });
+    const invoice = await Invoice.findOne({
+      where: { id: req.params.invoiceId, venue_id: req.params.venueId },
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
     if (!invoice) throw new AppError("Invoice not found", 404);
 
     if (invoice.status !== "draft" || Number(invoice.amount_paid) > 0) {
       throw new AppError("Only unshared drafts without payments can be deleted.", 400);
     }
 
-    await invoice.destroy();
+    await inventory.reconcileDocument(
+      { venueId: invoice.venue_id, docType: invoice.type, oldLines: invoice.line_items, newLines: [], invoice },
+      t
+    );
+    await invoice.destroy({ transaction: t });
+    await t.commit();
     res.json({ success: true, message: "Invoice deleted" });
   } catch (error) {
+    await billingService.safeRollback(t);
     next(error);
   }
 }

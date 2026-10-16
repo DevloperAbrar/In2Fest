@@ -11,6 +11,8 @@ const { requirePlanFeature } = require("../../middleware/planFeature.middleware"
 const { requireTeamPermission } = require("../../middleware/teamPermission.middleware");
 const { upload, uploadToR2 } = require("../../middleware/upload.middleware");
 const { kickoff, schemaReady } = require("../../database/startupMigrations");
+const { getSequelize } = require("../../utils/db");
+const inventory = require("../inventory/inventory.service");
 
 const router = express.Router({ mergeParams: true });
 
@@ -38,11 +40,22 @@ router.get("/quotations", quotationController.getQuotations);
 router.post("/quotations/:quotationId/convert", quotationController.convertQuotationToInvoice);
 
 // ---- Item catalog (products + services) ----
+// NOTE: stock_qty and variant_stock are NOT here on purpose. Stock only changes through the
+// stock ledger (inventory.service.js), so every unit can be traced.
 const ITEM_FIELDS = [
   "name", "default_price", "description", "item_type", "unit", "hsn_sac", "tax_rate", "sku",
-  "track_stock", "stock_qty", "is_active",
-  "image_url", "category", "variants", "show_on_website"
+  "track_stock", "is_active",
+  "image_url", "category", "variants", "show_on_website",
+  "mrp", "offer_label", "offer_ends_at", "brand", "barcode", "cost_price", "low_stock_threshold"
 ];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function money(v, label) {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  if (!(n >= 0)) throw new AppError(`${label} must be 0 or more`, 400);
+  return n;
+}
 
 function pickItemFields(body) {
   const out = {};
@@ -67,6 +80,18 @@ function pickItemFields(body) {
   if (out.sku !== undefined) out.sku = String(out.sku || "").slice(0, 50) || null;
 
   if (out.category !== undefined) out.category = String(out.category || "").trim().slice(0, 80) || null;
+  if (out.brand !== undefined) out.brand = String(out.brand || "").trim().slice(0, 80) || null;
+  if (out.barcode !== undefined) out.barcode = String(out.barcode || "").replace(/\s/g, "").slice(0, 50) || null;
+
+  if (out.mrp !== undefined) out.mrp = money(out.mrp, "MRP");
+  if (out.cost_price !== undefined) out.cost_price = money(out.cost_price, "Cost price");
+  if (out.low_stock_threshold !== undefined) out.low_stock_threshold = money(out.low_stock_threshold, "Low stock level");
+  if (out.mrp !== null && out.mrp !== undefined && out.default_price !== undefined && out.mrp < Number(out.default_price)) {
+    throw new AppError("MRP can't be lower than the selling price", 400);
+  }
+
+  if (out.offer_label !== undefined) out.offer_label = String(out.offer_label || "").trim().slice(0, 60) || null;
+  if (out.offer_ends_at !== undefined) out.offer_ends_at = DATE_RE.test(String(out.offer_ends_at || "")) ? out.offer_ends_at : null;
 
   if (out.image_url !== undefined) {
     const url = String(out.image_url || "").trim();
@@ -89,8 +114,18 @@ function pickItemFields(body) {
       .map((label) => ({ label }));
   }
 
+  if (out.track_stock !== undefined) out.track_stock = Boolean(out.track_stock);
   if (out.show_on_website !== undefined) out.show_on_website = Boolean(out.show_on_website);
   return out;
+}
+
+async function assertUniqueBarcode(venueId, barcode, exceptId) {
+  if (!barcode) return;
+  const { Op } = require("sequelize");
+  const where = { venue_id: venueId, barcode };
+  if (exceptId) where.id = { [Op.ne]: exceptId };
+  const clash = await ServiceItem.findOne({ where, attributes: ["id", "name"] });
+  if (clash) throw new AppError(`Barcode already used by "${clash.name}"`, 400);
 }
 
 // Product photo upload (phone photos are auto-rotated and compressed before storing)
@@ -121,14 +156,45 @@ async function syncSetupChecklist(venueId) {
   }
 }
 
+async function inTransaction(fn) {
+  const t = await getSequelize().transaction();
+  try {
+    const out = await fn(t);
+    await t.commit();
+    return out;
+  } catch (e) {
+    if (!t.finished) await t.rollback();
+    throw e;
+  }
+}
+
 router.post("/service-items", async (req, res, next) => {
   try {
-    const data = pickItemFields(req.body || {});
+    const body = req.body || {};
+    const data = pickItemFields(body);
     if (!data.name) throw new AppError("Item name is required", 400);
     if (data.default_price === undefined) throw new AppError("Item price is required", 400);
-    const item = await ServiceItem.create({ ...data, venue_id: req.params.venueId });
+    await assertUniqueBarcode(req.params.venueId, data.barcode, null);
+
+    const id = await inTransaction(async (t) => {
+      const item = await ServiceItem.create({ ...data, venue_id: req.params.venueId, stock_qty: null }, { transaction: t });
+      const opening = Number(body.stock_qty);
+      const hasSizes = inventory.variantLabels(item).length > 0;
+      // Opening stock goes through the ledger. With sizes it is entered per size on the Inventory page.
+      if (item.item_type === "product" && item.track_stock && !hasSizes && opening > 0) {
+        await inventory.moveStock({
+          venueId: req.params.venueId, itemId: item.id, change: opening, type: "opening",
+          note: "Opening stock", userId: req.user?.id, autoTrack: true
+        }, t);
+      } else if (item.item_type === "product" && item.track_stock) {
+        item.stock_qty = 0;
+        await item.save({ transaction: t });
+      }
+      return item.id;
+    });
+
     await syncSetupChecklist(req.params.venueId);
-    res.status(201).json({ success: true, data: item });
+    res.status(201).json({ success: true, data: await ServiceItem.findByPk(id) });
   } catch (error) { next(error); }
 });
 
@@ -143,12 +209,44 @@ router.get("/service-items", async (req, res, next) => {
 
 router.patch("/service-items/:itemId", async (req, res, next) => {
   try {
-    const item = await ServiceItem.findOne({ where: { id: req.params.itemId, venue_id: req.params.venueId } });
-    if (!item) throw new AppError("Item not found", 404);
-    Object.assign(item, pickItemFields(req.body || {}));
-    await item.save();
+    const body = req.body || {};
+    const id = await inTransaction(async (t) => {
+      const item = await ServiceItem.findOne({
+        where: { id: req.params.itemId, venue_id: req.params.venueId },
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+      if (!item) throw new AppError("Item not found", 404);
+
+      const data = pickItemFields(body);
+      if (data.barcode !== undefined) await assertUniqueBarcode(req.params.venueId, data.barcode, item.id);
+      if (data.mrp === undefined && data.default_price !== undefined && item.mrp !== null && Number(item.mrp) < Number(data.default_price)) {
+        throw new AppError("MRP can't be lower than the selling price", 400);
+      }
+      Object.assign(item, data);
+
+      // Sizes removed or renamed: the item total must follow the sizes that still exist.
+      inventory.syncVariantTotal(item);
+      await item.save({ transaction: t });
+
+      // A quantity typed in the catalog form becomes a ledger adjustment (not for items with per-size stock).
+      const typed = body.stock_qty;
+      const hasSizes = inventory.variantLabels(item).length > 0;
+      if (item.item_type === "product" && item.track_stock && !hasSizes && typed !== undefined && typed !== null && typed !== "") {
+        const target = Number(typed);
+        if (target >= 0 && target !== Number(item.stock_qty || 0)) {
+          await inventory.moveStock({
+            venueId: req.params.venueId, itemId: item.id, setTo: target,
+            type: item.stock_qty === null || item.stock_qty === undefined ? "opening" : "adjustment",
+            note: "Edited in catalog", userId: req.user?.id, allowNegative: true
+          }, t);
+        }
+      }
+      return item.id;
+    });
+
     await syncSetupChecklist(req.params.venueId);
-    res.json({ success: true, data: item });
+    res.json({ success: true, data: await ServiceItem.findByPk(id) });
   } catch (error) { next(error); }
 });
 

@@ -60,7 +60,7 @@ const MODULE_NAV = {
       label: "Shops & Retail",
       categories: ["clothing-store", "footwear-store", "mobile-shop", "pharmacy", "kirana-store", "electronics-store", "stationery-store"],
       modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "clients", "billing"],
-      nav: [...ALWAYS_NAV, "inquiries", "catalog", "clients", "billing", ...COMMON_NAV]
+      nav: [...ALWAYS_NAV, "inquiries", "catalog", "inventory", "clients", "billing", ...COMMON_NAV]
     },
     education: {
       key: "education",

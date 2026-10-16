@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Globe, CalendarClock, MessageSquare, CalendarCheck,
-  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell
+  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes
 } from "lucide-react";
 
 export const ownerSidebarItems = [
@@ -9,6 +9,7 @@ export const ownerSidebarItems = [
   { navKey: "inquiries",   path: "/dashboard/inquiries",           label: "Inquiries",           icon: MessageSquare,   requiredFeature: "inquiries",          primaryNav: true },
   { navKey: "bookings",    path: "/dashboard/bookings",            label: "Bookings",            icon: CalendarCheck,   requiredFeature: "bookings",           primaryNav: true },
   { navKey: "catalog",     path: "/dashboard/catalog",             label: "Products & Catalog",  icon: Package,         requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },
+  { navKey: "inventory",   path: "/dashboard/inventory",           label: "Inventory",           icon: Boxes,           requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },
   { navKey: "clients",     path: "/dashboard/clients",             label: "Clients",             icon: Users,           requiredFeature: "clients",            primaryNav: true },
   { navKey: "website",     path: "/dashboard/website",             label: "Website Builder",     icon: Globe,           requiredFeature: "website_builder" },
   { navKey: "marketplace", path: "/dashboard/marketplace-profile", label: "Marketplace Profile", icon: Store,           requiredFeature: "marketplace_profile" },
