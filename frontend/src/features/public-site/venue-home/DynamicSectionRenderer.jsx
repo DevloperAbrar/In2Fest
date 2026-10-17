@@ -7,6 +7,7 @@ import FreeTrialModal from "./FreeTrialModal.jsx";
 import { Stats, Offers, VideoTour, Schedule } from "./verticals/ExtraSections.jsx";
 import { GymPlans, GymPrograms, GymTransformations, GymTrainers } from "./verticals/GymSections.jsx";
 import ShopStorefront from "./verticals/ShopStorefront.jsx";
+import FoodStorefront from "./verticals/FoodStorefront.jsx";
 import { Reveal, SectionShell } from "./SectionShell.jsx";
 
 
@@ -603,6 +604,10 @@ const GYM_RENDERERS = {
   team: GymTrainers
 };
 
+// Food businesses: the "menu" section becomes live online ordering.
+// It falls back to the plain menu list when there are no live dishes yet.
+const FoodMenuSection = (props) => <FoodStorefront {...props} Fallback={Menu} />;
+
 export default function DynamicSectionRenderer({ type, config, venue, index = 0, vertical, actions }) {
   let Renderer = RENDERERS[type];
   if (vertical?.key === "gym" && GYM_RENDERERS[type]) Renderer = GYM_RENDERERS[type];
@@ -610,6 +615,7 @@ export default function DynamicSectionRenderer({ type, config, venue, index = 0,
   if (vertical?.key === "shop" && type === "product_catalog" && venue?.catalog_items?.length > 0) {
     Renderer = ShopStorefront;
   }
+  if (vertical?.key === "food" && type === "menu") Renderer = FoodMenuSection;
   if (!Renderer || !config) return null;
   return (
     // id is the scroll target for the navbar link (see lib/navItems.js)

@@ -57,6 +57,15 @@ import WorkoutPlans from "../features/venue-owner/gym/WorkoutPlans.jsx";
 import WorkoutBuilder from "../features/venue-owner/gym/WorkoutBuilder.jsx";
 import GymLeads from "../features/venue-owner/gym/GymLeads.jsx";
 import GymSettings from "../features/venue-owner/gym/GymSettings.jsx";
+import FoodDashboard from "../features/venue-owner/food/FoodDashboard.jsx";
+import FoodOrders from "../features/venue-owner/food/FoodOrders.jsx";
+import FoodPOS from "../features/venue-owner/food/FoodPOS.jsx";
+import FoodMenu from "../features/venue-owner/food/FoodMenu.jsx";
+import FoodStock from "../features/venue-owner/food/FoodStock.jsx";
+import FoodCustomers from "../features/venue-owner/food/FoodCustomers.jsx";
+import FoodSetup from "../features/venue-owner/food/FoodSetup.jsx";
+
+import OrdersPage from "../features/venue-owner/orders/OrdersPage.jsx";
 
 export default function VenueOwnerRoutes() {
   return (
@@ -97,6 +106,7 @@ export default function VenueOwnerRoutes() {
         <Route path="billing/customers" element={<RequireFeature feature="billing"><BillingCustomers /></RequireFeature>} />
         <Route path="catalog" element={<RequireFeature feature="billing"><ServiceCatalog /></RequireFeature>} />
         <Route path="inventory" element={<RequireFeature feature="billing"><InventoryHome /></RequireFeature>} />
+        <Route path="orders" element={<RequireFeature feature="billing"><OrdersPage /></RequireFeature>} />
         <Route path="analytics" element={<RequireOwner><OwnerAnalytics /></RequireOwner>} />
 
         <Route path="settings" element={<RequireOwner><SettingsIndex /></RequireOwner>} />
@@ -115,7 +125,13 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><WorkoutBuilder /></RequireFeature>} />
         <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
         <Route path="gym/settings" element={<RequireOwner><RequireFeature feature="gym"><GymSettings /></RequireFeature></RequireOwner>} />
-
+        <Route path="food" element={<RequireFeature feature="food"><FoodDashboard /></RequireFeature>} />
+        <Route path="food/orders" element={<RequireFeature feature="food"><FoodOrders /></RequireFeature>} />
+        <Route path="food/pos" element={<RequireFeature feature="food"><FoodPOS /></RequireFeature>} />
+        <Route path="food/menu" element={<RequireFeature feature="food"><FoodMenu /></RequireFeature>} />
+        <Route path="food/stock" element={<RequireFeature feature="food"><FoodStock /></RequireFeature>} />
+        <Route path="food/customers" element={<RequireFeature feature="food"><FoodCustomers /></RequireFeature>} />
+        <Route path="food/setup" element={<RequireOwner><RequireFeature feature="food"><FoodSetup /></RequireFeature></RequireOwner>} />
         {/* ✅ NEW: Referrals route */}
         <Route path="referrals" element={<RequireOwner><ReferralsPage /></RequireOwner>} />
       </Routes>

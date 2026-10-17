@@ -258,9 +258,12 @@ const CATEGORY_SECTION_DEFAULTS = {
   "stationery-store": ["offers", "product_catalog", "hours", "faq"],
 
   // food
-  restaurant: ["menu", "hours", "cta_banner", "faq"],
-  "bakery-sweets": ["menu", "hours", "cta_banner", "faq"],
-  "cloud-kitchen": ["menu", "process", "cta_banner", "faq"],
+  restaurant: ["offers", "product_catalog", "hours", "cta_banner", "faq"],
+  "bakery-sweets": ["offers", "product_catalog", "hours", "cta_banner", "faq"],
+  "cloud-kitchen": ["offers", "product_catalog", "process", "cta_banner", "faq"],
+  "food-court": ["stats", "menu", "offers", "video_tour", "hours", "cta_banner", "faq"],
+  "restaurant-franchise": ["stats", "menu", "offers", "process", "team", "hours", "cta_banner", "faq"],
+  "small-hotel": ["stats", "menu", "offers", "video_tour", "hours", "cta_banner", "faq"],
 
   // health & wellness
   "gym-fitness": ["stats", "courses", "packages", "schedule", "team", "results", "hours", "faq", "cta_banner"],
@@ -288,6 +291,7 @@ const CATEGORY_SECTION_DEFAULTS = {
 
 // Category-specific default headings (so a gym doesn't get "Our Courses").
 const SHOP_TITLES = { product_catalog: "Shop Our Collection", offers: "Today's Offers" };
+const FOOD_TITLES = { product_catalog: "Order for Pickup", offers: "Today's Offers" };
 const CATEGORY_SECTION_TITLES = {
   "gym-fitness": {
     courses: "Our Programs",
@@ -308,7 +312,10 @@ const CATEGORY_SECTION_TITLES = {
   "electronics-store": SHOP_TITLES,
   "mobile-shop": SHOP_TITLES,
   pharmacy: SHOP_TITLES,
-  "stationery-store": SHOP_TITLES
+  "stationery-store": SHOP_TITLES,
+  restaurant: FOOD_TITLES,
+  "bakery-sweets": FOOD_TITLES,
+  "cloud-kitchen": FOOD_TITLES
 };
 
 module.exports = { SECTION_TYPES, CATEGORY_SECTION_DEFAULTS, CATEGORY_SECTION_TITLES };

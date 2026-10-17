@@ -39,6 +39,10 @@ const packageRoutes = require("../modules/packages/package.routes");
 const gymRoutes = require("../modules/gym/gym.routes");
 const gymPublicRoutes = require("../modules/gym/gym.public.routes");
 const inventoryRoutes = require("../modules/inventory/inventory.routes");
+const ordersRoutes = require("../modules/orders/orders.routes");
+const ordersPublicRoutes = require("../modules/orders/orders.public.routes");
+const foodRoutes = require("../modules/food/food.routes");
+const foodPublicRoutes = require("../modules/food/food.public");
 
 router.use("/auth", authRoutes);
 router.use("/public-auth", publicAuthRoutes);
@@ -60,6 +64,10 @@ router.use("/venues/:venueId/packages", packageRoutes);
 router.use("/venues/:venueId/inventory", inventoryRoutes);
 router.use("/venues/:venueId/gym", gymRoutes);
 router.use("/public/gym", gymPublicRoutes);
+router.use("/venues/:venueId/orders", ordersRoutes);
+router.use("/public/orders", ordersPublicRoutes);
+router.use("/venues/:venueId/food", foodRoutes);
+router.use("/public/food", foodPublicRoutes);
 
 // Public, unauthenticated  - invoice authenticity verification (scanned via QR on PDF)
 router.use("/public/invoices", publicInvoiceVerifyRoutes);

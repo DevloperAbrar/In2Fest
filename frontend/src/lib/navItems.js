@@ -117,7 +117,7 @@ export function getNavCandidates(venue, opts = {}) {
 
     const label = vertical.navLabels[section.type] || DYNAMIC_LABELS[section.type];
     if (!label) return;
-    if (strict && !dynamicHasContent(section, venue)) return;
+    if (strict && !(vertical.key === "food" && section.type === "menu") && !dynamicHasContent(section, venue)) return;
     list.push({ key: section.type, anchor: `section-${section.type}`, label, defaultShow: false });
   });
 

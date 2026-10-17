@@ -105,9 +105,9 @@ const BUSINESS_TYPES = {
   food: {
     key: "food",
     label: "Food & Restaurants",
-    description: "Restaurants, bakeries, sweet shops and cloud kitchens",
+    description: "Restaurants, cloud kitchens, bakeries, food courts, franchises and small hotels",
     icon: "utensils",
-    modules: APPOINTMENT_MODULES,
+    modules: [...CORE_MODULES, "food"],
     terms: terms({
       client: "Customer", clients: "Customers",
       booking: "Reservation", bookings: "Reservations",
@@ -220,6 +220,9 @@ const NEW_CATEGORIES = [
   { name: "Restaurant / Cafe", slug: "restaurant", icon: "utensils-crossed", business_type: "food" },
   { name: "Bakery & Sweets", slug: "bakery-sweets", icon: "cake", business_type: "food" },
   { name: "Cloud Kitchen", slug: "cloud-kitchen", icon: "chef-hat", business_type: "food" },
+  { name: "Food Court", slug: "food-court", icon: "store", business_type: "food" },
+  { name: "Restaurant Franchise", slug: "restaurant-franchise", icon: "utensils", business_type: "food" },
+  { name: "Hotel / Guest House", slug: "small-hotel", icon: "building", business_type: "food" },
   // health & wellness
   { name: "Gym & Fitness", slug: "gym-fitness", icon: "dumbbell", business_type: "health_wellness" },
   { name: "Salon & Spa", slug: "salon-spa", icon: "scissors", business_type: "health_wellness" },

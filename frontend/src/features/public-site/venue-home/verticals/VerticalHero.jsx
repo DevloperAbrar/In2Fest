@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { CountUp } from "./ExtraSections.jsx";
-import { waLink, onAccent, plural } from "../../../../lib/verticals";
+import { waLink, onAccent, plural, isFoodVenue } from "../../../../lib/verticals";
 
 function useLoaded() {
   const [loaded, setLoaded] = useState(false);
@@ -100,7 +100,7 @@ function ShopHero({ venue }) {
   const tops = Array.from(new Set(catalog.map((i) => String(i.category || "").split(">")[0].trim()).filter(Boolean)));
   const collage = catalog.filter((i) => i.image_url).slice(0, 4);
   const wa = waLink(venue, `Hi ${venue.hall_name}, I'd like to know more about your products.`);
-
+  const food = isFoodVenue(venue);
   const goShop = () => document.getElementById("section-product_catalog")?.scrollIntoView({ behavior: "smooth" });
   const search = (e) => {
     e.preventDefault();
@@ -121,7 +121,7 @@ function ShopHero({ venue }) {
         <div style={fade(loaded)}>
           {catalog.length > 0 && (
             <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-white/25 bg-white/10 text-white">
-              {plural(catalog.length, "product")}{tops.length > 0 ? ` · ${plural(tops.length, "category", "categories")}` : ""}
+              {food ? plural(catalog.length, "dish", "dishes") : plural(catalog.length, "product")}{tops.length > 0 ? ` · ${plural(tops.length, "category", "categories")}` : ""}
             </span>
           )}
           <h1
@@ -158,7 +158,7 @@ function ShopHero({ venue }) {
 
           <div className="mt-8 flex flex-wrap gap-3">
             <button type="button" onClick={goShop} className="px-8 py-3.5 rounded-full font-bold shadow-xl hover:scale-105 active:scale-95 transition-transform" style={{ backgroundColor: theme, color: onAccent(theme) }}>
-              {venue.hero_button_text || "Shop Now"}
+              {venue.hero_button_text || (food ? "Order for Pickup" : "Shop Now")}
             </button>
             {wa && (
               <a href={wa} target="_blank" rel="noopener noreferrer" className="px-8 py-3.5 rounded-full font-bold text-white border-2 border-white/50 hover:bg-white/10 transition-colors">

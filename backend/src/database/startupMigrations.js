@@ -180,6 +180,20 @@ async function applyAll() {
     if (errCode(e) === "42P01") missingTable = true;
     else console.error("[MIGRATE] inventory schema failed:", e.message);
   }
+  try {
+    await require("../modules/orders/orders.bootstrap").ensureOrdersSchema();
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] orders schema failed:", e.message);
+  }
+
+  try {
+    await require("../modules/food/food.bootstrap").ensureFoodSchema();
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] food schema failed:", e.message);
+  }
+
 
   for (let i = 0; i < NEW_CATEGORIES.length; i++) {
     const c = NEW_CATEGORIES[i];

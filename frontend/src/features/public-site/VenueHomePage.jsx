@@ -11,6 +11,7 @@ import ContactSection from "./venue-home/ContactSection.jsx";
 import SlotSection from "./venue-home/SlotSection.jsx";
 import FreeTrialModal from "./venue-home/FreeTrialModal.jsx";
 import VerticalHero from "./venue-home/verticals/VerticalHero.jsx";
+import FoodHero from "./venue-home/verticals/FoodHero.jsx";
 import AvailabilityCalendar from "./availability-calendar/AvailabilityCalendar.jsx";
 import DynamicSectionRenderer from "./venue-home/DynamicSectionRenderer.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
@@ -94,7 +95,7 @@ export default function VenueHomePage() {
     );
   }
 
-  // ---- Vertical (gym / shop / venue) -------------------------------------------------
+  // ---- Vertical (gym / shop / food / venue) ------------------------------------------
   const vertical = getVertical(venue);
   // A vendor who explicitly picked Aurora / Bloom / Slate keeps that hero.
   // Classic (null or the legacy "template-1") gets the category-specific experience.
@@ -122,7 +123,8 @@ export default function VenueHomePage() {
 
   // Vendor controls from Website Builder > "Show on my website"
   const showAvailability = venue.show_availability !== false && !!bizProfile?.modules?.includes("slots");
-  const showSlotsPackages = venue.show_slots_packages !== false;
+  // Restaurants never show event-style slots and packages.
+  const showSlotsPackages = venue.show_slots_packages !== false && vertical.key !== "food";
 
   // Navbar links chosen by the vendor in Website Builder > "Website menu"
   const navItems = resolveNav(venue, { slots, packages });
@@ -132,9 +134,13 @@ export default function VenueHomePage() {
   let primaryCta = { label: "Enquire Now", href: "#inquiry" };
   if (vertical.key === "gym") {
     primaryCta = { label: "Free Trial", onClick: actions.openTrial };
+  } else if (vertical.key === "shop" && vertical.food) {
+    primaryCta = { label: "Order for Pickup", href: "#section-product_catalog" };
   } else if (vertical.key === "shop") {
     const link = waLink(v, `Hi ${v.hall_name}, I'd like to know more about your products.`);
     primaryCta = link ? { label: "Order on WhatsApp", href: link, external: true } : { label: "Enquire", href: "#inquiry" };
+  } else if (vertical.key === "food") {
+    primaryCta = { label: "Order Online", href: "#section-menu" };
   }
 
   // The hero shows the numbers bar itself, so the separate "stats" band is skipped in that case.
@@ -156,7 +162,11 @@ export default function VenueHomePage() {
           return (
             <React.Fragment key="hero">
               {useVertical ? (
-                <VerticalHero venue={v} vertical={vertical} stats={heroStats} actions={actions} hasWhatsApp={!!waDigits(v)} />
+                vertical.key === "food" ? (
+                  <FoodHero venue={v} stats={heroStats} />
+                ) : (
+                  <VerticalHero venue={v} vertical={vertical} stats={heroStats} actions={actions} hasWhatsApp={!!waDigits(v)} />
+                )
               ) : (
                 <T.HeroSection venue={v} />
               )}
