@@ -17,25 +17,25 @@ export function Reveal({ children, delay = 0, className = "", from = "bottom" })
   );
 }
 
-/* ─── Section shell with alternating bg + waves (same look as the other sections) ─── */
-const TONE_BG = ["bg-white dark:bg-stone-950", "bg-stone-50 dark:bg-stone-900"];
-const TONE_WAVE = ["fill-white dark:fill-stone-950", "fill-stone-50 dark:fill-stone-900"];
-
+/* ─── Section shell with alternating background + waves ───
+   Colours come from the --tone-0 / --tone-1 variables of the active site theme
+   (see styles/tailwind.css), so every section matches Aurora, Bloom, Slate, Gym, Shop
+   and Classic in both light and dark mode. */
 export function SectionShell({ title, toneIdx = 0, nextTone, children, theme, subtitle }) {
-  const bgClass = TONE_BG[toneIdx % 2];
+  const tone = `var(--tone-${toneIdx % 2})`;
   const nextIdx = nextTone !== undefined ? nextTone % 2 : (toneIdx + 1) % 2;
-  const nextWaveClass = TONE_WAVE[nextIdx];
+  const nextFill = { fill: `var(--tone-${nextIdx})` };
 
   return (
-    <section className={`relative overflow-hidden ${bgClass}`}>
+    <section className="relative overflow-hidden text-stone-900 dark:text-stone-100" style={{ backgroundColor: tone }}>
       <div className="absolute top-0 left-0 right-0 pointer-events-none rotate-180">
         <svg viewBox="0 0 1440 60" preserveAspectRatio="none" className="w-full h-12 block">
-          <path d="M0,30 C360,60 1080,0 1440,30 L1440,60 L0,60 Z" className={nextWaveClass} />
+          <path d="M0,30 C360,60 1080,0 1440,30 L1440,60 L0,60 Z" style={nextFill} />
         </svg>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 pt-28 pb-24">
-        <Reveal className="text-center mb-16">
+      <div className="max-w-6xl mx-auto px-5 sm:px-6 pt-24 sm:pt-28 pb-20 sm:pb-24">
+        <Reveal className="text-center mb-12 sm:mb-16">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="h-px w-8" style={{ backgroundColor: theme }} />
             <span className="text-sm font-semibold uppercase tracking-widest" style={{ color: theme }}>
@@ -44,7 +44,7 @@ export function SectionShell({ title, toneIdx = 0, nextTone, children, theme, su
             <div className="h-px w-8" style={{ backgroundColor: theme }} />
           </div>
           <h2
-            className="text-4xl md:text-5xl font-extrabold text-stone-900 dark:text-white"
+            className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-stone-900 dark:text-white"
             style={{ letterSpacing: "-0.02em" }}
           >
             {title}
@@ -55,7 +55,7 @@ export function SectionShell({ title, toneIdx = 0, nextTone, children, theme, su
 
       <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
         <svg viewBox="0 0 1440 60" preserveAspectRatio="none" className="w-full h-12 block">
-          <path d="M0,30 C480,0 960,60 1440,30 L1440,60 L0,60 Z" className={nextWaveClass} />
+          <path d="M0,30 C480,0 960,60 1440,30 L1440,60 L0,60 Z" style={nextFill} />
         </svg>
       </div>
     </section>

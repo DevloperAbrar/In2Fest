@@ -4,61 +4,11 @@ import { ChevronDown } from "lucide-react";
 import { useScrollReveal } from "../../../hooks/useScrollReveal";
 import SocialLinks from "./SocialLinksSection.jsx";
 import FreeTrialModal from "./FreeTrialModal.jsx";
+import { Stats, Offers, VideoTour, Schedule } from "./verticals/ExtraSections.jsx";
+import { GymPlans, GymPrograms, GymTransformations, GymTrainers } from "./verticals/GymSections.jsx";
+import ShopStorefront from "./verticals/ShopStorefront.jsx";
+import { Reveal, SectionShell } from "./SectionShell.jsx";
 
-/* ─── Reveal helper ─── */
-function Reveal({ children, delay = 0, className = "", from = "bottom" }) {
-  const [ref, visible] = useScrollReveal();
-  const hiddenClass = from === "left" ? "opacity-0 -translate-x-8" : from === "right" ? "opacity-0 translate-x-8" : "opacity-0 translate-y-10";
-  return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delay}ms` }}
-      className={`transition-all duration-700 ease-out ${visible ? "opacity-100 translate-x-0 translate-y-0" : hiddenClass} ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-/* ─── Section shell with alternating bg + waves ─── */
-const TONE_BG = ["bg-white dark:bg-stone-950", "bg-stone-50 dark:bg-stone-900"];
-const TONE_WAVE = ["fill-white dark:fill-stone-950", "fill-stone-50 dark:fill-stone-900"];
-
-function SectionShell({ title, toneIdx = 0, nextTone, children, theme, subtitle }) {
-  const bgClass = TONE_BG[toneIdx % 2];
-  const nextIdx = nextTone !== undefined ? nextTone % 2 : (toneIdx + 1) % 2;
-  const nextWaveClass = TONE_WAVE[nextIdx];
-
-  return (
-    <section className={`relative overflow-hidden ${bgClass}`}>
-      {/* Top wave from previous section */}
-      <div className="absolute top-0 left-0 right-0 pointer-events-none rotate-180">
-        <svg viewBox="0 0 1440 60" preserveAspectRatio="none" className="w-full h-12 block">
-          <path d="M0,30 C360,60 1080,0 1440,30 L1440,60 L0,60 Z" className={nextWaveClass} />
-        </svg>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6 pt-28 pb-24">
-        <Reveal className="text-center mb-16">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="h-px w-8" style={{ backgroundColor: theme }} />
-            <span className="text-sm font-semibold uppercase tracking-widest" style={{ color: theme }}>{subtitle || ""}</span>
-            <div className="h-px w-8" style={{ backgroundColor: theme }} />
-          </div>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-stone-900 dark:text-white" style={{ letterSpacing: "-0.02em" }}>{title}</h2>
-        </Reveal>
-        {children}
-      </div>
-
-      {/* Bottom wave to next section */}
-      <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-        <svg viewBox="0 0 1440 60" preserveAspectRatio="none" className="w-full h-12 block">
-          <path d="M0,30 C480,0 960,60 1440,30 L1440,60 L0,60 Z" className={nextWaveClass} />
-        </svg>
-      </div>
-    </section>
-  );
-}
 
 /* ─── Portfolio ─── */
 function Portfolio({ config, theme, toneIdx }) {
@@ -624,7 +574,6 @@ function CtaBanner({ config, theme, venue }) {
     </section>
   );
 }
-
 /* ─── Registry ─── */
 const RENDERERS = {
   portfolio: Portfolio,
@@ -639,11 +588,28 @@ const RENDERERS = {
   hours: Hours,
   results: Results,
   cta_banner: CtaBanner,
-  social_links: SocialLinks
+  social_links: SocialLinks,
+  stats: Stats,
+  offers: Offers,
+  video_tour: VideoTour,
+  schedule: Schedule
 };
 
-export default function DynamicSectionRenderer({ type, config, venue, index = 0 }) {
-  const Renderer = RENDERERS[type];
+// Gym websites get their own look for these section types.
+const GYM_RENDERERS = {
+  packages: GymPlans,
+  courses: GymPrograms,
+  results: GymTransformations,
+  team: GymTrainers
+};
+
+export default function DynamicSectionRenderer({ type, config, venue, index = 0, vertical, actions }) {
+  let Renderer = RENDERERS[type];
+  if (vertical?.key === "gym" && GYM_RENDERERS[type]) Renderer = GYM_RENDERERS[type];
+  // Shops with real catalog items get the full storefront (search, filters, WhatsApp cart).
+  if (vertical?.key === "shop" && type === "product_catalog" && venue?.catalog_items?.length > 0) {
+    Renderer = ShopStorefront;
+  }
   if (!Renderer || !config) return null;
   return (
     // id is the scroll target for the navbar link (see lib/navItems.js)
@@ -653,9 +619,8 @@ export default function DynamicSectionRenderer({ type, config, venue, index = 0 
         theme={venue.theme_color || "#7c3aed"}
         toneIdx={index}
         venue={venue}
+        actions={actions}
       />
     </div>
   );
 }
-
-

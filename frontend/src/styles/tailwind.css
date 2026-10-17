@@ -26,3 +26,62 @@ h1, h2, h3, h4 {
 .tap-scale:active {
   transform: scale(0.96);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PUBLIC WEBSITE THEMING
+   Everything below only affects pages wrapped in .public-site
+   (see components/layout/PublicLayout.jsx). The dashboard is untouched.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Headings on the public site take the colour of their parent, so a heading inside a
+   dark hero / coloured banner is white instead of the dashboard's navy.
+   (:where keeps specificity at zero, so any explicit text-* class still wins.) */
+:where(.public-site) :is(h1, h2, h3, h4) {
+  color: inherit;
+}
+
+/* Palette tokens. --l* = light surfaces, --p* = dark surfaces. */
+.site-root {
+  --l0: #ffffff;
+  --l1: #fafaf9;
+  --p950: #0c0a09;
+  --p900: #1c1917;
+  --p800: #292524;
+  --p700: #44403c;
+  --tone-0: var(--l0);
+  --tone-1: var(--l1);
+}
+.site-root.dark {
+  --tone-0: var(--p950);
+  --tone-1: var(--p900);
+}
+
+/* Per-theme palettes (must stay after .site-root) */
+.site-aurora { --p950: #06020f; --p900: #0d0719; --p800: #150e27; --p700: #2a1f47; }
+.site-gym    { --p950: #09090b; --p900: #131316; --p800: #1c1c21; --p700: #2e2e36; }
+.site-shop   { --l1: #f6f8f7; --p950: #0b0f0e; --p900: #131a18; --p800: #1b2421; --p700: #2c3a35; }
+.site-bloom  { --l0: #faf7f2; --l1: #f3ece0; }
+.site-slate  { --l0: #ffffff; --l1: #f4f4f5; }
+
+/* Re-point the shared dark surfaces to the active palette */
+.site-root.dark .dark\:bg-stone-950 { background-color: var(--p950); }
+.site-root.dark .dark\:bg-stone-900 { background-color: var(--p900); }
+.site-root.dark .dark\:bg-stone-800 { background-color: var(--p800); }
+.site-root.dark .dark\:bg-stone-950\/95 { background-color: color-mix(in srgb, var(--p950) 95%, transparent); }
+.site-root.dark .dark\:bg-stone-800\/60 { background-color: color-mix(in srgb, var(--p800) 60%, transparent); }
+.site-root.dark .dark\:border-stone-700 { border-color: var(--p700); }
+.site-root.dark .dark\:border-stone-800 { border-color: var(--p800); }
+.site-root.dark .dark\:fill-stone-950 { fill: var(--p950); }
+.site-root.dark .dark\:fill-stone-900 { fill: var(--p900); }
+
+/* Respect "reduce motion" */
+@media (prefers-reduced-motion: reduce) {
+  .public-site *,
+  .public-site *::before,
+  .public-site *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import PublicLayout from "../../components/layout/PublicLayout.jsx";
 import Loader from "../../components/common/Loader";
 import { useFetch } from "../../hooks/useFetch";
@@ -9,11 +9,15 @@ import GallerySection from "./venue-home/GallerySection.jsx";
 import TestimonialsSection from "./venue-home/TestimonialsSection.jsx";
 import ContactSection from "./venue-home/ContactSection.jsx";
 import SlotSection from "./venue-home/SlotSection.jsx";
+import FreeTrialModal from "./venue-home/FreeTrialModal.jsx";
+import VerticalHero from "./venue-home/verticals/VerticalHero.jsx";
 import AvailabilityCalendar from "./availability-calendar/AvailabilityCalendar.jsx";
 import DynamicSectionRenderer from "./venue-home/DynamicSectionRenderer.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
-import { getTemplateSections } from "./templates/index.jsx";
+import { getTemplateSections, TEMPLATES } from "./templates/index.jsx";
 import { resolveNav } from "../../lib/navItems";
+import { getVertical, resolveAccent, waLink, waDigits } from "../../lib/verticals";
+import { getSiteTheme } from "../../lib/siteTheme";
 import { useBusinessProfile } from "../../hooks/useBusinessProfile";
 
 const DEFAULT_SECTIONS = {
@@ -57,6 +61,7 @@ const getSubdomain = () => {
 
 export default function VenueHomePage() {
   const subdomain = getSubdomain();
+  const [trialOpen, setTrialOpen] = useState(false);
   const { data: venue, loading: venueLoading } = useFetch(
     subdomain ? `/venues/public/${subdomain}` : null
   );
@@ -89,6 +94,14 @@ export default function VenueHomePage() {
     );
   }
 
+  // ---- Vertical (gym / shop / venue) -------------------------------------------------
+  const vertical = getVertical(venue);
+  // A vendor who explicitly picked Aurora / Bloom / Slate keeps that hero.
+  // Classic (null or the legacy "template-1") gets the category-specific experience.
+  const useVertical = vertical.key !== "venue" && !TEMPLATES[venue.template_id];
+  const v = useVertical ? { ...venue, theme_color: resolveAccent(venue, vertical) } : venue;
+  const siteTheme = getSiteTheme(venue, useVertical ? vertical.key : null);
+
   const T = getTemplateSections(venue.template_id, DEFAULT_SECTIONS);
 
   const CORE_COMPONENTS = {
@@ -114,31 +127,82 @@ export default function VenueHomePage() {
   // Navbar links chosen by the vendor in Website Builder > "Website menu"
   const navItems = resolveNav(venue, { slots, packages });
 
+  // ---- Actions & primary CTA ----------------------------------------------------------
+  const actions = { openTrial: () => setTrialOpen(true) };
+  let primaryCta = { label: "Enquire Now", href: "#inquiry" };
+  if (vertical.key === "gym") {
+    primaryCta = { label: "Free Trial", onClick: actions.openTrial };
+  } else if (vertical.key === "shop") {
+    const link = waLink(v, `Hi ${v.hall_name}, I'd like to know more about your products.`);
+    primaryCta = link ? { label: "Order on WhatsApp", href: link, external: true } : { label: "Enquire", href: "#inquiry" };
+  }
+
+  // The hero shows the numbers bar itself, so the separate "stats" band is skipped in that case.
+  const statsSection = sections.find((s) => s.type === "stats" && s.visible !== false);
+  const heroStats = statsSection?.config?.items || [];
+
   return (
-    <PublicLayout venueName={venue.hall_name} venue={venue} navItems={navItems}>
+    <PublicLayout
+      venueName={v.hall_name}
+      venue={v}
+      navItems={navItems}
+      vertical={vertical}
+      primaryCta={primaryCta}
+      showAvailability={showAvailability}
+      siteTheme={siteTheme}
+    >
       {visibleSections.map((section) => {
+        if (section.type === "hero") {
+          return (
+            <React.Fragment key="hero">
+              {useVertical ? (
+                <VerticalHero venue={v} vertical={vertical} stats={heroStats} actions={actions} hasWhatsApp={!!waDigits(v)} />
+              ) : (
+                <T.HeroSection venue={v} />
+              )}
+            </React.Fragment>
+          );
+        }
+
+        if (section.type === "stats" && useVertical) return null;
+
         if (section.type === "contact") {
           return (
             <React.Fragment key="contact">
               {/* Live slots & packages from the Slots page */}
               {showSlotsPackages && (
-                <SlotSection venue={venue} slots={slots} packages={packages} />
+                <SlotSection venue={v} slots={slots} packages={packages} />
               )}
-              {showAvailability && <AvailabilityCalendar venue={venue} />}
-              <T.ContactSection venue={venue} slots={slots} />
+              {showAvailability && <AvailabilityCalendar venue={v} />}
+              <T.ContactSection venue={v} slots={slots} />
             </React.Fragment>
           );
         }
 
         // The manual "packages" website section is replaced by the live
-        // Slots & Packages section above, so don't render it twice.
-        if (section.type === "packages") return null;
+        // Slots & Packages section above  - except for gyms, where "packages"
+        // becomes the live Membership Plans section.
+        if (section.type === "packages" && vertical.key !== "gym") return null;
 
         const CoreComponent = CORE_COMPONENTS[section.type];
-        if (CoreComponent) return <CoreComponent key={section.type} venue={venue} />;
+        if (CoreComponent) return <CoreComponent key={section.type} venue={v} />;
         const dIdx = dynamicIdx++;
-        return <DynamicSectionRenderer key={section.type} type={section.type} config={section.config} venue={venue} index={dIdx} />;
+        return (
+          <DynamicSectionRenderer
+            key={section.type}
+            type={section.type}
+            config={section.config}
+            venue={v}
+            index={dIdx}
+            vertical={vertical}
+            actions={actions}
+          />
+        );
       })}
+
+      {trialOpen && vertical.key === "gym" && (
+        <FreeTrialModal venueId={venue.id} theme={v.theme_color} onClose={() => setTrialOpen(false)} />
+      )}
     </PublicLayout>
   );
 }

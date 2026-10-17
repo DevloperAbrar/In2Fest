@@ -112,7 +112,7 @@ const SECTION_TYPES = {
     defaultConfig: { title: "Occasions We Cover", items: [] }
   },
 
-  // ---- NEW: sections for non-event businesses ----
+  // ---- Sections for non-event businesses ----
   courses: {
     label: "Courses / Programs",
     description: "Courses, batches or programs with duration and fees (subtitle = duration / batch timing)",
@@ -167,16 +167,65 @@ const SECTION_TYPES = {
     toggleable: true,
     itemFields: ["platform", "url", "label"],
     defaultConfig: { title: "Follow Us", subtitle: "", style: "cards", items: [] }
+  },
+
+  // ---- NEW: market-fit sections ----
+  stats: {
+    label: "Highlights / Numbers",
+    description: "Big animated numbers - members, years of experience, guest capacity, products",
+    icon: "stats",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "subtitle"],
+    fieldLabels: { title: "Label (e.g. Active Members)", subtitle: "Number (e.g. 1200+)" },
+    defaultConfig: { title: "Our Numbers", items: [] }
+  },
+  schedule: {
+    label: "Class Timetable",
+    description: "Weekly timetable with day tabs - gym classes, yoga, batches",
+    icon: "schedule",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "subtitle", "tag", "description"],
+    fieldLabels: {
+      title: "Class name",
+      subtitle: "Time (e.g. 6:00 AM - 7:00 AM)",
+      tag: "Days (e.g. Mon, Wed, Fri  or  Mon-Sat  or  Daily)",
+      description: "Trainer / level (optional)"
+    },
+    defaultConfig: { title: "Class Timetable", items: [] }
+  },
+  video_tour: {
+    label: "Video / Virtual Tour",
+    description: "Embed a YouTube or Vimeo walkthrough of your venue, gym or shop",
+    icon: "video",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "url", "description"],
+    fieldLabels: { title: "Heading", url: "YouTube or Vimeo link", description: "Short caption (optional)" },
+    defaultConfig: { title: "Take a Virtual Tour", items: [] }
+  },
+  offers: {
+    label: "Offers & Deals",
+    description: "Scrollable offer cards with a WhatsApp claim button",
+    icon: "offers",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "description", "tag"],
+    fieldLabels: { title: "Offer headline", description: "Details / validity", tag: "Badge (e.g. 20% OFF)" },
+    defaultConfig: { title: "Today's Offers", items: [] }
   }
 };
 
 // Category slug -> ordered list of optional (pluggable) section types.
 // Core types are always added automatically  - don't list them here.
+const SHOP_SECTIONS = ["offers", "product_catalog", "hours", "cta_banner", "faq"];
+
 const CATEGORY_SECTION_DEFAULTS = {
-  "marriage-hall": ["packages", "faq"],
-  "banquet-hall": ["packages", "faq"],
-  "party-lawn": ["packages", "faq"],
-  farmhouse: ["packages", "faq"],
+  "marriage-hall": ["stats", "video_tour", "packages", "occasions", "faq"],
+  "banquet-hall": ["stats", "video_tour", "packages", "occasions", "faq"],
+  "party-lawn": ["stats", "video_tour", "packages", "occasions", "faq"],
+  farmhouse: ["stats", "video_tour", "packages", "occasions", "faq"],
   photographer: ["portfolio", "packages", "process", "faq"],
   videographer: ["portfolio", "packages", "process", "faq"],
   decorator: ["portfolio", "packages", "process", "faq"],
@@ -200,13 +249,13 @@ const CATEGORY_SECTION_DEFAULTS = {
   "skill-training": ["courses", "process", "results", "faq"],
 
   // retail
-  "kirana-store": ["product_catalog", "hours", "cta_banner", "faq"],
-  "clothing-store": ["product_catalog", "hours", "cta_banner", "faq"],
-  "footwear-store": ["product_catalog", "hours", "cta_banner", "faq"],
-  "electronics-store": ["product_catalog", "hours", "cta_banner", "faq"],
-  "mobile-shop": ["product_catalog", "hours", "cta_banner", "faq"],
-  pharmacy: ["product_catalog", "hours", "cta_banner", "faq"],
-  "stationery-store": ["product_catalog", "hours", "faq"],
+  "kirana-store": SHOP_SECTIONS,
+  "clothing-store": SHOP_SECTIONS,
+  "footwear-store": SHOP_SECTIONS,
+  "electronics-store": SHOP_SECTIONS,
+  "mobile-shop": SHOP_SECTIONS,
+  pharmacy: SHOP_SECTIONS,
+  "stationery-store": ["offers", "product_catalog", "hours", "faq"],
 
   // food
   restaurant: ["menu", "hours", "cta_banner", "faq"],
@@ -214,10 +263,10 @@ const CATEGORY_SECTION_DEFAULTS = {
   "cloud-kitchen": ["menu", "process", "cta_banner", "faq"],
 
   // health & wellness
-  "gym-fitness": ["packages", "team", "hours", "faq", "cta_banner"],
+  "gym-fitness": ["stats", "courses", "packages", "schedule", "team", "results", "hours", "faq", "cta_banner"],
   "salon-spa": ["menu", "portfolio", "team", "hours", "faq"],
   clinic: ["team", "hours", "cta_banner", "faq"],
-  "yoga-center": ["packages", "team", "hours", "faq"],
+  "yoga-center": ["courses", "packages", "schedule", "team", "hours", "faq"],
 
   // professional
   "ca-accountant": ["packages", "process", "cta_banner", "faq"],
@@ -237,4 +286,29 @@ const CATEGORY_SECTION_DEFAULTS = {
   default: ["packages", "faq"]
 };
 
-module.exports = { SECTION_TYPES, CATEGORY_SECTION_DEFAULTS };
+// Category-specific default headings (so a gym doesn't get "Our Courses").
+const SHOP_TITLES = { product_catalog: "Shop Our Collection", offers: "Today's Offers" };
+const CATEGORY_SECTION_TITLES = {
+  "gym-fitness": {
+    courses: "Our Programs",
+    packages: "Membership Plans",
+    schedule: "Class Timetable",
+    team: "Meet Our Trainers",
+    results: "Member Transformations",
+    stats: "Our Numbers"
+  },
+  "yoga-center": { courses: "Our Classes", schedule: "Class Timetable", packages: "Membership Plans" },
+  "marriage-hall": { video_tour: "Take a Virtual Tour" },
+  "banquet-hall": { video_tour: "Take a Virtual Tour" },
+  "party-lawn": { video_tour: "Take a Virtual Tour" },
+  farmhouse: { video_tour: "Take a Virtual Tour" },
+  "kirana-store": SHOP_TITLES,
+  "clothing-store": SHOP_TITLES,
+  "footwear-store": SHOP_TITLES,
+  "electronics-store": SHOP_TITLES,
+  "mobile-shop": SHOP_TITLES,
+  pharmacy: SHOP_TITLES,
+  "stationery-store": SHOP_TITLES
+};
+
+module.exports = { SECTION_TYPES, CATEGORY_SECTION_DEFAULTS, CATEGORY_SECTION_TITLES };

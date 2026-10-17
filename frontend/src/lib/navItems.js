@@ -3,6 +3,7 @@
 // site (to build the real navbar).
 
 // Desktop navbar shows this many links, the rest go under a "More" dropdown.
+import { getVertical } from "./verticals";
 export const MAX_INLINE_NAV_LINKS = 6;
 
 const FALLBACK_SECTIONS = ["hero", "about", "services", "gallery", "testimonials", "contact"].map(
@@ -33,7 +34,10 @@ const DYNAMIC_LABELS = {
   menu: "Menu",
   hours: "Opening Hours",
   results: "Results",
-  social_links: "Social"
+  social_links: "Social",
+  schedule: "Timetable",
+  video_tour: "Virtual Tour",
+  offers: "Offers"
 };
 
 function dynamicHasContent(section, venue) {
@@ -90,10 +94,20 @@ export function getNavCandidates(venue, opts = {}) {
     }
   };
 
+  const vertical = getVertical(venue);
+
   sections.forEach((section) => {
     if (!section || section.visible === false) return;
 
     if (section.type === "contact") pushSpecials();
+
+    // Gyms show their live membership plans under the "packages" section, so it gets a menu entry.
+    if (section.type === "packages") {
+      if (vertical.navLabels.packages) {
+        list.push({ key: "packages", anchor: "section-packages", label: vertical.navLabels.packages, defaultShow: true });
+      }
+      return;
+    }
 
     const core = CORE_NAV[section.type];
     if (core) {
@@ -101,7 +115,7 @@ export function getNavCandidates(venue, opts = {}) {
       return;
     }
 
-    const label = DYNAMIC_LABELS[section.type];
+    const label = vertical.navLabels[section.type] || DYNAMIC_LABELS[section.type];
     if (!label) return;
     if (strict && !dynamicHasContent(section, venue)) return;
     list.push({ key: section.type, anchor: `section-${section.type}`, label, defaultShow: false });

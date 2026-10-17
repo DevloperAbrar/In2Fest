@@ -193,7 +193,7 @@ export default function SectionContentEditor() {
                   />
                 ) : (
                   <div key={field}>
-                    <label className="block text-xs text-gray-500 mb-1">{FIELD_LABELS[field]}</label>
+                    <label className="block text-xs text-gray-500 mb-1">{def.fieldLabels?.[field] || FIELD_LABELS[field]}</label>
                     {field === "description" ? (
                       <textarea
                         value={item[field] || ""}

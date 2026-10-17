@@ -4,7 +4,7 @@ import {
   ShoppingBag, Users, PartyPopper,
   GraduationCap, UtensilsCrossed, Clock, Trophy, Megaphone, Share2
 } from "lucide-react";
-
+import { BarChart3, CalendarClock, PlayCircle, BadgePercent } from "lucide-react";
 export const SECTION_TYPES = {
   hero: {
     label: "Hero Banner",
@@ -234,4 +234,66 @@ Object.entries(NEW_SECTION_TYPES).forEach(([key, def]) => {
       ? { editorRoute: portfolioRef.editorRoute.replace("portfolio", key) }
       : {})
   };
+});
+
+
+/* ------------------------------------------------------------------
+   MARKET-FIT SECTIONS (stats, timetable, video tour, offers)
+------------------------------------------------------------------- */
+FIELD_LABELS.url = "Link (YouTube / Vimeo)";
+
+const MARKET_FIT_SECTION_TYPES = {
+  stats: {
+    label: "Highlights / Numbers",
+    description: "Big animated numbers - members, years of experience, guest capacity, products",
+    icon: BarChart3,
+    color: "bg-emerald-50 text-emerald-600",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "subtitle"],
+    fieldLabels: { title: "Label (e.g. Active Members)", subtitle: "Number (e.g. 1200+)" },
+    defaultConfig: { title: "Our Numbers", items: [] }
+  },
+  schedule: {
+    label: "Class Timetable",
+    description: "Weekly timetable with day tabs - gym classes, yoga, batches",
+    icon: CalendarClock,
+    color: "bg-sky-50 text-sky-600",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "subtitle", "tag", "description"],
+    fieldLabels: {
+      title: "Class name",
+      subtitle: "Time (e.g. 6:00 AM - 7:00 AM)",
+      tag: "Days (e.g. Mon, Wed, Fri  or  Mon-Sat  or  Daily)",
+      description: "Trainer / level (optional)"
+    },
+    defaultConfig: { title: "Class Timetable", items: [] }
+  },
+  video_tour: {
+    label: "Video / Virtual Tour",
+    description: "Embed a YouTube or Vimeo walkthrough of your venue, gym or shop",
+    icon: PlayCircle,
+    color: "bg-red-50 text-red-600",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "url", "description"],
+    fieldLabels: { title: "Heading", url: "YouTube or Vimeo link", description: "Short caption (optional)" },
+    defaultConfig: { title: "Take a Virtual Tour", items: [] }
+  },
+  offers: {
+    label: "Offers & Deals",
+    description: "Scrollable offer cards with a WhatsApp claim button",
+    icon: BadgePercent,
+    color: "bg-orange-50 text-orange-600",
+    removable: true,
+    toggleable: true,
+    itemFields: ["title", "description", "tag"],
+    fieldLabels: { title: "Offer headline", description: "Details / validity", tag: "Badge (e.g. 20% OFF)" },
+    defaultConfig: { title: "Today's Offers", items: [] }
+  }
+};
+
+Object.entries(MARKET_FIT_SECTION_TYPES).forEach(([key, def]) => {
+  if (!SECTION_TYPES[key]) SECTION_TYPES[key] = def;
 });
