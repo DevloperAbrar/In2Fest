@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Sparkles, X } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
+import { useAuth } from "../../../context/AuthContext.jsx";
 import { foodService } from "../../../services/foodService";
 import Button from "../../../components/common/Button";
 import Input from "../../../components/common/Input";
@@ -19,7 +20,9 @@ const EMPTY = {
 
 export default function FoodMenu() {
   const { venue } = useVenue();
+  const { user } = useAuth();
   const vid = venue?.id;
+  const canAddCategory = user?.role !== "team_member";
   const { data: ctx } = useFoodContext(vid);
   const unitInfo = ctx?.subtype?.unit;
 
@@ -34,6 +37,11 @@ export default function FoodMenu() {
   const [newCat, setNewCat] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // inline "new category" inside the Add dish modal
+  const [addingCat, setAddingCat] = useState(false);
+  const [catName, setCatName] = useState("");
+  const [catBusy, setCatBusy] = useState(false);
+
   const load = useCallback(async () => {
     if (!vid) return;
     try {
@@ -42,6 +50,9 @@ export default function FoodMenu() {
     } catch (e) { showError(errMsg(e)); setItems([]); }
   }, [vid]);
   useEffect(() => { load(); }, [load]);
+
+  // Reset the inline category box whenever the dish modal opens or closes
+  useEffect(() => { setAddingCat(false); setCatName(""); }, [!!form]);
 
   const run = async (fn, ok) => { try { await fn(); if (ok) showSuccess(ok); load(); } catch (e) { showError(errMsg(e)); } };
 
@@ -59,6 +70,21 @@ export default function FoodMenu() {
       if (form.id) await foodService.updateItem(vid, form.id, body); else await foodService.createItem(vid, body);
       showSuccess("Saved"); setForm(null); load();
     } catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
+  };
+
+  const addCategoryInline = async () => {
+    const name = catName.trim();
+    if (name.length < 2) { showError("Enter a category name"); return; }
+    setCatBusy(true);
+    try {
+      const r = await foodService.createCategory(vid, { name });
+      const created = r.data.data;
+      setCats((list) => [...list, created]);
+      setForm((f) => (f ? { ...f, category_id: created.id } : f));
+      setCatName("");
+      setAddingCat(false);
+      showSuccess("Category added");
+    } catch (e) { showError(errMsg(e)); } finally { setCatBusy(false); }
   };
 
   const upload = async (file) => {
@@ -138,6 +164,28 @@ export default function FoodMenu() {
               <Select label="Category" value={form.category_id} onChange={setF("category_id")} options={[{ value: "", label: "Others" }, ...cats.map((c) => ({ value: c.id, label: c.name }))]} />
               <Select label="Type" value={form.food_type} onChange={setF("food_type")} options={[{ value: "veg", label: "Veg" }, { value: "nonveg", label: "Non-veg" }, { value: "egg", label: "Egg" }]} />
             </div>
+
+            {canAddCategory && (
+              addingCat ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    value={catName}
+                    onChange={(e) => setCatName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategoryInline(); } }}
+                    placeholder="New category name (e.g. Chai, Snacks)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <Button loading={catBusy} onClick={addCategoryInline}>Add</Button>
+                  <Button variant="outline" onClick={() => { setAddingCat(false); setCatName(""); }}>Cancel</Button>
+                </div>
+              ) : (
+                <button type="button" className="text-xs text-primary-600 font-medium -mt-1" onClick={() => setAddingCat(true)}>
+                  + New category
+                </button>
+              )
+            )}
+
             {form.variants.length === 0 ? (
               <div className="flex items-end gap-3">
                 <div className="flex-1"><Input label="Price (₹)" type="number" value={form.price} onChange={setF("price")} /></div>
