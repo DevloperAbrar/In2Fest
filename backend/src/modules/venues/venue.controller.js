@@ -14,7 +14,7 @@ async function createVenue(req, res, next) {
 // No password/Google login is needed from the vendor for this step.
 async function adminCreateVenue(req, res, next) {
   try {
-    const result = await venueService.adminCreateVenue(req.body);
+    const result = await venueService.adminCreateVenue(req.body, req.user);
     res.status(201).json({ success: true, data: result });
   } catch (error) {
     next(error);

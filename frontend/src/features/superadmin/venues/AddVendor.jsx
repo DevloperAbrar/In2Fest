@@ -9,12 +9,14 @@ import { useFetch } from "../../../hooks/useFetch";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { ArrowLeft } from "lucide-react";
+import PlanAssignFields, { EMPTY_ASSIGN, validateAssign } from "./PlanAssignFields.jsx";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AddVendor() {
   const navigate = useNavigate();
   const { data: categories, loading: categoriesLoading } = useFetch("/meta/categories");
+  const { data: plans, loading: plansLoading } = useFetch("/plans");
 
   const [form, setForm] = useState({
     owner_name: "",
@@ -24,6 +26,7 @@ export default function AddVendor() {
     city: "",
     business_category: ""
   });
+  const [assign, setAssign] = useState(EMPTY_ASSIGN);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,12 +35,19 @@ export default function AddVendor() {
     setErrors((er) => ({ ...er, [field]: undefined }));
   };
 
+  const updateAssign = (patch) => {
+    setAssign((a) => ({ ...a, ...patch }));
+    setErrors((er) => ({ ...er, amount: undefined }));
+  };
+
   const validate = () => {
     const next = {};
     if (!form.owner_email.trim()) next.owner_email = "Vendor's email is required";
     else if (!EMAIL_RE.test(form.owner_email.trim())) next.owner_email = "Enter a valid email address";
     if (!form.hall_name.trim()) next.hall_name = "Business / venue name is required";
     if (!form.owner_name.trim()) next.owner_name = "Vendor's name is required";
+    const assignError = validateAssign(assign, plans);
+    if (assignError) next.amount = assignError;
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -46,25 +56,38 @@ export default function AddVendor() {
     e.preventDefault();
     if (!validate()) return;
 
+    const payload = { ...form };
+    if (assign.plan_id) {
+      payload.plan_id = assign.plan_id;
+      payload.billing_cycle = assign.billing_cycle;
+      payload.payment_received = assign.payment_received;
+      payload.payment_method = assign.payment_method;
+      payload.payment_amount = assign.amount;
+      payload.payment_notes = assign.notes;
+    }
+
     setSubmitting(true);
     try {
-      const { data } = await venueService.adminCreate(form);
+      const { data } = await venueService.adminCreate(payload);
       const venueId = data.data.venue.id;
+      const planName = data.data.subscription?.plan?.name;
 
       if (data.data.already_existed) {
-        showSuccess(`${data.data.owner.email} already has an account  - opening their dashboard`);
+        showSuccess(
+          `${data.data.owner.email} already has an account${planName ? `, plan set to ${planName}` : ""}. Opening their dashboard`
+        );
       } else {
-        showSuccess(`Vendor account created for ${data.data.owner.email}`);
+        showSuccess(`Vendor account created for ${data.data.owner.email}${planName ? ` on ${planName}` : ""}`);
       }
 
       // Immediately open the new dashboard as this vendor so setup can be
-      // finished right away  - same flow as the "Impersonate" action.
+      // finished right away. Same flow as the "Impersonate" action.
       try {
         const impersonateRes = await venueService.impersonate(venueId);
         const token = impersonateRes.data.data.accessToken;
         window.open(`/auth/callback?token=${encodeURIComponent(token)}&mode=impersonate`, "_blank");
       } catch {
-        // Non-fatal  - the vendor was created either way, admin can
+        // Non-fatal. The vendor was created either way, admin can
         // impersonate later from the venue list/detail page.
       }
 
@@ -88,7 +111,7 @@ export default function AddVendor() {
       <div className="max-w-lg bg-white rounded-xl border border-gray-100 p-6">
         <h2 className="text-lg font-semibold text-navy-900 mb-1">Onboard a vendor</h2>
         <p className="text-sm text-gray-500 mb-6">
-          Set this up with just the vendor's email  - no password needed from them. We'll open
+          Set this up with just the vendor's email. No password needed from them. We'll open
           their dashboard in a new tab so you can finish setup on their behalf. Later, when they
           sign in with Google using this same email, they'll land on the exact same dashboard.
         </p>
@@ -131,6 +154,15 @@ export default function AddVendor() {
           />
           <Input label="Phone" placeholder="10-digit mobile number" value={form.phone} onChange={update("phone")} />
           <Input label="City" placeholder="e.g. Indore" value={form.city} onChange={update("city")} />
+
+          <PlanAssignFields
+            value={assign}
+            onChange={updateAssign}
+            plans={plans}
+            loading={plansLoading}
+            placeholder="Default free plan"
+            error={errors.amount}
+          />
 
           <div className="pt-2 flex gap-3">
             <Button type="submit" loading={submitting}>

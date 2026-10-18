@@ -1,12 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import { useParams } from "react-router-dom";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { adminSidebarItems } from "../adminSidebarItems.js";
 import { useFetch } from "../../../hooks/useFetch";
 import Card from "../../../components/common/Card";
 import Badge from "../../../components/common/Badge";
+import Button from "../../../components/common/Button";
 import Loader from "../../../components/common/Loader";
 import VenueActions from "./VenueActions.jsx";
+import PlanAssignFields, { EMPTY_ASSIGN, validateAssign } from "./PlanAssignFields.jsx";
+import { subscriptionService } from "../../../services/subscriptionService";
+import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatDate, formatCurrency } from "../../../lib/formatters";
 import { BASE_DOMAIN } from "../../../lib/constants";
 
@@ -22,9 +26,72 @@ const FIELD_LABELS = {
   video_intro_url: "Video introduction link"
 };
 
+function ChangePlanPanel({ venue, onDone, onCancel }) {
+  const { data: plans, loading } = useFetch("/plans");
+  const [assign, setAssign] = useState({
+    ...EMPTY_ASSIGN,
+    billing_cycle: venue.subscription?.billing_cycle === "monthly" ? "monthly" : "yearly"
+  });
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const updateAssign = (patch) => {
+    setAssign((a) => ({ ...a, ...patch }));
+    setError(null);
+  };
+
+  const save = async () => {
+    if (!assign.plan_id) {
+      showError("Please select a plan");
+      return;
+    }
+    const validationError = validateAssign(assign, plans);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await subscriptionService.adminAssign(venue.id, {
+        planId: assign.plan_id,
+        billingCycle: assign.billing_cycle,
+        paymentReceived: assign.payment_received,
+        paymentMethod: assign.payment_method,
+        amount: assign.amount,
+        notes: assign.notes
+      });
+      showSuccess("Plan updated");
+      onDone();
+    } catch (err) {
+      showError(err.response?.data?.message || "Failed to update plan");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 space-y-3">
+      <PlanAssignFields
+        value={assign}
+        onChange={updateAssign}
+        plans={plans}
+        loading={loading}
+        placeholder="Select a plan"
+        error={error}
+      />
+      <div className="flex gap-2">
+        <Button onClick={save} loading={saving}>Save plan</Button>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 export default function VenueDetail() {
   const { id } = useParams();
   const { data: venue, loading, refetch } = useFetch(`/venues/${id}`);
+  const [changingPlan, setChangingPlan] = useState(false);
 
   if (loading) return <Loader fullScreen />;
   if (!venue) return null;
@@ -51,6 +118,23 @@ export default function VenueDetail() {
           <p className="text-sm mb-1">Locked Price: {formatCurrency(venue.subscription?.locked_price)}</p>
           <p className="text-sm mb-2">Status: <Badge status={venue.subscription?.status} /></p>
           <p className="text-xs text-gray-400">Renews: {formatDate(venue.subscription?.current_period_end)}</p>
+
+          {!changingPlan && (
+            <Button variant="outline" className="mt-4" onClick={() => setChangingPlan(true)}>
+              Change plan
+            </Button>
+          )}
+
+          {changingPlan && (
+            <ChangePlanPanel
+              venue={venue}
+              onCancel={() => setChangingPlan(false)}
+              onDone={() => {
+                setChangingPlan(false);
+                refetch();
+              }}
+            />
+          )}
         </Card>
       </div>
 
@@ -80,7 +164,7 @@ export default function VenueDetail() {
 
           {completion && completion.missing_fields.length === 0 && !venue.marketplace_listed && (
             <p className="text-sm text-gray-500">
-              Profile is complete but not yet marked listed  - ask the owner to re-save any field on the
+              Profile is complete but not yet marked listed. Ask the owner to re-save any field on the
               Marketplace Profile page to trigger the listing flag.
             </p>
           )}

@@ -28,6 +28,24 @@ async function changePlan(req, res, next) {
   }
 }
 
+// Super Admin: assign any plan (free or paid) to a venue without the payment gateway.
+async function adminAssignPlan(req, res, next) {
+  try {
+    const { planId, billingCycle, paymentReceived, paymentMethod, amount, notes } = req.body;
+    const subscription = await subscriptionService.adminAssignPlan(req.params.venueId, planId, {
+      billingCycle,
+      paymentReceived: paymentReceived === true,
+      paymentMethod,
+      amount,
+      notes,
+      adminId: req.user.id
+    });
+    res.json({ success: true, data: subscription });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function extendTrial(req, res, next) {
   try {
     const subscription = await subscriptionService.extendTrial(req.params.venueId, req.body.extraDays || 7);
@@ -63,7 +81,6 @@ async function reactivateSubscription(req, res, next) {
 async function getRenewalQuote(req, res, next) {
   try {
     const { venueId } = req.params;
-    // Delegate to payment controller logic via service - just return subscription info
     // The actual quote is computed in payment.controller getQuote with type=renewal
     const subscription = await subscriptionService.getSubscriptionByVenue(venueId);
     res.json({ success: true, data: subscription });
@@ -76,6 +93,7 @@ module.exports = {
   createSubscription,
   getMySubscription,
   changePlan,
+  adminAssignPlan,
   extendTrial,
   suspendSubscription,
   reactivateSubscription,

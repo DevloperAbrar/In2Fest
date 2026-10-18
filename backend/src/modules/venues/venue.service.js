@@ -7,7 +7,7 @@ const { SECTION_TYPES } = require("../../config/sectionLibrary");
 const { AppError } = require("../../middleware/error.middleware");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const sharp = require("sharp");
-const { createFreeSubscription } = require("../subscriptions/subscription.service");
+const { createFreeSubscription, adminAssignPlan } = require("../subscriptions/subscription.service");
 const { sanitizeBusinessHours, sanitizeServices, sanitizeNavConfig } = require("../../utils/venueContentSanitizer");
 
 function slugify(text) {
@@ -186,8 +186,18 @@ async function findOrCreateOwnerByEmail(email, name) {
  * this does NOT error out  - it just hands back their existing venue so
  * "Add Vendor" behaves like "Open vendor" instead of dead-ending.
  */
-async function adminCreateVenue(payload) {
-  const { owner_email, owner_name, ...venuePayload } = payload;
+async function adminCreateVenue(payload, adminUser = null) {
+  const {
+    owner_email,
+    owner_name,
+    plan_id,
+    billing_cycle,
+    payment_received,
+    payment_method,
+    payment_amount,
+    payment_notes,
+    ...venuePayload
+  } = payload;
 
   if (!owner_email) {
     throw new AppError("Vendor email is required", 400);
@@ -196,26 +206,50 @@ async function adminCreateVenue(payload) {
     throw new AppError("Business/venue name is required", 400);
   }
 
+  // Validate the plan first so we never create a half-set-up vendor.
+  if (plan_id) {
+    const plan = await Plan.findByPk(plan_id);
+    if (!plan || !plan.is_active) throw new AppError("Selected plan not found or inactive", 404);
+  }
+
   const owner = await findOrCreateOwnerByEmail(owner_email, owner_name);
+
+  const applyPlan = async (venueId) => {
+    if (!plan_id) return null;
+    return adminAssignPlan(venueId, plan_id, {
+      billingCycle: billing_cycle,
+      paymentReceived: payment_received === true,
+      paymentMethod: payment_method,
+      amount: payment_amount,
+      notes: payment_notes,
+      adminId: adminUser ? adminUser.id : null
+    });
+  };
 
   const existingVenue = await Venue.findOne({ where: { owner_id: owner.id } });
   if (existingVenue) {
+    const subscription = await applyPlan(existingVenue.id);
     return {
       venue: existingVenue,
       owner: { id: owner.id, name: owner.name, email: owner.email },
+      subscription,
       already_existed: true
     };
   }
 
   const venue = await createVenue({
     ...venuePayload,
+    plan_id,
     owner_name: owner_name || venuePayload.owner_name,
     owner_id: owner.id
   });
 
+  const subscription = await applyPlan(venue.id);
+
   return {
     venue,
     owner: { id: owner.id, name: owner.name, email: owner.email },
+    subscription,
     already_existed: false
   };
 }

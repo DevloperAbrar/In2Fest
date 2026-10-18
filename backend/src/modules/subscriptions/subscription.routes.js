@@ -10,6 +10,7 @@ router.get("/:venueId", authenticate, controller.getMySubscription);
 router.patch("/:venueId/change-plan", authenticate, requireRole("venue_owner"), controller.changePlan);
 
 // Super Admin controls
+router.patch("/:venueId/admin-assign", authenticate, requireRole("super_admin"), controller.adminAssignPlan);
 router.patch("/:venueId/extend-trial", authenticate, requireRole("super_admin"), controller.extendTrial);
 router.patch("/:venueId/suspend", authenticate, requireRole("super_admin"), controller.suspendSubscription);
 router.patch("/:venueId/reactivate", authenticate, requireRole("super_admin"), controller.reactivateSubscription);

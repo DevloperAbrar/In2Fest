@@ -1,7 +1,9 @@
 const dayjs = require("dayjs");
-const { Subscription, Plan, Venue } = require("../../database/models");
+const { Subscription, Plan, Venue, Payment } = require("../../database/models");
 const { getAmountForCycle, normalizeCycle } = require("../plans/planPricing");
 const { AppError } = require("../../middleware/error.middleware");
+
+const MANUAL_METHODS = ["upi_manual", "cash_manual", "bank_transfer"];
 
 /**
  * Creates a subscription with locked_price = current plan price at signup time.
@@ -39,10 +41,6 @@ async function createSubscription(venueId, planId, options = {}) {
   return subscription;
 }
 
-/**
- * Auto-assigns the free-forever plan to a newly created venue that skipped
- * paid plan selection during onboarding.
- */
 /**
  * Assigns a free-forever plan to a venue.
  * - If planId is given, that exact plan is used (it must be active and free).
@@ -98,7 +96,7 @@ async function getSubscriptionByVenue(venueId, options = {}) {
 
 /**
  * Renewal extends from current_period_end (not from now).
- * So paying early doesn't waste the remaining time — vendor gets a full
+ * So paying early doesn't waste the remaining time. Vendor gets a full
  * extra year/month stacked on top of their existing period.
  * Price is kept locked unless options.amount is explicitly passed (e.g. after payment).
  * Pass options.transaction so a failed payment rolls the extension back too.
@@ -182,6 +180,101 @@ async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
   return subscription;
 }
 
+/**
+ * SUPER ADMIN ONLY. Assigns any active plan (free or paid) to a venue without
+ * going through the payment gateway. Used when a vendor pays the team directly.
+ *
+ * - Creates the subscription if the venue has none, otherwise switches it.
+ * - Free plan: runs for 100 years, no payment record.
+ * - Paid plan: runs 1 month or 1 year from today, status active, no trial.
+ * - If options.paymentReceived is true, a Payment row is recorded so it shows
+ *   up in Admin > Payments.
+ *
+ * options: { billingCycle, paymentReceived, paymentMethod, amount, notes, adminId }
+ */
+async function adminAssignPlan(venueId, planId, options = {}) {
+  const venue = await Venue.findByPk(venueId);
+  if (!venue) throw new AppError("Venue not found", 404);
+
+  if (!planId) throw new AppError("Please select a plan", 400);
+  const plan = await Plan.findByPk(planId);
+  if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
+
+  const isFree = Number(plan.monthly_price) <= 0;
+  const cycle = isFree ? "monthly" : normalizeCycle(options.billingCycle);
+  const listedPrice = isFree ? 0 : getAmountForCycle(plan, cycle);
+
+  const wantsPayment = !isFree && options.paymentReceived === true;
+  let receivedAmount = 0;
+  let method = "upi_manual";
+
+  if (wantsPayment) {
+    receivedAmount = Number(options.amount);
+    if (!Number.isFinite(receivedAmount) || receivedAmount <= 0) {
+      throw new AppError("Enter the amount received from the vendor", 400);
+    }
+    method = MANUAL_METHODS.includes(options.paymentMethod) ? options.paymentMethod : "upi_manual";
+  }
+
+  const now = dayjs();
+  const periodEnd = isFree
+    ? now.add(100, "year")
+    : cycle === "yearly"
+      ? now.add(1, "year")
+      : now.add(1, "month");
+
+  const values = {
+    plan_id: plan.id,
+    locked_price: listedPrice,
+    billing_cycle: cycle,
+    status: "active",
+    trial_ends_at: null,
+    current_period_start: now.toDate(),
+    current_period_end: periodEnd.toDate()
+  };
+
+  await Subscription.sequelize.transaction(async (transaction) => {
+    const existing = await Subscription.findOne({ where: { venue_id: venueId }, transaction });
+
+    if (existing) {
+      Object.assign(existing, values);
+      await existing.save({ transaction });
+    } else {
+      await Subscription.create({ venue_id: venueId, ...values }, { transaction });
+    }
+
+    if (wantsPayment) {
+      await Payment.create(
+        {
+          venue_id: venueId,
+          amount: receivedAmount,
+          method,
+          status: "success",
+          plan_name_snapshot: plan.name,
+          period_covered_start: now.toDate(),
+          period_covered_end: periodEnd.toDate(),
+          notes: options.notes || `Plan assigned by admin (${plan.name}, ${cycle})`,
+          recorded_by: options.adminId || null,
+          base_amount: listedPrice,
+          total_amount: receivedAmount
+        },
+        { transaction }
+      );
+    }
+  });
+
+  if (wantsPayment) {
+    try {
+      const referralService = require("../referrals/referral.service");
+      await referralService.maybeAssignReferralCode(venueId);
+    } catch (err) {
+      console.error("[SUBSCRIPTION] Referral code assignment failed:", err.message);
+    }
+  }
+
+  return getSubscriptionByVenue(venueId);
+}
+
 async function extendTrial(venueId, extraDays) {
   const subscription = await getSubscriptionByVenue(venueId);
   const base = subscription.trial_ends_at ? dayjs(subscription.trial_ends_at) : dayjs();
@@ -255,6 +348,7 @@ module.exports = {
   renewSubscription,
   changePlan,
   switchPlanAfterPayment,
+  adminAssignPlan,
   extendTrial,
   suspendSubscription,
   reactivateSubscription,
