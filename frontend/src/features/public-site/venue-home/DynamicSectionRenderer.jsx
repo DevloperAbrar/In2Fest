@@ -615,7 +615,7 @@ export default function DynamicSectionRenderer({ type, config, venue, index = 0,
   if (vertical?.key === "shop" && type === "product_catalog" && venue?.catalog_items?.length > 0) {
     Renderer = ShopStorefront;
   }
-  if (vertical?.key === "food" && type === "menu") Renderer = FoodMenuSection;
+  if (vertical?.key === "food" && (type === "menu" || type === "product_catalog")) Renderer = FoodMenuSection;
   if (!Renderer || !config) return null;
   return (
     // id is the scroll target for the navbar link (see lib/navItems.js)

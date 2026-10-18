@@ -107,7 +107,7 @@ const BUSINESS_TYPES = {
     label: "Food & Restaurants",
     description: "Restaurants, cloud kitchens, bakeries, food courts, franchises and small hotels",
     icon: "utensils",
-    modules: [...CORE_MODULES, "food"],
+    modules: [...CORE_MODULES, "bookings", "food"],
     terms: terms({
       client: "Customer", clients: "Customers",
       booking: "Reservation", bookings: "Reservations",

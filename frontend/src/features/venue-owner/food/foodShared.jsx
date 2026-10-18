@@ -63,7 +63,7 @@ export function FoodTabs() {
   const { user } = useAuth();
   const tabs = [
     ["/dashboard/food", "Overview", true], ["/dashboard/food/orders", "Live Orders"], ["/dashboard/food/pos", "POS"],
-    ["/dashboard/food/menu", "Menu"], ["/dashboard/food/stock", "Stock"], ["/dashboard/food/customers", "Customers"]
+    ["/dashboard/food/menu", "Menu"], ["/dashboard/food/offers", "Offers"], ["/dashboard/food/stock", "Stock"], ["/dashboard/food/customers", "Customers"]
   ];
   if (user?.role !== "team_member") tabs.push(["/dashboard/food/setup", "Setup"]);
   return (

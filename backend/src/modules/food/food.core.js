@@ -129,7 +129,8 @@ function publicConfig(venue, s) {
   return {
     restaurant: venue.hall_name,
     accepting_orders: s.accepting_orders,
-    allow_delivery: s.allow_delivery, allow_pickup: s.allow_pickup, allow_dine_in: s.allow_dine_in,
+    allow_delivery: false, // delivery is not offered
+    allow_pickup: s.allow_pickup, allow_dine_in: s.allow_dine_in,
     min_order: Number(s.min_order), delivery_fee: Number(s.delivery_fee),
     free_delivery_above: Number(s.free_delivery_above), packing_fee: Number(s.packing_fee),
     prep_time_min: s.prep_time_min, delivery_note: s.delivery_note || "",

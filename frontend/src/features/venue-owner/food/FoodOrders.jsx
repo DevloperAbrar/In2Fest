@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Printer, BedDouble } from "lucide-react";
+import { Printer, BedDouble, Clock } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { foodService } from "../../../services/foodService";
 import Button from "../../../components/common/Button";
@@ -26,12 +26,15 @@ function beep() {
 }
 
 const minutesAgo = (d) => Math.max(Math.floor((Date.now() - new Date(d).getTime()) / 60000), 0);
+const clock = (iso) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
 
-function OrderCard({ o, onStatus, onPay, onCancel, onPrint }) {
+function OrderCard({ o, onStatus, onEta, onPay, onCancel, onPrint }) {
   const age = minutesAgo(o.createdAt);
   const late = age > 20 && (o.status === "new" || o.status === "preparing");
   const lines = (o.items || []).filter((l) => l.kind !== "charge");
   const next = { new: ["Accept", "preparing"], preparing: ["Mark ready", "ready"], ready: ["Complete", "completed"] }[o.status];
+  const etaAt = o.status === "preparing" ? o.meta?.eta_at : null;
+  const left = etaAt ? Math.ceil((Date.parse(etaAt) - Date.now()) / 60000) : null;
 
   return (
     <div className={`bg-white rounded-2xl border p-3 ${o.status === "new" ? "border-red-300 shadow-md" : "border-navy-100/60"}`}>
@@ -45,13 +48,17 @@ function OrderCard({ o, onStatus, onPay, onCancel, onPrint }) {
         <span className={`text-xs font-semibold ${late ? "text-red-600" : "text-gray-400"}`}>{age}m</span>
       </div>
       {(o.customer_name || o.customer_phone) && <p className="text-xs text-gray-600 mt-1">{o.customer_name} {o.customer_phone && <a className="text-primary-600" href={`tel:+91${o.customer_phone}`}>{o.customer_phone}</a>}</p>}
-      {o.order_type === "delivery" && o.address && <p className="text-xs text-gray-500 mt-0.5">📍 {o.address}</p>}
       <div className="mt-2 space-y-1">
         {lines.map((l, i) => (
           <div key={i} className="flex items-start gap-1.5 text-sm"><FoodDot type={l.food_type} /><span className="font-semibold">{l.quantity}×</span><span className="flex-1">{l.description}{l.note && <span className="block text-xs text-amber-700">↳ {l.note}</span>}</span></div>
         ))}
       </div>
       {o.notes && <p className="mt-2 text-xs bg-amber-50 text-amber-800 rounded-lg px-2 py-1">Note: {o.notes}</p>}
+      {etaAt && (
+        <p className="mt-2 text-xs font-medium text-primary-700 bg-primary-50 rounded-lg px-2 py-1 flex items-center gap-1">
+          <Clock size={12} /> Customer sees: ready by {clock(etaAt)} · {left > 0 ? `${left} min left` : "time is up"}
+        </p>
+      )}
       <div className="flex items-center justify-between mt-2">
         <p className="font-bold text-gray-900">{inr2(o.total)}</p>
         {o.payment_status === "paid"
@@ -61,7 +68,8 @@ function OrderCard({ o, onStatus, onPay, onCancel, onPrint }) {
             : <button onClick={() => onPay(o)} className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">{o.meta?.claimed_at ? "Customer says paid · confirm" : "Unpaid · mark paid"}</button>}
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
-        {next && <Button className="!py-1.5 !px-3" onClick={() => onStatus(o, next[1])}>{next[0]}</Button>}
+        {next && <Button className="!py-1.5 !px-3" onClick={() => (o.status === "new" ? onEta(o) : onStatus(o, next[1]))}>{next[0]}</Button>}
+        {o.status === "preparing" && <Button variant="outline" className="!py-1.5 !px-3" onClick={() => onEta(o)}><Clock size={13} /> Change time</Button>}
         <Button variant="outline" className="!py-1.5 !px-3" onClick={() => onPrint(o, "kot")}><Printer size={13} /> KOT</Button>
         <Button variant="outline" className="!py-1.5 !px-3" onClick={() => onPrint(o, "bill")}><Printer size={13} /> Bill</Button>
         {o.status !== "completed" && <Button variant="outline" className="!py-1.5 !px-3 !text-red-600" onClick={() => onCancel(o)}>{o.status === "new" ? "Reject" : "Cancel"}</Button>}
@@ -80,6 +88,8 @@ export default function FoodOrders() {
   const [payFor, setPayFor] = useState(null);
   const [cancelFor, setCancelFor] = useState(null);
   const [settle, setSettle] = useState(null);
+  const [etaFor, setEtaFor] = useState(null);
+  const [etaMin, setEtaMin] = useState("20");
   const [mode, setMode] = useState("cash");
   const [reason, setReason] = useState("");
   const [roomNo, setRoomNo] = useState("");
@@ -99,7 +109,7 @@ export default function FoodOrders() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 8000);
+    const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -107,6 +117,14 @@ export default function FoodOrders() {
     try { await fn(); if (ok) showSuccess(ok); load(); } catch (e) { showError(errMsg(e)); }
   };
   const print = (o, kind) => { if (!printTicket(o, ctx, kind)) showError("Allow pop-ups to print"); };
+
+  // Accept / change time: ask how many minutes the food will take.
+  const openEta = (o) => {
+    const prep = Number(ctx?.settings?.prep_time_min) || 20;
+    const old = o.meta?.eta_at ? Math.ceil((Date.parse(o.meta.eta_at) - Date.now()) / 60000) : 0;
+    setEtaMin(String(o.status === "preparing" && old > 0 ? old : prep));
+    setEtaFor(o);
+  };
 
   if (!board) return <FoodPage title="Live orders"><Loader /></FoodPage>;
   const cols = [["new", "New"], ["preparing", "Preparing"], ["ready", "Ready"]];
@@ -122,7 +140,7 @@ export default function FoodOrders() {
               <div className="space-y-3">
                 {list.length === 0 && <p className="text-xs text-gray-400 py-6 text-center border border-dashed rounded-xl">Nothing here</p>}
                 {list.map((o) => (
-                  <OrderCard key={o.id} o={o} onPrint={print}
+                  <OrderCard key={o.id} o={o} onPrint={print} onEta={openEta}
                     onStatus={(ord, st) => run(() => foodService.setStatus(vid, ord.id, st))}
                     onPay={(ord) => { setMode("cash"); setPayFor(ord); }}
                     onCancel={(ord) => { setReason(""); setCancelFor(ord); }} />
@@ -160,6 +178,23 @@ export default function FoodOrders() {
           </div>
         </div>
       )}
+
+      <Modal isOpen={!!etaFor} onClose={() => setEtaFor(null)} title={`${etaFor?.status === "new" ? "Accept" : "Change time for"} #${etaFor?.order_no || ""}`} size="sm">
+        <p className="text-sm text-gray-600 mb-3">In how many minutes will the food be ready? The customer sees this as a live countdown and any change shows up on their phone.</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[10, 15, 20, 30, 45, 60].map((m) => (
+            <button key={m} type="button" onClick={() => setEtaMin(String(m))}
+              className={`px-3 py-1.5 rounded-full text-sm border ${String(etaMin) === String(m) ? "bg-primary-600 text-white border-primary-600" : "text-gray-700"}`}>{m} min</button>
+          ))}
+        </div>
+        <Input label="Or type minutes" type="number" value={etaMin} onChange={(e) => setEtaMin(e.target.value)} />
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => setEtaFor(null)}>Close</Button>
+          <Button onClick={() => run(async () => { await foodService.setStatus(vid, etaFor.id, "preparing", Number(etaMin)); setEtaFor(null); }, etaFor?.status === "new" ? "Order accepted" : "Time updated")}>
+            {etaFor?.status === "new" ? "Accept order" : "Update time"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal isOpen={!!payFor} onClose={() => setPayFor(null)} title={`Payment · #${payFor?.order_no || ""}`} size="sm">
         <p className="text-2xl font-bold mb-3">{inr2(payFor?.total)}</p>

@@ -99,7 +99,7 @@ router.post("/orders/preview", h((req) => orders.preview(ctx(req), req.body, "ow
 router.get("/orders", h((req) => orders.list(vid(req), req.query)));
 router.post("/orders", h((req) => orders.place(ctx(req), req.body, "owner"), 201));
 router.get("/orders/:id", h((req) => orders.get(vid(req), req.params.id)));
-router.patch("/orders/:id/status", h((req) => orders.setStatus(vid(req), req.params.id, req.body.status)));
+router.patch("/orders/:id/status", h((req) => orders.setStatus(vid(req), req.params.id, req.body.status, req.body)));
 router.post("/orders/:id/pay", h((req) => orders.pay(vid(req), req.params.id, req.body)));
 router.post("/orders/:id/cancel", h((req) => orders.cancel(vid(req), req.params.id, req.body.reason)));
 

@@ -10,7 +10,7 @@ import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { FoodPage, FoodDot, inr, inr2, errMsg, useFoodContext, printTicket, PAY_MODES } from "./foodShared.jsx";
 
-const TYPES = [["dine_in", "Dine-in"], ["takeaway", "Takeaway"], ["delivery", "Delivery"]];
+const TYPES = [["dine_in", "Dine-in"], ["takeaway", "Takeaway"]];
 const SOURCES = [{ value: "pos", label: "Counter / phone" }, { value: "zomato", label: "Zomato" }, { value: "swiggy", label: "Swiggy" }, { value: "other_app", label: "Other app" }];
 
 export default function FoodPOS() {

@@ -1,16 +1,16 @@
-// Live online ordering on the restaurant's own website: menu, cart, checkout, order tracking.
+// Live online ordering on the restaurant's own website: menu, cart, Google sign-in,
+// pickup orders and a "My orders" panel with a live countdown.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, Minus, ShoppingBag, X, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Minus, ShoppingBag, X, Receipt, LogOut } from "lucide-react";
+ 
 import api from "../../../../services/api";
 import { SectionShell } from "../SectionShell.jsx";
 import { onAccent } from "../../../../lib/verticals";
+import { visitorApi, getVisitorToken, getVisitorUser, signInWithGooglePopup, visitorSignOut } from "../../../../lib/visitorAuth";
+import { FoodOrderCard, isActiveOrder } from "./FoodOrderCard.jsx";
 
 const money = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-const TRACK_KEY = (id) => `in2fest-food-order-${id}`;
-const readToken = (id) => { try { return window.localStorage.getItem(TRACK_KEY(id)); } catch { return null; } };
-const saveToken = (id, t) => { try { window.localStorage.setItem(TRACK_KEY(id), t); } catch { /* private mode */ } };
-const TYPE_LABEL = { delivery: "Delivery", takeaway: "Pickup", dine_in: "Dine-in" };
-const STEPS = [["new", "Received"], ["preparing", "Preparing"], ["ready", "Ready"], ["completed", "Done"]];
+const TYPE_LABEL = { takeaway: "Pickup", dine_in: "Dine-in" };
 
 function Dot({ type }) {
   const c = type === "nonveg" ? "#dc2626" : type === "egg" ? "#d97706" : "#16a34a";
@@ -31,72 +31,56 @@ function Sheet({ onClose, title, children }) {
   );
 }
 
-function Tracker({ token, venue, theme, onClose }) {
-  const [o, setO] = useState(null);
+function Drawer({ onClose, title, children }) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/50" onClick={onClose}>
+      <div className="bg-stone-50 dark:bg-stone-900 w-full max-w-md h-full overflow-y-auto p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-stone-900 dark:text-white">{title}</h3>
+          <button onClick={onClose} className="text-stone-400"><X size={20} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SignInBox({ note, onDone }) {
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try { setO((await api.get(`/public/food/order/${token}`)).data.data); setErr(""); }
-    catch { setErr("We could not load this order."); }
-  }, [token]);
-
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 10000);
-    return () => clearInterval(t);
-  }, [load]);
-
-  const claim = async () => { try { await api.post(`/public/food/order/${token}/claimed`); load(); } catch { /* ignore */ } };
-
-  if (err) return <Sheet onClose={onClose} title="Your order"><p className="text-sm text-red-500">{err}</p></Sheet>;
-  if (!o) return <Sheet onClose={onClose} title="Your order"><p className="text-sm text-stone-500">Loading…</p></Sheet>;
-
-  const idx = STEPS.findIndex(([k]) => k === o.status);
-  const wa = o.restaurant.whatsapp
-    ? `https://wa.me/${o.restaurant.whatsapp}?text=${encodeURIComponent(`Hi, this is about my order #${o.order_no} (token ${o.token_no}).`)}` : null;
+  const start = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      onDone(await signInWithGooglePopup());
+    } catch (e) {
+      if (e.message === "popup_blocked") setErr("Please allow pop-ups for this site, then try again.");
+      else if (e.message !== "closed") setErr("Google sign-in failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <Sheet onClose={onClose} title={`Order #${o.order_no}`}>
-      <div className="text-center mb-4">
-        <CheckCircle2 size={40} className="mx-auto mb-1" style={{ color: theme }} />
-        <p className="font-semibold text-stone-900 dark:text-white">{o.status === "cancelled" ? "Order cancelled" : o.status === "completed" ? "Enjoy your meal!" : "Order placed"}</p>
-        <p className="text-sm text-stone-500">Your token: <b className="text-lg" style={{ color: theme }}>{o.token_no}</b> · {TYPE_LABEL[o.order_type]}{o.table_name ? ` · Table ${o.table_name}` : ""}</p>
-        {o.status !== "cancelled" && o.status !== "completed" && <p className="text-xs text-stone-500 mt-1">Usually ready in about {o.eta_min} minutes</p>}
-      </div>
-
-      {o.status !== "cancelled" && (
-        <div className="flex items-center justify-between mb-4">
-          {STEPS.map(([k, l], i) => (
-            <div key={k} className="flex-1 text-center">
-              <div className="mx-auto w-3 h-3 rounded-full" style={{ backgroundColor: i <= idx ? theme : "#d6d3d1" }} />
-              <p className={`text-[11px] mt-1 ${i <= idx ? "font-semibold text-stone-800 dark:text-stone-100" : "text-stone-400"}`}>{l}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="border-t border-stone-200 dark:border-stone-700 pt-3 text-sm space-y-1">
-        {o.items.map((l, i) => <div key={i} className="flex justify-between text-stone-700 dark:text-stone-300"><span>{l.quantity} × {l.name}</span><span>{money(l.amount)}</span></div>)}
-        {o.charges.map((c, i) => <div key={i} className="flex justify-between text-stone-500"><span>{c.name}</span><span>{money(c.amount)}</span></div>)}
-        {o.tax > 0 && <div className="flex justify-between text-stone-500"><span>GST</span><span>{money(o.tax)}</span></div>}
-        <div className="flex justify-between font-bold text-stone-900 dark:text-white pt-1"><span>Total</span><span>{money(o.total)}</span></div>
-      </div>
-
-      {o.payment_status === "paid" ? (
-        <p className="mt-3 text-center text-sm font-semibold text-green-600">Payment received. Thank you!</p>
-      ) : o.status !== "cancelled" && (
-        <div className="mt-4 space-y-2">
-          {o.upi_link && <a href={o.upi_link} className="block text-center py-3 rounded-xl font-bold" style={{ backgroundColor: theme, color: onAccent(theme) }}>Pay {money(o.total)} with UPI</a>}
-          {o.upi_link && !o.claimed && <button onClick={claim} className="w-full text-sm py-2 text-stone-600 dark:text-stone-300 underline">I have paid</button>}
-          {o.claimed && <p className="text-center text-xs text-stone-500">Thanks! The restaurant will confirm your payment.</p>}
-          {!o.upi_link && <p className="text-center text-xs text-stone-500">Pay at the counter or on delivery.</p>}
-        </div>
-      )}
-      <div className="flex gap-3 mt-3 justify-center text-sm">
-        {o.restaurant.phone && <a href={`tel:${o.restaurant.phone}`} className="underline text-stone-600 dark:text-stone-300">Call restaurant</a>}
-        {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="underline text-stone-600 dark:text-stone-300">WhatsApp</a>}
-      </div>
-    </Sheet>
+    <div className="text-center space-y-3 py-3">
+      <p className="text-sm text-stone-600 dark:text-stone-300">{note}</p>
+      <button
+        type="button"
+        onClick={start}
+        disabled={busy}
+        className="inline-flex items-center gap-3 px-5 py-2.5 rounded-full border border-stone-300 bg-white text-stone-900 text-sm font-semibold shadow-sm hover:shadow disabled:opacity-60"
+      >
+        <svg width="18" height="18" viewBox="0 0 18 18" className="shrink-0">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z" />
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z" />
+          <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03z" />
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z" />
+        </svg>
+        {busy ? "Waiting for Google…" : "Continue with Google"}
+      </button>
+      {err && <p className="text-xs text-red-500">{err}</p>}
+    </div>
   );
 }
 
@@ -108,12 +92,17 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
   const [pick, setPick] = useState(null);
   const [checkout, setCheckout] = useState(false);
   const [type, setType] = useState("");
-  const [form, setForm] = useState({ name: "", phone: "", address: "", notes: "", website: "" });
+  const [form, setForm] = useState({ name: "", phone: "", notes: "", website: "" });
   const [bill, setBill] = useState(null);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
-  const [token, setToken] = useState(null);
-  const [saved, setSaved] = useState(() => readToken(venue.id));
+
+  // signed-in website visitor (Google) + their orders
+  const [visitor, setVisitor] = useState(() => (getVisitorToken() ? getVisitorUser() || { name: "" } : null));
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [orders, setOrders] = useState(null); // null = not loaded yet
+  const [skew, setSkew] = useState(0); // server clock minus this device's clock
+  const [justPlaced, setJustPlaced] = useState(false);
 
   const tableParam = useMemo(() => new URLSearchParams(window.location.search).get("table"), []);
 
@@ -125,11 +114,42 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
     return () => { off = true; };
   }, [venue.id, tableParam]);
 
+  useEffect(() => {
+    const out = () => setVisitor(null);
+    window.addEventListener("in2fest-visitor-signed-out", out);
+    return () => window.removeEventListener("in2fest-visitor-signed-out", out);
+  }, []);
+
+  useEffect(() => {
+    if (visitor?.name) setForm((f) => (f.name ? f : { ...f, name: visitor.name }));
+  }, [visitor]);
+
+  const loadOrders = useCallback(async () => {
+    if (!getVisitorToken()) return;
+    try {
+      const r = await visitorApi.get(`/public/food/${venue.id}/my-orders`);
+      const d = r.data.data;
+      setSkew(Date.parse(d.server_time) - Date.now());
+      setOrders(d.orders);
+    } catch { /* keep what is on screen */ }
+  }, [venue.id]);
+
+  useEffect(() => { if (visitor) loadOrders(); else setOrders(null); }, [visitor, loadOrders]);
+
+  // Live updates: refresh every 5 seconds while the panel is open or an order is still active.
+  const activeCount = (orders || []).filter(isActiveOrder).length;
+  useEffect(() => {
+    if (!visitor || !(ordersOpen || activeCount > 0)) return undefined;
+    const t = setInterval(loadOrders, 5000);
+    return () => clearInterval(t);
+  }, [visitor, ordersOpen, activeCount, loadOrders]);
+
   const cfg = menu && menu.config;
+  // Pickup only (or dine-in when the customer scanned a table QR). No delivery.
   const types = useMemo(() => {
     if (!menu) return [];
     if (menu.table) return cfg.allow_dine_in ? ["dine_in"] : [];
-    return [cfg.allow_delivery && "delivery", cfg.allow_pickup && "takeaway"].filter(Boolean);
+    return cfg.allow_pickup ? ["takeaway"] : [];
   }, [menu, cfg]);
   useEffect(() => { if (types.length && !types.includes(type)) setType(types[0]); }, [types, type]);
 
@@ -172,16 +192,20 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
     setPlacing(true);
     setError("");
     try {
-      const r = await api.post(`/public/food/${venue.id}/orders`, {
+      await visitorApi.post(`/public/food/${venue.id}/orders`, {
         order_type: type, table: menu.table || undefined, items: lines(), notes: form.notes, website: form.website,
-        customer: { name: form.name, phone: form.phone, address: form.address }
+        customer: { name: form.name, phone: form.phone }
       });
-      const t = r.data.data?.tracking_token;
-      if (t) { saveToken(venue.id, t); setSaved(t); setToken(t); }
       setCart([]); setCheckout(false); setBill(null);
-    } catch (err) { setError(err.response?.data?.message || "Could not place the order. Please try again."); }
-    finally { setPlacing(false); }
+      setJustPlaced(true); setOrdersOpen(true);
+      await loadOrders();
+    } catch (err) {
+      if (err.response?.status === 401) { setVisitor(null); setError("Please continue with Google to place your order."); }
+      else setError(err.response?.data?.message || "Could not place the order. Please try again.");
+    } finally { setPlacing(false); }
   };
+
+  const signOut = async () => { await visitorSignOut(); setVisitor(null); setOrders(null); };
 
   if (menu === false || (menu && menu.items.length === 0)) return Fallback ? <Fallback config={config} theme={theme} toneIdx={toneIdx} /> : null;
   if (menu === null) {
@@ -193,7 +217,7 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
   return (
     <SectionShell title={menu.table ? `Table ${menu.table}: order from your phone` : canOrder ? "Order Online" : "Our Menu"} toneIdx={toneIdx} theme={theme} subtitle={menu.table ? "Dine-in" : "Menu"}>
       {!cfg.accepting_orders && <p className="max-w-xl mx-auto mb-6 text-center text-sm rounded-xl bg-amber-50 text-amber-800 px-4 py-3">We are not taking online orders right now. You can still see our menu{cfg.phone ? ` or call ${cfg.phone}` : ""}.</p>}
-      {canOrder && !menu.table && <p className="text-center text-sm text-stone-500 dark:text-stone-400 -mt-8 mb-6">{cfg.delivery_note || `Ready in about ${cfg.prep_time_min} minutes`}{cfg.min_order > 0 ? ` · Minimum order ${money(cfg.min_order)}` : ""}</p>}
+      {canOrder && !menu.table && <p className="text-center text-sm text-stone-500 dark:text-stone-400 -mt-8 mb-6">Pickup · ready in about {cfg.prep_time_min} minutes{cfg.min_order > 0 ? ` · Minimum order ${money(cfg.min_order)}` : ""}</p>}
 
       <div className="max-w-3xl mx-auto">
         <div className="flex gap-2 mb-4">
@@ -245,9 +269,17 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
             </div>
           );
         })}
-
-        {saved && <div className="text-center"><button onClick={() => setToken(saved)} className="text-sm underline text-stone-500 dark:text-stone-400">Track my last order</button></div>}
       </div>
+
+      {/* My orders button: always reachable, also after a refresh */}
+      <button
+        onClick={() => { setJustPlaced(false); setOrdersOpen(true); }}
+        className="fixed right-4 top-20 z-40 flex items-center gap-2 px-4 py-2 rounded-full shadow-xl text-sm font-bold"
+        style={{ backgroundColor: theme, color: onAccent(theme) }}
+      >
+        <Receipt size={16} /> My orders
+        {activeCount > 0 && <span className="ml-0.5 min-w-[20px] h-5 px-1.5 rounded-full bg-white text-stone-900 text-xs flex items-center justify-center">{activeCount}</span>}
+      </button>
 
       {canOrder && count > 0 && (
         <div className="fixed inset-x-0 bottom-20 sm:bottom-6 z-40 px-4">
@@ -286,38 +318,61 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
             {cart.length === 0 && <p className="text-sm text-stone-400">Your cart is empty.</p>}
           </div>
 
-          <form onSubmit={place} className="space-y-3">
-            {!menu.table && types.length > 1 && (
-              <div className="flex gap-2">
-                {types.map((t) => (
-                  <button type="button" key={t} onClick={() => setType(t)} className="flex-1 py-2 rounded-xl text-sm font-semibold border-2" style={type === t ? { backgroundColor: theme, borderColor: theme, color: onAccent(theme) } : { borderColor: `${theme}50`, color: theme }}>{TYPE_LABEL[t]}</button>
-                ))}
-              </div>
-            )}
-            <input className={input} placeholder="Your name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <input className={input} placeholder="Mobile number" inputMode="numeric" maxLength={10} required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            {type === "delivery" && <textarea className={input} rows={2} placeholder="Full delivery address" required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />}
-            <input className={input} placeholder="Any request? (less spicy, no onion…)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-            <input className="hidden" tabIndex={-1} autoComplete="off" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} />
+          {!visitor ? (
+            <SignInBox
+              note="Continue with Google to place your order. You can then track it live under “My orders”."
+              onDone={(u) => { setVisitor(u); setError(""); }}
+            />
+          ) : (
+            <form onSubmit={place} className="space-y-3">
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                {TYPE_LABEL[type]}{menu.table ? ` · Table ${menu.table}` : " · collect from the restaurant"} · signed in as {visitor.name || visitor.email}
+              </p>
+              <input className={input} placeholder="Your name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <input className={input} placeholder="Mobile number" inputMode="numeric" maxLength={10} required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <input className={input} placeholder="Any request? (less spicy, no onion…)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <input className="hidden" tabIndex={-1} autoComplete="off" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} />
 
-            {bill && (
-              <div className="text-sm border-t border-stone-200 dark:border-stone-700 pt-3 space-y-1 text-stone-600 dark:text-stone-300">
-                <div className="flex justify-between"><span>Items</span><span>{money(bill.subtotal - bill.lines.filter((l) => l.kind === "charge").reduce((s, l) => s + l.amount, 0))}</span></div>
-                {bill.lines.filter((l) => l.kind === "charge").map((l, i) => <div key={i} className="flex justify-between"><span>{l.name}</span><span>{money(l.amount)}</span></div>)}
-                {bill.cgst + bill.sgst > 0 && <div className="flex justify-between"><span>GST</span><span>{money(bill.cgst + bill.sgst)}</span></div>}
-                <div className="flex justify-between text-base font-extrabold text-stone-900 dark:text-white"><span>Total</span><span>{money(bill.total)}</span></div>
-              </div>
-            )}
-            {error && <p className="text-sm text-red-500">{error}</p>}
-            <button type="submit" disabled={placing || cart.length === 0 || (bill && !bill.min_order_ok)} className="w-full py-3 rounded-xl font-bold disabled:opacity-60" style={{ backgroundColor: theme, color: onAccent(theme) }}>
-              {placing ? "Placing order…" : bill && !bill.min_order_ok ? `Minimum order ${money(bill.min_order)}` : "Place order"}
-            </button>
-            <p className="text-[11px] text-center text-stone-400">Pay by UPI after ordering, or at the counter or on delivery.</p>
-          </form>
+              {bill && (
+                <div className="text-sm border-t border-stone-200 dark:border-stone-700 pt-3 space-y-1 text-stone-600 dark:text-stone-300">
+                  <div className="flex justify-between"><span>Items</span><span>{money(bill.subtotal - bill.lines.filter((l) => l.kind === "charge").reduce((s, l) => s + l.amount, 0))}</span></div>
+                  {bill.lines.filter((l) => l.kind === "charge").map((l, i) => <div key={i} className="flex justify-between"><span>{l.name}</span><span>{money(l.amount)}</span></div>)}
+                  {bill.cgst + bill.sgst > 0 && <div className="flex justify-between"><span>GST</span><span>{money(bill.cgst + bill.sgst)}</span></div>}
+                  <div className="flex justify-between text-base font-extrabold text-stone-900 dark:text-white"><span>Total</span><span>{money(bill.total)}</span></div>
+                </div>
+              )}
+              {error && <p className="text-sm text-red-500">{error}</p>}
+              <button type="submit" disabled={placing || cart.length === 0 || (bill && !bill.min_order_ok)} className="w-full py-3 rounded-xl font-bold disabled:opacity-60" style={{ backgroundColor: theme, color: onAccent(theme) }}>
+                {placing ? "Placing order…" : bill && !bill.min_order_ok ? `Minimum order ${money(bill.min_order)}` : "Place order"}
+              </button>
+              <p className="text-[11px] text-center text-stone-400">Pay by UPI after ordering, or at the counter when you collect.</p>
+            </form>
+          )}
         </Sheet>
       )}
 
-      {token && <Tracker token={token} venue={venue} theme={theme} onClose={() => setToken(null)} />}
+      {ordersOpen && (
+        <Drawer title="My orders" onClose={() => setOrdersOpen(false)}>
+          {!visitor ? (
+            <SignInBox note="Continue with Google to see your orders, token number and live time left." onDone={(u) => setVisitor(u)} />
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-xs text-stone-500 mb-3">
+                <span>{visitor.name || visitor.email}</span>
+                <button onClick={signOut} className="flex items-center gap-1 underline"><LogOut size={12} /> Sign out</button>
+              </div>
+              {justPlaced && <p className="mb-3 text-sm rounded-xl bg-green-50 text-green-700 px-3 py-2">Order placed! Keep your token number handy. This page updates live.</p>}
+              {orders === null ? (
+                <p className="text-center text-sm text-stone-400 py-10">Loading your orders…</p>
+              ) : orders.length === 0 ? (
+                <p className="text-center text-sm text-stone-400 py-10">You have not ordered here yet.</p>
+              ) : (
+                orders.map((o) => <FoodOrderCard key={o.tracking_token} o={o} theme={theme} skew={skew} onChanged={loadOrders} />)
+              )}
+            </>
+          )}
+        </Drawer>
+      )}
     </SectionShell>
   );
 }

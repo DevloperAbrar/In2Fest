@@ -118,6 +118,7 @@ const FoodOrder = sequelize.define("FoodOrder", {
   commission_percent: pct(0),
   commission_amount: amt(),
   tracking_token: { type: STRING(40), allowNull: false },
+  public_user_id: UUID, // website visitor (Google) who placed the order
   stock_deducted: bool(false),
   cancel_reason: STRING(200),
   completed_at: DATE,

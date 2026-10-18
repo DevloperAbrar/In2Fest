@@ -104,7 +104,16 @@ export default function FoodSetup() {
           </div>
           <div className="mt-3"><Input label="Delivery note shown to customers" value={form.delivery_note || ""} onChange={set("delivery_note")} placeholder="e.g. Delivery within 5 km" /></div>
         </Card>
-
+        <Card title="Online ordering">
+          <Toggle label="Accepting online orders" hint="Turn off when the kitchen is closed or too busy" checked={form.accepting_orders} onChange={flag("accepting_orders")} />
+          <Toggle label="Takeaway / pickup" checked={form.allow_pickup} onChange={flag("allow_pickup")} />
+          <Toggle label="Dine-in by table QR" checked={form.allow_dine_in} onChange={flag("allow_dine_in")} />
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <Input label="Minimum order (₹)" type="number" value={form.min_order} onChange={set("min_order")} />
+            <Input label="Default prep time (minutes)" type="number" value={form.prep_time_min} onChange={set("prep_time_min")} />
+            <Input label="Packing charge (₹)" type="number" value={form.packing_fee} onChange={set("packing_fee")} />
+          </div>
+        </Card>
         <Card title="Tax and bill">
           {!ctx.tax_on && form.gst_scheme === "regular" && (
             <p className="text-xs bg-amber-50 text-amber-800 rounded-lg px-3 py-2 mb-3">GST is not being added to bills. Turn on GST and add your GSTIN in Settings → GST.</p>

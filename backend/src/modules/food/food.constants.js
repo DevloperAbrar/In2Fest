@@ -24,7 +24,7 @@ function subtypeFor(venue) {
   return slug ? { slug, ...SUBTYPES[slug] } : null;
 }
 
-const ORDER_TYPES = ["dine_in", "takeaway", "delivery"];
+const ORDER_TYPES = ["dine_in", "takeaway"]; // pickup + table-QR dine-in only, no delivery
 const OWNER_SOURCES = ["pos", "zomato", "swiggy", "other_app"];
 const STATUSES = ["new", "preparing", "ready", "completed", "cancelled"];
 const PAYMENT_MODES = ["cash", "upi", "card", "room", "other"];

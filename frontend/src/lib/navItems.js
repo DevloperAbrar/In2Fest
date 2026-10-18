@@ -81,7 +81,9 @@ export function getNavCandidates(venue, opts = {}) {
 
   // These two render just above the Contact section on the public page.
   const pushSpecials = () => {
-    if (venue.show_slots_packages !== false) {
+    // Restaurants have no event-style slots, packages or availability calendar.
+    if (getVertical(venue).key === "food") return;
+    if (venue.show_slots_packages !== false && getVertical(venue).key !== "food") {
       const hasOfferings =
         (slots || []).some((s) => s.is_active !== false) ||
         (packages || []).some((p) => p.is_active !== false);
@@ -117,7 +119,8 @@ export function getNavCandidates(venue, opts = {}) {
 
     const label = vertical.navLabels[section.type] || DYNAMIC_LABELS[section.type];
     if (!label) return;
-    if (strict && !(vertical.key === "food" && section.type === "menu") && !dynamicHasContent(section, venue)) return;
+    const isFoodMenu = vertical.key === "food" && (section.type === "menu" || section.type === "product_catalog");
+    if (strict && !isFoodMenu && !dynamicHasContent(section, venue)) return;
     list.push({ key: section.type, anchor: `section-${section.type}`, label, defaultShow: false });
   });
 

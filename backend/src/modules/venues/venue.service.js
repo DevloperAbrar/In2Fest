@@ -647,10 +647,28 @@ async function recalculateSetupChecklist(venue) {
     console.error("[CHECKLIST] could not count catalog items:", err.message);
   }
 
+  // Restaurants add dishes in Restaurant > Menu, so the "menu" step is done once they have dishes.
+  let foodDishCount = 0;
+  try {
+    const { subtypeFor } = require("../food/food.constants");
+    if (subtypeFor(venue)) {
+      const { FoodItem } = require("../food/food.models");
+      foodDishCount = await FoodItem.count({ where: { venue_id: venue.id, is_active: true } });
+    }
+  } catch (err) {
+    console.error("[CHECKLIST] could not count food items:", err.message);
+  }
+
   let hasFilledPluggableSection = false;
   sections.forEach((section) => {
     const def = SECTION_TYPES[section.type];
     if (!def?.removable || section.visible === false) return;
+
+    if (section.type === "menu" && foodDishCount > 0) {
+      steps.push("menu");
+      hasFilledPluggableSection = true;
+      return;
+    }
     // Slots & Packages are managed on the Slots page and shown automatically
     // on the public site, so "packages" is not a checklist step.
     if (section.type === "packages") return;

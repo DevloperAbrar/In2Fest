@@ -258,9 +258,9 @@ const CATEGORY_SECTION_DEFAULTS = {
   "stationery-store": ["offers", "product_catalog", "hours", "faq"],
 
   // food
-  restaurant: ["offers", "product_catalog", "hours", "cta_banner", "faq"],
-  "bakery-sweets": ["offers", "product_catalog", "hours", "cta_banner", "faq"],
-  "cloud-kitchen": ["offers", "product_catalog", "process", "cta_banner", "faq"],
+  restaurant: ["menu", "offers", "hours", "cta_banner", "faq"],
+  "bakery-sweets": ["menu", "offers", "hours", "cta_banner", "faq"],
+  "cloud-kitchen": ["menu", "offers", "process", "cta_banner", "faq"],
   "food-court": ["stats", "menu", "offers", "video_tour", "hours", "cta_banner", "faq"],
   "restaurant-franchise": ["stats", "menu", "offers", "process", "team", "hours", "cta_banner", "faq"],
   "small-hotel": ["stats", "menu", "offers", "video_tour", "hours", "cta_banner", "faq"],

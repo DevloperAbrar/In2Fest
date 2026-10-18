@@ -140,7 +140,8 @@ export default function VenueHomePage() {
     const link = waLink(v, `Hi ${v.hall_name}, I'd like to know more about your products.`);
     primaryCta = link ? { label: "Order on WhatsApp", href: link, external: true } : { label: "Enquire", href: "#inquiry" };
   } else if (vertical.key === "food") {
-    primaryCta = { label: "Order Online", href: "#section-menu" };
+    const hasMenu = sections.some((s) => s.type === "menu" && s.visible !== false);
+    primaryCta = { label: "Order Online", href: hasMenu ? "#section-menu" : "#section-product_catalog" };
   }
 
   // The hero shows the numbers bar itself, so the separate "stats" band is skipped in that case.

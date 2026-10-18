@@ -64,6 +64,7 @@ import FoodMenu from "../features/venue-owner/food/FoodMenu.jsx";
 import FoodStock from "../features/venue-owner/food/FoodStock.jsx";
 import FoodCustomers from "../features/venue-owner/food/FoodCustomers.jsx";
 import FoodSetup from "../features/venue-owner/food/FoodSetup.jsx";
+import FoodOffers from "../features/venue-owner/food/FoodOffers.jsx";
 
 import OrdersPage from "../features/venue-owner/orders/OrdersPage.jsx";
 
@@ -129,6 +130,7 @@ export default function VenueOwnerRoutes() {
         <Route path="food/orders" element={<RequireFeature feature="food"><FoodOrders /></RequireFeature>} />
         <Route path="food/pos" element={<RequireFeature feature="food"><FoodPOS /></RequireFeature>} />
         <Route path="food/menu" element={<RequireFeature feature="food"><FoodMenu /></RequireFeature>} />
+        <Route path="food/offers" element={<RequireFeature feature="food"><FoodOffers /></RequireFeature>} />
         <Route path="food/stock" element={<RequireFeature feature="food"><FoodStock /></RequireFeature>} />
         <Route path="food/customers" element={<RequireFeature feature="food"><FoodCustomers /></RequireFeature>} />
         <Route path="food/setup" element={<RequireOwner><RequireFeature feature="food"><FoodSetup /></RequireFeature></RequireOwner>} />

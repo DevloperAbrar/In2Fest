@@ -5,7 +5,7 @@ import { useVenueStore } from "../../../store/venueStore";
 import { SECTION_TYPES } from "../../../lib/sectionLibrary";
 import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 
-function buildSteps(pageSections, { isShop, hasSlots, hasBilling }) {
+function buildSteps(pageSections, { isShop, isFood, hasSlots, hasBilling }) {
   const sections = pageSections || [];
   const isVisible = (type) => sections.some((s) => s.type === type && s.visible !== false);
 
@@ -48,12 +48,24 @@ function buildSteps(pageSections, { isShop, hasSlots, hasBilling }) {
     if (section.type === "packages") return;
     // Already added above for shops
     if (section.type === "product_catalog" && catalogOnShopPage) return;
-    steps.push({
-      key: section.type,
-      label: `Fill in your ${def.label}`,
-      path: `/dashboard/website/section/${section.type}`,
-      feature: "website_builder"
-    });
+
+    let label = `Fill in your ${def.label}`;
+    let path = `/dashboard/website/section/${section.type}`;
+    let feature = "website_builder";
+
+    // Restaurants manage their menu and offers inside the Restaurant area.
+    if (isFood && section.type === "menu") {
+      label = "Add your dishes to the menu";
+      path = "/dashboard/food/menu";
+      feature = "food";
+    }
+    if (isFood && section.type === "offers") {
+      label = "Add your offers & deals";
+      path = "/dashboard/food/offers";
+      feature = "food";
+    }
+
+    steps.push({ key: section.type, label, path, feature });
   });
 
   return steps;
@@ -70,6 +82,7 @@ export default function SetupChecklist({ completedSteps = [], planFeatures = [],
   const modules = profile?.modules || [];
   const steps = buildSteps(pageSections, {
     isShop: profile?.key === "retail",
+    isFood: profile?.key === "food",
     hasSlots: modules.includes("slots"),
     hasBilling: planFeatures.includes("billing") && modules.includes("billing")
   });

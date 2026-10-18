@@ -1,6 +1,6 @@
 // Single source of truth for "which kind of website experience does this business get".
-// gym / shop (and restaurants, which reuse the shop experience with pickup ordering) get their own
-// hero, accent, dark mode, nav wording and section looks. Everything else keeps the classic venue look.
+// gym / shop / food each get their own hero, accent, nav wording and section looks.
+// Everything else keeps the classic venue experience.
 
 export const PLATFORM_DEFAULT_COLOR = "#7c3aed";
 
@@ -9,7 +9,10 @@ const SHOP_SLUGS = [
   "clothing-store", "footwear-store", "mobile-shop", "pharmacy",
   "kirana-store", "electronics-store", "stationery-store"
 ];
-const FOOD_SLUGS = ["restaurant", "bakery-sweets", "cloud-kitchen"];
+const FOOD_SLUGS = [
+  "restaurant", "bakery-sweets", "cloud-kitchen",
+  "food-court", "restaurant-franchise", "small-hotel"
+];
 
 export const VERTICALS = {
   gym: {
@@ -24,13 +27,18 @@ export const VERTICALS = {
     darkDefault: false,
     navLabels: { product_catalog: "Shop" }
   },
+  food: {
+    key: "food",
+    accent: "#ea580c",
+    darkDefault: false,
+    food: true,
+    navLabels: { product_catalog: "Order Online", menu: "Menu" }
+  },
   venue: { key: "venue", accent: null, darkDefault: false, navLabels: {} }
 };
 
-// Restaurants / bakeries / cloud kitchens: same storefront as shops, but wording is "order for pickup".
-const FOOD_VERTICAL = { ...VERTICALS.shop, accent: "#ea580c", food: true, navLabels: { product_catalog: "Order Online" } };
-
-const categoriesOf = (venue) => [venue?.business_category, ...(venue?.secondary_categories || [])].filter(Boolean);
+const categoriesOf = (venue) =>
+  [venue?.business_category, ...(venue?.secondary_categories || [])].filter(Boolean);
 
 export function isFoodVenue(venue) {
   return categoriesOf(venue).some((c) => FOOD_SLUGS.includes(c));
@@ -41,7 +49,7 @@ export function getVertical(venue) {
   for (const c of categoriesOf(venue)) {
     if (GYM_SLUGS.includes(c)) return VERTICALS.gym;
     if (SHOP_SLUGS.includes(c)) return VERTICALS.shop;
-    if (FOOD_SLUGS.includes(c)) return FOOD_VERTICAL;
+    if (FOOD_SLUGS.includes(c)) return VERTICALS.food;
   }
   return VERTICALS.venue;
 }

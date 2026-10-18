@@ -1,6 +1,6 @@
-// Vendor segments = the product groups we sell to. A segment decides which dashboard
-// modules (plan features) and which sidebar entries (nav keys) a vendor sees.
-// Keys in `modules` are PLAN_FEATURES keys. Keys in `nav` are `navKey`s in ownerSidebarItems.js.
+// Vendor segments decide which modules (plan features) and which sidebar entries (nav keys)
+// a vendor sees. Keys in `modules` are PLAN_FEATURES keys.
+// Keys in `nav` are `navKey`s in frontend/src/features/venue-owner/ownerSidebarItems.js.
 const MODULE_NAV = {
   website_builder: "website", marketplace_profile: "marketplace", reviews: "reviews",
   slots: "slots", inquiries: "inquiries", bookings: "bookings", clients: "clients",
@@ -69,12 +69,14 @@ const SEGMENTS = {
     modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "clients", "billing"],
     nav: [...ALWAYS_NAV, "inquiries", "clients", "billing", ...COMMON_NAV]
   },
+  // Restaurants keep everything they had before (reservations, slots, customers, billing)
+  // and additionally get the Restaurant suite (one sidebar entry, tabs inside).
   food: {
     key: "food",
     label: "Restaurants & Food Businesses",
     categories: ["restaurant", "cloud-kitchen", "bakery-sweets", "food-court", "restaurant-franchise", "small-hotel"],
-    modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "food"],
-    nav: [...ALWAYS_NAV, "food", "food_orders", "food_pos", "food_menu", "inquiries", "website", "marketplace", "reviews", "referrals"]
+    modules: [...EVENT_BASE, "food"],
+    nav: [...ALWAYS_NAV, "food", "inquiries", "bookings", "clients", "billing", ...COMMON_NAV]
   }
 };
 

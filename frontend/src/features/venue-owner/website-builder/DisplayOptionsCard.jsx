@@ -4,18 +4,21 @@ import { useVenue } from "../../../context/VenueContext.jsx";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { Clock } from "lucide-react";
+import { getVertical } from "../../../lib/verticals";
 import BuilderCard, { Switch } from "./BuilderCard.jsx";
 
 const OPTIONS = [
   {
     field: "show_availability",
     title: "Availability calendar",
-    desc: "Shows free and booked dates to visitors. Turn off if you don't take date-based bookings."
+    desc: "Shows free and booked dates to visitors. Turn off if you don't take date-based bookings.",
+    hideForFood: true // restaurants don't use slot-based availability
   },
   {
     field: "show_slots_packages",
     title: "Slots and packages",
-    desc: "Shows your time slots and packages. Turn off if you don't use them."
+    desc: "Shows your time slots and packages. Turn off if you don't use them.",
+    hideForFood: true // restaurant sites never show event-style slots/packages
   }
 ];
 
@@ -26,6 +29,9 @@ export default function DisplayOptionsCard() {
   const [busy, setBusy] = useState(null);
 
   if (!venue) return null;
+
+  const isFood = getVertical(venue).key === "food";
+  const options = OPTIONS.filter((o) => !(isFood && o.hideForFood));
 
   const valueOf = (field) => (field in local ? local[field] : venue[field] !== false);
 
@@ -60,7 +66,7 @@ export default function DisplayOptionsCard() {
       description="Switch parts of your website on or off. Changes save instantly."
     >
       <ul className="divide-y divide-gray-100 -my-4">
-        {OPTIONS.map((o) => (
+        {options.map((o) => (
           <li key={o.field} className="flex items-center justify-between gap-4 py-4">
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">{o.title}</p>

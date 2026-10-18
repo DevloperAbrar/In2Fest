@@ -114,11 +114,12 @@ async function place(ctx, body, mode = "owner") {
   const b = body || {};
 
   const orderType = C.ORDER_TYPES.includes(b.order_type) ? b.order_type : null;
-  if (!orderType) throw new AppError("Choose dine-in, takeaway or delivery", 400);
+  if (!orderType) throw new AppError("Choose dine-in or pickup", 400);
 
   if (!owner) {
+    if (!ctx.publicUserId) throw new AppError("Please continue with Google to place your order", 401);
     if (!settings.accepting_orders) throw new AppError("We are not taking online orders right now", 403);
-    const open = { dine_in: settings.allow_dine_in, takeaway: settings.allow_pickup, delivery: settings.allow_delivery }[orderType];
+    const open = { dine_in: settings.allow_dine_in, takeaway: settings.allow_pickup }[orderType];
     if (!open) throw new AppError("This order type is not available right now", 400);
   }
 
@@ -175,7 +176,8 @@ async function place(ctx, body, mode = "owner") {
       taxable_amount: bill.taxable_amount, cgst: bill.cgst, sgst: bill.sgst, tax_breakup: bill.tax_breakup,
       round_off: bill.round_off, total: bill.total, status: owner ? "preparing" : "new",
       commission_percent: commission.percent, commission_amount: commission.amount,
-      tracking_token: U.token()
+      tracking_token: U.token(),
+      public_user_id: owner ? null : (ctx.publicUserId || null)
     }, { transaction: t });
 
     if (phone) await touchCustomer(t, venue.id, { phone, name, total: bill.total });
@@ -221,13 +223,37 @@ const lockOrder = async (t, venueId, id) => {
   return row;
 };
 
-const setStatus = (venueId, id, status) => inTx(async (t) => {
+const MAX_ETA_MIN = 240;
+
+// opts.eta_minutes: when the restaurant accepts (or changes the time), the customer sees a live countdown.
+const setStatus = (venueId, id, status, opts = {}) => inTx(async (t) => {
   if (!(status in RANK)) throw new AppError("Invalid status", 400);
   const order = await lockOrder(t, venueId, id);
   if (order.status === "cancelled" || order.status === "completed") throw new AppError("This order is already closed", 409);
   if (RANK[status] < RANK[order.status]) throw new AppError("An order can only move forward", 409);
-  if (status === "completed") await completeOrder(t, order);
-  else await order.update({ status }, { transaction: t });
+
+  const now = new Date();
+  const meta = { ...(order.meta || {}) };
+
+  if (status === "preparing") {
+    const asked = Number(opts.eta_minutes);
+    const keepOld = !(asked > 0) && order.status === "preparing" && meta.eta_at;
+    if (!keepOld) {
+      const fallback = Number((await core.getSettings(venueId)).prep_time_min) || 20;
+      const minutes = Math.min(Math.max(Math.round(asked > 0 ? asked : fallback), 1), MAX_ETA_MIN);
+      meta.eta_at = new Date(now.getTime() + minutes * 60000).toISOString();
+      meta.eta_minutes = minutes;
+    }
+    if (!meta.accepted_at) meta.accepted_at = now.toISOString();
+  }
+  if (status === "ready") meta.ready_at = now.toISOString();
+
+  if (status === "completed") {
+    await order.update({ meta }, { transaction: t });
+    await completeOrder(t, order);
+  } else {
+    await order.update({ status, meta }, { transaction: t });
+  }
   return core.presentOrder(order);
 });
 

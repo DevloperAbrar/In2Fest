@@ -112,7 +112,18 @@ const SCHEMA_STATEMENTS = [
      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
   `CREATE INDEX IF NOT EXISTS login_events_created_idx ON login_events (created_at)`,
-  `CREATE INDEX IF NOT EXISTS login_events_actor_idx ON login_events (actor_type, actor_id, created_at)`
+  `CREATE INDEX IF NOT EXISTS login_events_actor_idx ON login_events (actor_type, actor_id, created_at)`,
+
+  // ---- Restaurant suite: give "food" to every existing plan that already has billing ----
+  `UPDATE plans
+      SET features = COALESCE(features, '[]'::jsonb) || '["food"]'::jsonb
+    WHERE jsonb_typeof(COALESCE(features, '[]'::jsonb)) = 'array'
+      AND jsonb_exists(COALESCE(features, '[]'::jsonb), 'billing')
+      AND NOT jsonb_exists(COALESCE(features, '[]'::jsonb), 'food')`,
+
+  // ---- Restaurant: link website orders to the visitor who placed them ----
+  `ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS public_user_id UUID`,
+  `CREATE INDEX IF NOT EXISTS food_orders_public_user_idx ON food_orders (venue_id, public_user_id)`
 ];
 
 const ENUM_STATEMENTS = [

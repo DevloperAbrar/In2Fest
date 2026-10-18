@@ -1,15 +1,16 @@
 import {
   LayoutDashboard, Globe, CalendarClock, MessageSquare, CalendarCheck,
-  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag
+  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag, UtensilsCrossed
 } from "lucide-react";
 
 export const ownerSidebarItems = [
   { navKey: "dashboard",   path: "/dashboard",                     label: "Dashboard",           icon: LayoutDashboard, primaryNav: true },
   { navKey: "gym",         path: "/dashboard/gym",                 label: "Gym",                 icon: Dumbbell,        requiredFeature: "gym", categorySlugs: ["gym-fitness"], primaryNav: true },
-  { navKey: "orders",      path: "/dashboard/orders",              label: "Pickup Orders",       icon: ShoppingBag,     requiredFeature: "billing",            businessTypes: ["retail", "food"], primaryNav: true },
+  { navKey: "food",        path: "/dashboard/food",                label: "Restaurant",          icon: UtensilsCrossed, requiredFeature: "food", businessTypes: ["food"], primaryNav: true },
+  { navKey: "orders",      path: "/dashboard/orders",              label: "Pickup Orders",       icon: ShoppingBag,     requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },
   { navKey: "inquiries",   path: "/dashboard/inquiries",           label: "Inquiries",           icon: MessageSquare,   requiredFeature: "inquiries",          primaryNav: true },
   { navKey: "bookings",    path: "/dashboard/bookings",            label: "Bookings",            icon: CalendarCheck,   requiredFeature: "bookings",           primaryNav: true },
-  { navKey: "catalog",     path: "/dashboard/catalog",             label: "Products & Catalog",  icon: Package,         requiredFeature: "billing",            businessTypes: ["retail", "food"], primaryNav: true },
+  { navKey: "catalog",     path: "/dashboard/catalog",             label: "Products & Catalog",  icon: Package,         requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },
   { navKey: "inventory",   path: "/dashboard/inventory",           label: "Inventory",           icon: Boxes,           requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },
   { navKey: "clients",     path: "/dashboard/clients",             label: "Clients",             icon: Users,           requiredFeature: "clients",            primaryNav: true },
   { navKey: "website",     path: "/dashboard/website",             label: "Website Builder",     icon: Globe,           requiredFeature: "website_builder" },

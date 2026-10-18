@@ -119,7 +119,24 @@ export default function SectionContentEditor() {
       </DashboardLayout>
     );
   }
-
+  // Restaurants add dishes (photo, price, veg / non-veg, sizes) in Restaurant > Menu.
+  if (type === "menu" && profile?.key === "food") {
+    return (
+      <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Menu">
+        <div className="max-w-xl bg-white p-8 rounded-xl border border-gray-100 text-center">
+          <div className="w-12 h-12 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center mx-auto mb-4">
+            <Package size={22} />
+          </div>
+          <h3 className="font-semibold text-gray-900 mb-2">Manage your menu in Restaurant → Menu</h3>
+          <p className="text-sm text-gray-500 mb-6">
+            Add dishes there once. They show on your website automatically and are ready for POS and online orders.
+          </p>
+          <Button onClick={() => navigate("/dashboard/food/menu")}>Open Restaurant Menu</Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+  
   const updateItem = (id, field, value) => {
     setItems(items.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
   };
@@ -134,13 +151,13 @@ export default function SectionContentEditor() {
       const nextSections = venue.page_sections.map((s) =>
         s.type === type
           ? {
-              ...s,
-              config: {
-                title,
-                // Keep an entry if it has a title, or (for the banner) just a description.
-                items: items.filter((it) => it.title?.trim() || (type === "cta_banner" && it.description?.trim()))
-              }
+            ...s,
+            config: {
+              title,
+              // Keep an entry if it has a title, or (for the banner) just a description.
+              items: items.filter((it) => it.title?.trim() || (type === "cta_banner" && it.description?.trim()))
             }
+          }
           : s
       );
       await venueService.update(venue.id, { page_sections: nextSections });
@@ -153,7 +170,7 @@ export default function SectionContentEditor() {
       setSaving(false);
     }
   };
-  
+
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={def.label}>
       <div className="max-w-2xl bg-white p-6 rounded-xl border border-gray-100 space-y-5">
