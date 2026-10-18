@@ -8,6 +8,7 @@ import {
   Banknote, ShieldCheck, MessageCircle, ExternalLink, Copy
 } from "lucide-react";
 import { showSuccess } from "../../components/common/Toast";
+import { AttributeSections, HighlightChips, buildWhatsAppLink } from "./VerticalSections.jsx";
 
 function InfoBadge({ icon: Icon, label, value }) {
   if (!value) return null;
@@ -60,7 +61,10 @@ export default function VendorPublicProfilePage() {
     );
   }
 
-  const { venue, similar_vendors } = data;
+  const { venue, similar_vendors, profile_schema } = data;
+  const attrValues = venue.profile_attributes || {};
+  const vertical = profile_schema?.vertical;
+  const waLink = buildWhatsAppLink(venue.whatsapp_number, vertical, venue.hall_name);
   const categoryLabel = category.replace(/-/g, " ");
   const cityLabel = city.replace(/-/g, " ");
 
@@ -107,6 +111,7 @@ export default function VendorPublicProfilePage() {
                   "{venue.specialty_tagline}"
                 </p>
               )}
+              <HighlightChips schema={profile_schema} values={attrValues} />
             </div>
 
             {/* Rating placeholder */}
@@ -126,19 +131,19 @@ export default function VendorPublicProfilePage() {
 
           {/* CTA Buttons */}
           <div className="flex flex-wrap gap-3 mt-6">
-            {venue.whatsapp_number && (
-              
-           <a     href={`https://wa.me/${venue.whatsapp_number.replace(/\D/g, "")}`}
+            {waLink && (
+              <a
+                href={waLink}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
               >
-                <MessageCircle size={16} /> WhatsApp
+                <MessageCircle size={16} /> {vertical?.cta_label || "WhatsApp"}
               </a>
             )}
             {venue.instagram_handle && (
-              
-             <a   href={`https://instagram.com/${venue.instagram_handle.replace("@", "")}`}
+
+              <a href={`https://instagram.com/${venue.instagram_handle.replace("@", "")}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 border border-gray-200 text-gray-700 hover:bg-gray-50 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
@@ -147,8 +152,8 @@ export default function VendorPublicProfilePage() {
               </a>
             )}
             {venue.youtube_channel_link && (
-              
-            <a    href={venue.youtube_channel_link}
+
+              <a href={venue.youtube_channel_link}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 border border-gray-200 text-gray-700 hover:bg-gray-50 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
@@ -157,8 +162,8 @@ export default function VendorPublicProfilePage() {
               </a>
             )}
             {venue.external_website && (
-              
-            <a    href={venue.external_website}
+
+              <a href={venue.external_website}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 border border-gray-200 text-gray-700 hover:bg-gray-50 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
@@ -167,8 +172,8 @@ export default function VendorPublicProfilePage() {
               </a>
             )}
             {venue.video_intro_url && (
-              
-              <a  href={venue.video_intro_url}
+
+              <a href={venue.video_intro_url}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 border border-primary-200 text-primary-700 hover:bg-primary-50 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
@@ -198,7 +203,7 @@ export default function VendorPublicProfilePage() {
 
             {/* Services */}
             {venue.marketplace_services?.length > 0 && (
-              <SectionCard title="Services & Amenities">
+              <SectionCard title={profile_schema?.labels?.services || "Services & Amenities"}>
                 <div className="grid grid-cols-2 gap-2">
                   {venue.marketplace_services.map((s) => (
                     <div key={s} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
@@ -209,7 +214,8 @@ export default function VendorPublicProfilePage() {
                 </div>
               </SectionCard>
             )}
-
+            {/* Category-specific details */}
+            <AttributeSections schema={profile_schema} values={attrValues} />
             {/* Pricing */}
             {(venue.starting_price || venue.pricing_mode === "per_service") && (
               <SectionCard title="Pricing">
@@ -265,8 +271,9 @@ export default function VendorPublicProfilePage() {
             )}
 
             {/* Famous events */}
-            {venue.famous_events_handled && (
-              <SectionCard title="Notable Events Handled">
+            {/* Highlights / past work (title depends on the vertical) */}
+            {venue.famous_events_handled && profile_schema?.labels?.highlights && (
+              <SectionCard title={profile_schema.labels.highlights}>
                 <p className="text-sm text-gray-600 leading-relaxed">{venue.famous_events_handled}</p>
               </SectionCard>
             )}
@@ -286,8 +293,8 @@ export default function VendorPublicProfilePage() {
               <SectionCard title={`Similar vendors in ${venue.city}`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {similar_vendors.map((v) => (
-                    
-                   <a   key={v.id}
+
+                    <a key={v.id}
                       href={`/${city}/${category}/${v.subdomain}`}
                       className="flex items-start gap-3 border border-gray-100 rounded-xl p-3 hover:bg-gray-50 transition-colors"
                     >
@@ -317,12 +324,12 @@ export default function VendorPublicProfilePage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
               <h3 className="text-sm font-semibold text-gray-700">Get in touch</h3>
               {venue.whatsapp_number && (
-                
-                 <a href={`https://wa.me/${venue.whatsapp_number.replace(/\D/g, "")}`}
+
+                <a href={waLink}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors justify-center"
-                >
+                >c
                   <MessageCircle size={15} /> WhatsApp Now
                 </a>
               )}
@@ -388,8 +395,8 @@ export default function VendorPublicProfilePage() {
                   {venue.primary_locality && `${venue.primary_locality}, `}{venue.city}
                   {venue.full_pincode && `  - ${venue.full_pincode}`}
                 </p>
-                
-                <a  href={`https://www.google.com/maps/search/${encodeURIComponent(`${venue.hall_name} ${venue.city}`)}`}
+
+                <a href={`https://www.google.com/maps/search/${encodeURIComponent(`${venue.hall_name} ${venue.city}`)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-xs text-primary-600 hover:underline font-medium"

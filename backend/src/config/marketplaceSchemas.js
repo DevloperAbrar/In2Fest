@@ -10,6 +10,7 @@
 
 const { BUSINESS_TYPES, getBusinessTypeKey, getBusinessProfile } = require("./businessTypes");
 const { AppError } = require("../middleware/error.middleware");
+const { getVertical } = require("./marketplaceVerticals");
 
 /* ------------------------------------------------------------------ */
 /* Field helpers                                                        */
@@ -673,7 +674,8 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
   const type = BUSINESS_TYPES[typeKey] || BUSINESS_TYPES.general;
   const override = TYPE_PROFILES[typeKey] || {};
 
-  const labels = { ...BASE_PROFILE.labels, ...(override.labels || {}) };
+  const vertical = getVertical(slug, typeKey);
+  const labels = { ...BASE_PROFILE.labels, ...(override.labels || {}), ...(vertical.labels || {}) };
 
   // Attributes: primary category first, then secondary categories, then universal ones.
   // Only the primary category's attributes can be "required".
@@ -698,14 +700,21 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
     category: slug,
     business_type: typeKey,
     business_type_label: type.label,
+    vertical: {
+      key: vertical.key,
+      label: vertical.label,
+      cta_label: vertical.cta_label,
+      whatsapp_message: vertical.whatsapp_message,
+      group_order: vertical.group_order || []
+    },
     details_title: override.detailsTitle || BASE_PROFILE.detailsTitle,
     min_description_words: override.minDescriptionWords || BASE_PROFILE.minDescriptionWords,
     show_advance: override.showAdvance !== undefined ? override.showAdvance : BASE_PROFILE.showAdvance,
     required: requiredColumns,
     labels,
-    price_units: units(override.priceUnits || BASE_PROFILE.priceUnits),
+    price_units: units(vertical.priceUnits || override.priceUnits || BASE_PROFILE.priceUnits),
     services_suggestions: CATEGORY_SUGGESTIONS[slug] || override.servicesSuggestions || BASE_PROFILE.servicesSuggestions,
-    stats: override.stats || BASE_PROFILE.stats,
+    stats: vertical.stats || override.stats || BASE_PROFILE.stats,
     features: { availability: getBusinessProfile(slug, secondary).modules.includes("slots") },
     attributes,
     groups: [...new Set(attributes.map((a) => a.group))]
