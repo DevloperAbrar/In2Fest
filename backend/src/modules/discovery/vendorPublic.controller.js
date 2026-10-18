@@ -8,6 +8,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { Package, BookingUnit } = require("../../database/models");
 const { getProfileSchema } = require("../../config/marketplaceSchemas");
 const { getActiveFeatures } = require("../../utils/planAccess");
+const { getLiveData } = require("./vendorLive.service");
 
 async function getVendorProfile(req, res, next) {
   try {
@@ -67,6 +68,8 @@ async function getVendorProfile(req, res, next) {
       venueData.review_count = 0;
     }
 
+    const live = await getLiveData(venue, profileSchema.vertical, activeFeatures);
+
     const description150 = (venue.long_description || "").slice(0, 155);
 
     res.json({
@@ -75,6 +78,7 @@ async function getVendorProfile(req, res, next) {
         venue: venueData,
         plan_features: planFeatures,
         profile_schema: profileSchema,
+        live,
         similar_vendors: similar.map(vendorSummary),
         seo: {
           title: `${venue.hall_name} - ${categorySlug.replace(/-/g, " ")} in ${cityName} - In2Fest`,

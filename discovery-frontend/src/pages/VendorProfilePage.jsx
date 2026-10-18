@@ -17,13 +17,15 @@ import VendorCTAPrompt from "../components/vendor-profile/VendorCTAPrompt";
 import VideoModal from "../components/vendor-profile/VideoModal";
 import { getVideoEmbed } from "../lib/videoEmbed";
 import { getVendorSiteUrl } from "../lib/vendorSiteUrl";
-import { VendorProfileSchema } from "../components/seo/SchemaMarkup";
 import {
   MapPin, Award, Users, Calendar, Languages,
   ShieldCheck, Banknote, Copy, MessageCircle, ExternalLink,
   Globe, PlayCircle, Quote, Tag,
 } from "lucide-react";
 import PageLoader from "../components/common/PageLoader";
+import LiveSections from "../components/vendor-profile/LiveSections";
+import VerticalSchema from "../components/vendor-profile/VerticalSchema";
+import { buildWhatsAppLink } from "../components/vendor-profile/verticalCopy";
 
 function InstagramIcon(props) {
   return (
@@ -72,7 +74,10 @@ export default function VendorProfilePage() {
 
   if (!data) return <PageLoader />;
 
-  const { venue, similar_vendors, seo, profile_schema: schema } = data;
+  const { venue, similar_vendors, seo, profile_schema: schema, live } = data;
+  const vertical = schema?.vertical;
+  const waLink = buildWhatsAppLink(venue.whatsapp_number, vertical, venue.hall_name);
+
   const L = schema?.labels || {};
   const attrs = venue.profile_attributes || {};
   const categoryLabel = category.replace(/-/g, " ");
@@ -166,7 +171,7 @@ export default function VendorProfilePage() {
         <meta name="twitter:image" content={venue.hero_image_url} />
       </Helmet>
 
-      <VendorProfileSchema venue={venue} city={city} category={category} />
+      <VerticalSchema venue={venue} vertical={vertical} attrs={attrs} showRating={canShowReviews} url={seo.canonical || window.location.href} />
 
       <BreadcrumbNav items={[
         { label: venue.city, to: `/${city}` },
@@ -274,6 +279,9 @@ export default function VendorProfilePage() {
                 <ServicesGrid services={venue.marketplace_services} />
               </SectionCard>
             )}
+
+            {/* Vertical-specific live data (halls table, trainers, timetable, products, ...) */}
+            <LiveSections live={live} schema={schema} attrs={attrs} />
 
             {/* Category specific details (course info, cuisines, facilities, ...) */}
             <ProfileAttributes schema={schema} values={attrs} />
@@ -384,11 +392,14 @@ export default function VendorProfilePage() {
 
                 {venue.whatsapp_number && (
                   <>
-                    <a href={`https://wa.me/${venue.whatsapp_number.replace(/\D/g, "")}`}
+                    <a href={waLink || `https://wa.me/${venue.whatsapp_number.replace(/\D/g, "")}`}
                       target="_blank" rel="noreferrer"
                       className="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                     >
-                      <MessageCircle size={15} /> WhatsApp Now
+                      <MessageCircle size={15} />{" "}
+                      {["shops", "food"].includes(vertical?.key) && vertical?.cta_label
+                        ? vertical.cta_label
+                        : "WhatsApp Now"}
                     </a>
                     <button
                       onClick={() => copyText(venue.whatsapp_number)}
@@ -493,6 +504,7 @@ export default function VendorProfilePage() {
           venue={venue}
           initialDate={inquiryDate}
           slotsEnabled={!!planFeatures.slots}
+          vertical={vertical}
           onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
         />
       )}

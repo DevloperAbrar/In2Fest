@@ -3,6 +3,7 @@ import { Plus, X } from "lucide-react";
 import Input from "../../../components/common/Input";
 import Select from "../../../components/common/Select";
 import MultiSelect from "../../../components/common/MultiSelect";
+import CatalogInput from "./CatalogInput";
 
 function TagsInput({ label, hint, value = [], onChange, max = 10, placeholder }) {
   const [draft, setDraft] = useState("");
@@ -175,7 +176,8 @@ export default function DynamicField({ attr, value, onChange }) {
           max={attr.max || 8}
         />
       );
-
+    case "catalog":
+      return <CatalogInput attr={attr} value={Array.isArray(value) ? value : []} onChange={onChange} />;
     case "number":
       return (
         <Input

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { showSuccess } from "../../components/common/Toast";
 import { AttributeSections, HighlightChips, buildWhatsAppLink } from "./VerticalSections.jsx";
+import LiveSections from "./LiveSections.jsx";
 
 function InfoBadge({ icon: Icon, label, value }) {
   if (!value) return null;
@@ -61,7 +62,7 @@ export default function VendorPublicProfilePage() {
     );
   }
 
-  const { venue, similar_vendors, profile_schema } = data;
+  const { venue, similar_vendors, profile_schema, live } = data;
   const attrValues = venue.profile_attributes || {};
   const vertical = profile_schema?.vertical;
   const waLink = buildWhatsAppLink(venue.whatsapp_number, vertical, venue.hall_name);
@@ -214,6 +215,8 @@ export default function VendorPublicProfilePage() {
                 </div>
               </SectionCard>
             )}
+            {/* Live data from the gym / food modules */}
+            <LiveSections live={live} />
             {/* Category-specific details */}
             <AttributeSections schema={profile_schema} values={attrValues} />
             {/* Pricing */}

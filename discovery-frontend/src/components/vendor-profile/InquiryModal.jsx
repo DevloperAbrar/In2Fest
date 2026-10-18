@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X, Calendar, ChevronDown, Clock, Loader2, CheckCircle2, Info } from "lucide-react";
 import api, { inquiryApi } from "../../lib/api";
 import GoogleSignInButton from "./GoogleSignInButton";
+import { inquiryCopy } from "./verticalCopy";
 
 const EVENT_TYPES = [
   "Wedding", "Engagement", "Reception", "Birthday Party",
@@ -16,7 +17,10 @@ function fmt(t) {
   return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
 }
 
-export default function InquiryModal({ venue, onClose, initialDate = "", slotsEnabled = false }) {
+export default function InquiryModal({ venue, onClose, initialDate = "", slotsEnabled = false, vertical = null }) {
+  // Vertical-aware wording (gym -> "Preferred trial date", etc.)
+  const copy = inquiryCopy(vertical?.key);
+
   const [step, setStep] = useState("form"); // "form" | "google" | "done"
   const [form, setForm] = useState({
     customer_name: "", phone: "", email: "",
@@ -174,7 +178,7 @@ export default function InquiryModal({ venue, onClose, initialDate = "", slotsEn
             >
               <Calendar size={14} className="text-gray-400 shrink-0" />
               <span className={form.event_date ? "text-gray-800" : "text-gray-400"}>
-                {form.event_date ? formatDate(form.event_date) : "Event date"}
+                {form.event_date ? formatDate(form.event_date) : (copy?.dateLabel || "Event date")}
               </span>
               {form.event_date && (
                 <button type="button" className="ml-auto text-gray-400 hover:text-gray-600"
@@ -264,18 +268,18 @@ export default function InquiryModal({ venue, onClose, initialDate = "", slotsEn
               </div>
             )}
 
-            {/* EVENT TYPE */}
+            {/* EVENT TYPE (wording changes per vertical) */}
             <div className="relative">
               <select
                 className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg text-sm bg-white appearance-none text-gray-800"
                 value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })}>
-                <option value="" disabled>Event type</option>
-                {EVENT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                <option value="" disabled>{copy?.typeLabel || "Event type"}</option>
+                {(copy?.types || EVENT_TYPES).map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
               <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
 
-            <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Guest count"
+            <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder={copy?.countLabel || "Guest count"}
               value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
 
             <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Message"

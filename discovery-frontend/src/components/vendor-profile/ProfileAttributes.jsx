@@ -39,7 +39,7 @@ export default function ProfileAttributes({ schema, values }) {
     .map((name) => ({
       name,
       attrs: schema.attributes.filter(
-        (a) => a.group === name && a.key !== "highlights" && hasValue(values[a.key])
+        (a) => a.group === name && a.key !== "highlights" && a.type !== "catalog" && hasValue(values[a.key])
       )
     }))
     .filter((g) => g.attrs.length > 0);

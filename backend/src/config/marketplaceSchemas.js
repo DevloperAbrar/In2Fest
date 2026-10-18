@@ -11,6 +11,7 @@
 const { BUSINESS_TYPES, getBusinessTypeKey, getBusinessProfile } = require("./businessTypes");
 const { AppError } = require("../middleware/error.middleware");
 const { getVertical } = require("./marketplaceVerticals");
+const { EXTRA_ATTRIBUTES, cleanCatalog } = require("./marketplaceExtras");
 
 /* ------------------------------------------------------------------ */
 /* Field helpers                                                        */
@@ -688,7 +689,10 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
       attributes.push({ group: "Details", ...a, required: Boolean(a.required && isPrimary) });
     });
   };
-  const forSlug = (s) => CATEGORY_ATTRIBUTES[s] || TYPE_ATTRIBUTES[getBusinessTypeKey(s)] || [];
+  const forSlug = (s) => [
+    ...(CATEGORY_ATTRIBUTES[s] || TYPE_ATTRIBUTES[getBusinessTypeKey(s)] || []),
+    ...(EXTRA_ATTRIBUTES[s] || [])
+  ];
 
   addAll(forSlug(slug), true);
   secondary.forEach((s) => addAll(forSlug(s), false));
@@ -784,6 +788,8 @@ function cleanValue(attr, value) {
       });
       return out.length ? out : undefined;
     }
+    case "catalog":
+      return cleanCatalog(attr, value);
     default:
       return undefined;
   }

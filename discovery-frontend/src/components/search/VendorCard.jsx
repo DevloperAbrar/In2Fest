@@ -97,6 +97,14 @@ export default function VendorCard({ vendor }) {
           <p className="text-sm text-gray-400">Price on request</p>
         )}
 
+        {(vendor.card_tags || []).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {vendor.card_tags.map((t) => (
+              <span key={t} className="text-[11px] bg-navy-50 text-navy-700 border border-navy-100 px-2 py-0.5 rounded-full">{t}</span>
+            ))}
+          </div>
+        )}
+
         {/* Service tags */}
         {(vendor.marketplace_services || []).length > 0 && (
           <div className="flex gap-1 flex-wrap pt-0.5">

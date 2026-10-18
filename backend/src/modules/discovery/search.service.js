@@ -1,7 +1,8 @@
 const { Op, literal } = require("sequelize");
 const { Venue, City, Category } = require("../../database/models");
 const { slugify, unslugify } = require("../../utils/slugify");
-
+const { getVertical, getCardTags } = require("../../config/marketplaceVerticals");
+const { getBusinessTypeKey } = require("../../config/businessTypes");
 const PAGE_SIZE = 20;
 
 const RELEVANCE_SCORE_SQL = `
@@ -50,7 +51,7 @@ function vendorSummary(venue, cityRow, matchedCategory) {
   const link = venue.google_maps_link || "";
   const linkCoords = extractCoordsFromLink(link);
 
-  const latitude  = linkCoords ? linkCoords[0] : (cityRow ? parseFloat(cityRow.latitude)  : null);
+  const latitude = linkCoords ? linkCoords[0] : (cityRow ? parseFloat(cityRow.latitude) : null);
   const longitude = linkCoords ? linkCoords[1] : (cityRow ? parseFloat(cityRow.longitude) : null);
 
   return {
@@ -73,9 +74,13 @@ function vendorSummary(venue, cityRow, matchedCategory) {
     badge_documents_verified: venue.badge_documents_verified,
     badge_premium_partner: venue.badge_premium_partner,
     marketplace_services: (venue.marketplace_services || []).slice(0, 3),
+    card_tags: getCardTags(
+      getVertical(venue.business_category, getBusinessTypeKey(venue.business_category)),
+      venue.profile_attributes || {}
+    ),
     google_maps_link: link,
     // Coords: precise pin if available, else city centre as fallback
-    latitude:  (latitude  != null && !isNaN(latitude))  ? latitude  : null,
+    latitude: (latitude != null && !isNaN(latitude)) ? latitude : null,
     longitude: (longitude != null && !isNaN(longitude)) ? longitude : null,
     // Flag so MapView can show a slightly different marker for city-centre fallback
     coords_are_approximate: !linkCoords && !!(cityRow?.latitude),
@@ -120,14 +125,35 @@ async function search(query) {
     if (serviceList.length) where.marketplace_services = { [Op.contains]: serviceList };
   }
 
+  // Attribute filters, for example ?f_trial_session=1&f_cuisines=Chinese
+  // "1" means the yes/no attribute is true, any other text must be one of the vendor's values.
+  const attrConds = [];
+  Object.keys(query).forEach((k) => {
+    if (attrConds.length >= 4 || !/^f_[a-z_]{1,40}$/.test(k)) return;
+    const key = k.slice(2);
+    const raw = String(query[k]).slice(0, 40);
+    if (!raw) return;
+    if (raw === "1") {
+      attrConds.push({ profile_attributes: { [Op.contains]: { [key]: true } } });
+    } else {
+      attrConds.push({
+        [Op.or]: [
+          { profile_attributes: { [Op.contains]: { [key]: raw } } },
+          { profile_attributes: { [Op.contains]: { [key]: [raw] } } }
+        ]
+      });
+    }
+  });
+  if (attrConds.length) where[Op.and] = attrConds;
+
   let order = [
     ["featured_on_homepage", "DESC"],
     [literal(`(${RELEVANCE_SCORE_SQL})`), "DESC"]
   ];
   if (sort === "highest_rated") order = [["average_rating", "DESC"], ["review_count", "DESC"]];
-  if (sort === "price_low")     order = [["starting_price", "ASC"]];
-  if (sort === "price_high")    order = [["starting_price", "DESC"]];
-  if (sort === "newest")        order = [["created_at", "DESC"]];
+  if (sort === "price_low") order = [["starting_price", "ASC"]];
+  if (sort === "price_high") order = [["starting_price", "DESC"]];
+  if (sort === "newest") order = [["created_at", "DESC"]];
 
   // Primary-category listings float above ones offering it only as a
   // secondary service, whatever sort is chosen. SAFE_SLUG_RE gate means this
@@ -169,7 +195,7 @@ async function autocomplete(q) {
       ...baseWhere(),
       [Op.or]: [
         { hall_name: { [Op.iLike]: `%${q}%` } },
-        { city:      { [Op.iLike]: `%${q}%` } },
+        { city: { [Op.iLike]: `%${q}%` } },
         { business_category: { [Op.iLike]: `%${q}%` } }
       ]
     },
