@@ -47,6 +47,7 @@ const h = (fn, status = 200) => async (req, res, next) => {
   try { res.status(status).json({ success: true, data: await fn(req) }); } catch (e) { next(e); }
 };
 const ownerOnly = requireRole("venue_owner");
+const proOnly = requirePlanFeature("food_pro");
 
 // what the dashboard needs to know about this business
 router.get("/context", h((req) => {
