@@ -154,16 +154,27 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Features included in this plan</label>
-        <div className="grid grid-cols-2 gap-2">
-          {PLAN_FEATURES.map((f) => (
-            <label key={f.key} className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={selectedFeatures.includes(f.key)}
-                onChange={() => toggleFeature(f.key)}
-              />
-              {f.label}
-            </label>
+        <div className="space-y-4">
+          {PLAN_FEATURE_GROUPS.map((g) => (
+            <div key={g.key}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{g.label}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {PLAN_FEATURES.filter((f) => f.group === g.key).map((f) => (
+                  <label key={f.key} className="flex items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={selectedFeatures.includes(f.key)}
+                      onChange={() => toggleFeature(f.key)}
+                    />
+                    <span>
+                      {f.label}
+                      {f.hint && <span className="block text-xs text-gray-400">{f.hint}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>

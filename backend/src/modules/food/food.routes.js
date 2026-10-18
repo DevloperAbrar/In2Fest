@@ -66,8 +66,8 @@ router.put("/settings", ownerOnly, h((req) => setup.updateSettings(vid(req), req
 
 // reports
 router.get("/dashboard", h((req) => insights.dashboard(req.foodVenue, req.foodSettings)));
-router.get("/reports", h((req) => insights.reports(req.foodVenue, req.foodSettings, req.query)));
-router.get("/reports/export", async (req, res, next) => {
+router.get("/reports", proOnly, h((req) => insights.reports(req.foodVenue, req.foodSettings, req.query)));
+router.get("/reports/export", proOnly, async (req, res, next) => {
   try {
     const csv = await insights.exportCsv(req.foodVenue, req.query);
     res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="sales-report.csv"' }).send(csv);
@@ -130,7 +130,7 @@ router.delete("/ingredients/:id", ownerOnly, h((req) => setup.removeIngredient(v
 router.post("/ingredients/:id/adjust", h((req) => setup.adjustStock(vid(req), req.params.id, req.body), 201));
 
 // customers
-router.get("/customers", h((req) => insights.customers(vid(req), req.query)));
-router.get("/customers/:id/message", h((req) => insights.composeMessage(ctx(req), req.params.id, req.query.type)));
+router.get("/customers", proOnly, h((req) => insights.customers(vid(req), req.query)));
+router.get("/customers/:id/message", proOnly, h((req) => insights.composeMessage(ctx(req), req.params.id, req.query.type)));
 
 module.exports = router;

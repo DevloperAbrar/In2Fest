@@ -69,7 +69,7 @@ router.get("/members", h((req) => members.listMembers(req.gymVenue.id, req.query
 router.post("/members", h((req) => members.enroll(ctx(req), req.body), 201));
 router.get("/members/:id", h((req) => members.getDetail(ctx(req), req.params.id)));
 router.get("/members/:id/message", h((req) => messages.compose(ctx(req), req.params.id, req.query)));
-router.get("/members/:id/card", async (req, res, next) => {
+router.get("/members/:id/card", proOnly, async (req, res, next) => {
   try { await card.memberCardPng(ctx(req), req.params.id, res); } catch (e) { next(e); }
 });
 router.patch("/members/:id", h((req) => members.updateMember(req.gymVenue.id, req.params.id, req.body)));
@@ -84,7 +84,7 @@ router.post("/members/:id/renew", h((req) => members.renew(ctx(req), req.params.
 router.post("/members/:id/freeze", h((req) => members.freeze(req.gymVenue.id, req.params.id, req.body)));
 router.post("/members/:id/unfreeze", h((req) => members.unfreeze(req.gymVenue.id, req.params.id)));
 router.post("/members/:id/payments", h((req) => payments.recordManual(ctx(req), req.params.id, req.body), 201));
-router.post("/members/:id/payment-link", h((req) => payments.linkForMember(ctx(req), req.params.id, req.body)));
+router.post("/members/:id/payment-link", proOnly, h((req) => payments.linkForMember(ctx(req), req.params.id, req.body)));
 
 // payments
 router.get("/payments", h((req) => payments.listPayments(req.gymVenue.id, req.query)));

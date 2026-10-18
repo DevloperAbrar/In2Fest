@@ -18,6 +18,9 @@ import {
   CalendarClock,
   LayoutGrid,
   CalendarCheck,
+  Dumbbell,
+  Utensils,
+  Crown,
 } from "lucide-react";
 import { showError } from "../../../components/common/Toast";
 
@@ -30,6 +33,10 @@ const FEATURE_META = {
   slots: { label: "Live booking calendar", icon: CalendarClock },
   marketplace_profile: { label: "Marketplace listing", icon: LayoutGrid },
   bookings: { label: "Booking management", icon: CalendarCheck },
+  gym: { label: "Gym tools: members, plans, payments", icon: Dumbbell },
+  gym_pro: { label: "Gym Pro: workouts, payment links, member card", icon: Crown },
+  food: { label: "Restaurant tools: menu, orders, table QR", icon: Utensils },
+  food_pro: { label: "Restaurant Pro: POS, stock, offers, reports", icon: Crown },
 };
 
 function getFeatureMeta(key) {
