@@ -51,10 +51,11 @@ async function authenticate(req, res, next) {
     }
 
     if (user.role === "venue_owner") {
-      const totalVenues = await Venue.count({ where: { owner_id: user.id } });
-      if (totalVenues > 0) {
-        const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true } });
-        if (!activeVenue) {
+      // One light query in the normal case (active venue found); count only when none is active.
+      const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true }, attributes: ["id"] });
+      if (!activeVenue) {
+        const totalVenues = await Venue.count({ where: { owner_id: user.id } });
+        if (totalVenues > 0) {
           throw new AppError(
             "Your venue has been deactivated. Please contact support.",
             403,

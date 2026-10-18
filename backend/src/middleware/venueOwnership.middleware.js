@@ -16,7 +16,7 @@ async function requireVenueOwnership(req, res, next) {
     }
 
     if (req.user.role === "venue_owner") {
-      const venue = await Venue.findOne({ where: { id: venueId, owner_id: req.user.id } });
+      const venue = await Venue.findOne({ where: { id: venueId, owner_id: req.user.id }, attributes: ["id"] });
       if (!venue) {
         return next(new AppError("Venue not found or access denied", 404));
       }

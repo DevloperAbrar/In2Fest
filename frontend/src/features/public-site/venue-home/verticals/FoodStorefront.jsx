@@ -1,10 +1,10 @@
 // Live online ordering on the restaurant's own website: menu, cart, Google sign-in,
 // pickup orders and a "My orders" panel with a live countdown.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, Minus, ShoppingBag, X, Receipt, LogOut } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search, Plus, Minus, ShoppingBag, X, Receipt, LogOut, Clock, ChevronDown } from "lucide-react";
  
 import api from "../../../../services/api";
-import { SectionShell } from "../SectionShell.jsx";
+import { SectionShell, Reveal } from "../SectionShell.jsx";
 import { onAccent } from "../../../../lib/verticals";
 import { visitorApi, getVisitorToken, getVisitorUser, signInWithGooglePopup, visitorSignOut } from "../../../../lib/visitorAuth";
 import { FoodOrderCard, isActiveOrder } from "./FoodOrderCard.jsx";
@@ -40,6 +40,62 @@ function Drawer({ onClose, title, children }) {
           <button onClick={onClose} className="text-stone-400"><X size={20} /></button>
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+const PAGE = 12; // dishes shown at a time, so a 200-dish menu never becomes one endless page
+
+function Pill({ icon, children }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 shadow-sm">
+      {icon}{children}
+    </span>
+  );
+}
+
+function DishCard({ i, qty, canOrder, theme, tag, onAdd, onRemove, onPick }) {
+  const hasVariants = i.variants.length > 0;
+  const soldOut = !i.is_available;
+  const hasImage = Boolean(i.image_url);
+  const btn = "px-5 py-1.5 rounded-full text-sm font-bold border-2 bg-white dark:bg-stone-900 shadow-md";
+
+  let control = null;
+  if (soldOut) control = <span className="text-xs font-semibold text-stone-500 bg-stone-100 dark:bg-stone-700 dark:text-stone-300 rounded-full px-3 py-1">Sold out</span>;
+  else if (canOrder) {
+    control = qty > 0 && !hasVariants ? (
+      <div className="flex items-center gap-1 rounded-full border-2 bg-white dark:bg-stone-900 shadow-md px-1" style={{ borderColor: theme }}>
+        <button type="button" aria-label={`Remove one ${i.name}`} onClick={() => onRemove(i)} className="p-1.5"><Minus size={14} style={{ color: theme }} /></button>
+        <span className="text-sm font-bold min-w-[1.25rem] text-center" style={{ color: theme }}>{qty}</span>
+        <button type="button" aria-label={`Add one ${i.name}`} onClick={() => onAdd(i)} className="p-1.5"><Plus size={14} style={{ color: theme }} /></button>
+      </div>
+    ) : (
+      <button type="button" onClick={() => (hasVariants ? onPick(i) : onAdd(i))} className={btn} style={{ borderColor: theme, color: theme }}>
+        {qty > 0 ? `Add (${qty})` : "Add"}
+      </button>
+    );
+  }
+
+  return (
+    <div className={`flex gap-4 rounded-2xl border border-stone-200/80 dark:border-stone-700 bg-white dark:bg-stone-800 p-4 shadow-sm hover:shadow-md transition-shadow ${hasImage ? "pb-6" : ""} ${soldOut ? "opacity-60" : ""}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <Dot type={i.food_type} />
+          {i.is_bestseller && <span className="text-[10px] font-bold text-amber-600 tracking-wide">★ BESTSELLER</span>}
+          {tag && <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide truncate">{tag}</span>}
+        </div>
+        <h4 className="mt-1.5 font-bold leading-snug text-stone-900 dark:text-white">{i.name}</h4>
+        <p className="mt-0.5 text-sm font-semibold" style={{ color: theme }}>
+          {hasVariants ? `from ${money(i.price)}` : money(i.price)}
+          {i.spice_level > 0 && <span className="ml-2">{"🌶️".repeat(i.spice_level)}</span>}
+        </p>
+        {i.stall && <p className="text-[11px] text-stone-400 mt-0.5">From {i.stall}</p>}
+        {i.description && <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5 line-clamp-2">{i.description}</p>}
+      </div>
+      <div className={`relative flex-shrink-0 flex flex-col items-center ${hasImage ? "" : "justify-center"}`}>
+        {hasImage && <img src={i.image_url} alt={i.name} loading="lazy" className="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-xl" />}
+        {control && <div className={hasImage ? "absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap" : ""}>{control}</div>}
       </div>
     </div>
   );
@@ -103,6 +159,11 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
   const [orders, setOrders] = useState(null); // null = not loaded yet
   const [skew, setSkew] = useState(0); // server clock minus this device's clock
   const [justPlaced, setJustPlaced] = useState(false);
+
+  // menu browsing: one category at a time, a few dishes at a time
+  const [activeCat, setActiveCat] = useState("");
+  const [limit, setLimit] = useState(PAGE);
+  const topRef = useRef(null);
 
   const tableParam = useMemo(() => new URLSearchParams(window.location.search).get("table"), []);
 
@@ -173,8 +234,56 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
     return menu.items.some((i) => !i.category_id) ? [...withItems, { id: "none", name: "More" }] : withItems;
   }, [menu]);
 
-  const visible = (catId) => menu.items.filter((i) =>
-    (catId === "none" ? !i.category_id : i.category_id === catId) && (!veg || i.food_type === "veg") && (!q || i.name.toLowerCase().includes(q.toLowerCase())));
+  const term = q.trim().toLowerCase();
+  const searching = term.length > 0;
+
+  // dishes that pass the search / veg filter, grouped by category (+ a "Bestsellers" group)
+  const grouped = useMemo(() => {
+    const g = { popular: [] };
+    if (!menu) return g;
+    menu.items.forEach((i) => {
+      if (veg && i.food_type !== "veg") return;
+      if (term && !`${i.name} ${i.description || ""}`.toLowerCase().includes(term)) return;
+      const k = i.category_id || "none";
+      if (!g[k]) g[k] = [];
+      g[k].push(i);
+      if (i.is_bestseller) g.popular.push(i);
+    });
+    return g;
+  }, [menu, veg, term]);
+
+  const catName = useMemo(() => {
+    const m = {};
+    categories.forEach((c) => { m[c.id] = c.name; });
+    return m;
+  }, [categories]);
+
+  const visibleTabs = useMemo(() => {
+    const all = grouped.popular.length ? [{ id: "popular", name: "Bestsellers" }, ...categories] : categories;
+    return all.filter((t) => (grouped[t.id] || []).length > 0);
+  }, [grouped, categories]);
+
+  const current = visibleTabs.some((t) => t.id === activeCat) ? activeCat : visibleTabs[0]?.id;
+  const currentIdx = visibleTabs.findIndex((t) => t.id === current);
+  const nextTab = currentIdx >= 0 ? visibleTabs[currentIdx + 1] : null;
+
+  // available dishes first, sold-out ones at the end
+  const fullList = (searching ? categories.flatMap((c) => grouped[c.id] || []) : grouped[current] || [])
+    .slice()
+    .sort((a, b) => Number(b.is_available) - Number(a.is_available));
+  const shownList = fullList.slice(0, limit);
+  const remaining = fullList.length - shownList.length;
+
+  useEffect(() => { setLimit(PAGE); }, [current, term, veg]);
+
+  const goTab = (id) => {
+    setQ("");
+    setActiveCat(id);
+    requestAnimationFrame(() => {
+      const el = topRef.current;
+      if (el && el.getBoundingClientRect().top < 120) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   const canOrder = Boolean(cfg && cfg.accepting_orders && types.length);
   const add = (item, variant) => {
@@ -214,67 +323,144 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
 
   const input = "w-full px-3 py-2.5 border border-stone-300 dark:border-stone-600 rounded-xl text-sm bg-white dark:bg-stone-800 text-stone-900 dark:text-white focus:outline-none focus:ring-2";
 
+  const heading = menu.table ? `Table ${menu.table}: order from your phone` : canOrder ? "Order Online" : "Our Menu";
+  const tabBtn = (t, on) => (
+    <button
+      key={t.id}
+      type="button"
+      aria-pressed={on}
+      onClick={() => goTab(t.id)}
+      className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap border transition-colors ${on ? "shadow-sm" : "bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700"}`}
+      style={on ? { backgroundColor: theme, borderColor: theme, color: onAccent(theme) } : { borderColor: `${theme}55`, color: theme }}
+    >
+      {t.name}
+    </button>
+  );
+
   return (
-    <SectionShell title={menu.table ? `Table ${menu.table}: order from your phone` : canOrder ? "Order Online" : "Our Menu"} toneIdx={toneIdx} theme={theme} subtitle={menu.table ? "Dine-in" : "Menu"}>
-      {!cfg.accepting_orders && <p className="max-w-xl mx-auto mb-6 text-center text-sm rounded-xl bg-amber-50 text-amber-800 px-4 py-3">We are not taking online orders right now. You can still see our menu{cfg.phone ? ` or call ${cfg.phone}` : ""}.</p>}
-      {canOrder && !menu.table && <p className="text-center text-sm text-stone-500 dark:text-stone-400 -mt-8 mb-6">Pickup · ready in about {cfg.prep_time_min} minutes{cfg.min_order > 0 ? ` · Minimum order ${money(cfg.min_order)}` : ""}</p>}
+    <section className="relative text-stone-900 dark:text-stone-100" style={{ backgroundColor: `var(--tone-${toneIdx % 2})` }}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-20 sm:pt-24 pb-28">
+        <Reveal className="text-center mb-8 sm:mb-10">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="h-px w-8" style={{ backgroundColor: theme }} />
+            <span className="text-sm font-semibold uppercase tracking-widest" style={{ color: theme }}>{menu.table ? "Dine-in" : "Menu"}</span>
+            <div className="h-px w-8" style={{ backgroundColor: theme }} />
+          </div>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-stone-900 dark:text-white" style={{ letterSpacing: "-0.02em" }}>{heading}</h2>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-5 text-xs font-semibold">
+            {canOrder && !menu.table && <Pill icon={<Clock size={13} />}>Pickup · ready in about {cfg.prep_time_min} min</Pill>}
+            {canOrder && cfg.min_order > 0 && <Pill>Minimum order {money(cfg.min_order)}</Pill>}
+            <Pill>{menu.items.length} dishes</Pill>
+          </div>
+        </Reveal>
 
-      <div className="max-w-3xl mx-auto">
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1"><Search size={15} className="absolute left-3 top-3.5 text-stone-400" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search dishes" className={`${input} pl-9`} /></div>
-          <button type="button" onClick={() => setVeg(!veg)} className="px-4 rounded-xl text-sm font-semibold border-2" style={veg ? { backgroundColor: "#16a34a", borderColor: "#16a34a", color: "#fff" } : { borderColor: "#16a34a", color: "#16a34a" }}>Veg</button>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-3 mb-2 sticky top-16 z-10 bg-white/90 dark:bg-stone-950/90 backdrop-blur py-2">
-          {categories.map((c) => (
-            <a key={c.id} href={`#food-cat-${c.id}`} className="px-4 py-1.5 rounded-full text-sm font-semibold border whitespace-nowrap" style={{ borderColor: `${theme}60`, color: theme }}>{c.name}</a>
-          ))}
-        </div>
+        {!cfg.accepting_orders && <p className="max-w-xl mx-auto mb-6 text-center text-sm rounded-xl bg-amber-50 text-amber-800 px-4 py-3">We are not taking online orders right now. You can still see our menu{cfg.phone ? ` or call ${cfg.phone}` : ""}.</p>}
 
-        {categories.map((c) => {
-          const list = visible(c.id);
-          if (!list.length) return null;
-          return (
-            <div key={c.id} id={`food-cat-${c.id}`} className="mb-8 scroll-mt-32">
-              <h3 className="text-xl font-extrabold text-stone-900 dark:text-white mb-3">{c.name}</h3>
-              <div className="space-y-3">
-                {list.map((i) => {
-                  const n = qtyOf(i.id);
-                  return (
-                    <div key={i.id} className={`flex gap-3 rounded-2xl border border-stone-100 dark:border-stone-700 bg-white dark:bg-stone-800 p-3 shadow-sm ${i.is_available ? "" : "opacity-50"}`}>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5"><Dot type={i.food_type} />{i.is_bestseller && <span className="text-[10px] font-bold text-amber-600">★ BESTSELLER</span>}</div>
-                        <p className="font-bold text-stone-900 dark:text-white mt-1">{i.name}</p>
-                        <p className="font-semibold text-sm mt-0.5" style={{ color: theme }}>{i.variants.length ? `from ${money(i.price)}` : money(i.price)}{i.spice_level > 0 && <span className="ml-2">{"🌶️".repeat(i.spice_level)}</span>}</p>
-                        {i.stall && <p className="text-[11px] text-stone-400">From {i.stall}</p>}
-                        {i.description && <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 line-clamp-2">{i.description}</p>}
-                      </div>
-                      <div className="relative w-24 flex-shrink-0 flex flex-col items-center justify-end">
-                        {i.image_url && <img src={i.image_url} alt={i.name} loading="lazy" className="w-24 h-20 object-cover rounded-xl mb-2" />}
-                        {!i.is_available ? <span className="text-xs font-semibold text-stone-500">Sold out</span> : canOrder && (
-                          n > 0 && !i.variants.length ? (
-                            <div className="flex items-center gap-2 rounded-full border-2 px-1" style={{ borderColor: theme }}>
-                              <button onClick={() => change(`${i.id}|`, -1)} className="p-1"><Minus size={14} style={{ color: theme }} /></button>
-                              <span className="text-sm font-bold" style={{ color: theme }}>{n}</span>
-                              <button onClick={() => add(i)} className="p-1"><Plus size={14} style={{ color: theme }} /></button>
-                            </div>
-                          ) : (
-                            <button onClick={() => (i.variants.length ? setPick(i) : add(i))} className="px-5 py-1.5 rounded-full text-sm font-bold border-2" style={{ borderColor: theme, color: theme }}>{n > 0 ? `Add (${n})` : "Add"}</button>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+        {/* Search, veg filter and (on phones) category chips stay in view while scrolling */}
+        <div className="sticky top-20 z-20 -mx-4 px-4 sm:mx-0 sm:px-0 py-3 backdrop-blur" style={{ backgroundColor: `color-mix(in srgb, var(--tone-${toneIdx % 2}) 92%, transparent)` }}>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3.5 top-3.5 text-stone-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${menu.items.length} dishes`} className={`${input} pl-10 pr-9 py-3 rounded-2xl`} />
+              {q && <button type="button" aria-label="Clear search" onClick={() => setQ("")} className="absolute right-3 top-3.5 text-stone-400"><X size={16} /></button>}
             </div>
-          );
-        })}
+            <button
+              type="button"
+              aria-pressed={veg}
+              onClick={() => setVeg(!veg)}
+              className="px-4 rounded-2xl text-sm font-semibold border-2 inline-flex items-center gap-2 bg-white dark:bg-stone-800"
+              style={veg ? { backgroundColor: "#16a34a", borderColor: "#16a34a", color: "#fff" } : { borderColor: "#16a34a", color: "#16a34a" }}
+            >
+              <span className="inline-flex items-center justify-center w-4 h-4 border-2 rounded-sm bg-white" style={{ borderColor: "#16a34a" }}><span className="w-2 h-2 rounded-full bg-green-600" /></span>
+              Veg
+            </button>
+          </div>
+          {!searching && visibleTabs.length > 1 && (
+            <div className="lg:hidden flex gap-2 overflow-x-auto pt-3 pb-1 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "none" }}>
+              {visibleTabs.map((t) => tabBtn(t, t.id === current))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+          {/* Category list (desktop) */}
+          {visibleTabs.length > 1 && !searching && (
+            <aside className="hidden lg:block sticky top-44 self-start max-h-[calc(100vh-13rem)] overflow-y-auto rounded-2xl border border-stone-200/80 dark:border-stone-700 bg-white dark:bg-stone-800 p-2 shadow-sm">
+              {visibleTabs.map((t) => {
+                const on = t.id === current;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => goTab(t.id)}
+                    className="w-full flex items-center justify-between gap-3 text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors hover:bg-stone-50 dark:hover:bg-stone-700"
+                    style={on ? { backgroundColor: `${theme}1a`, color: theme } : undefined}
+                  >
+                    <span className="truncate">{t.name}</span>
+                    <span className="text-xs font-bold text-stone-400">{(grouped[t.id] || []).length}</span>
+                  </button>
+                );
+              })}
+            </aside>
+          )}
+
+          <div className={visibleTabs.length > 1 && !searching ? "" : "lg:col-span-2"}>
+            <div ref={topRef} className="scroll-mt-44 flex items-baseline justify-between gap-3 mb-4">
+              <h3 className="text-xl sm:text-2xl font-extrabold text-stone-900 dark:text-white">
+                {searching ? `Results for “${q.trim()}”` : visibleTabs.find((t) => t.id === current)?.name || "Menu"}
+              </h3>
+              <span className="text-sm text-stone-500 dark:text-stone-400 whitespace-nowrap">{fullList.length} {fullList.length === 1 ? "dish" : "dishes"}</span>
+            </div>
+
+            {fullList.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-300 dark:border-stone-600 py-14 text-center">
+                <p className="font-semibold text-stone-700 dark:text-stone-200">No dishes found</p>
+                <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">Try a different search{veg ? " or turn off the Veg filter" : ""}.</p>
+                {(searching || veg) && (
+                  <button type="button" onClick={() => { setQ(""); setVeg(false); }} className="mt-4 px-5 py-2 rounded-full text-sm font-bold" style={{ backgroundColor: theme, color: onAccent(theme) }}>Clear filters</button>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {shownList.map((i) => (
+                  <DishCard
+                    key={i.id}
+                    i={i}
+                    qty={qtyOf(i.id)}
+                    canOrder={canOrder}
+                    theme={theme}
+                    tag={searching ? catName[i.category_id || "none"] : undefined}
+                    onAdd={(item) => add(item)}
+                    onRemove={(item) => change(`${item.id}|`, -1)}
+                    onPick={setPick}
+                  />
+                ))}
+              </div>
+            )}
+
+            {remaining > 0 && (
+              <div className="mt-6 text-center">
+                <button type="button" onClick={() => setLimit((n) => n + PAGE)} className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold border-2 bg-white dark:bg-stone-800" style={{ borderColor: theme, color: theme }}>
+                  Show {Math.min(PAGE, remaining)} more · {remaining} left <ChevronDown size={16} />
+                </button>
+              </div>
+            )}
+
+            {!searching && remaining === 0 && nextTab && fullList.length > 0 && (
+              <div className="mt-8 text-center">
+                <button type="button" onClick={() => goTab(nextTab.id)} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold shadow-md" style={{ backgroundColor: theme, color: onAccent(theme) }}>
+                  Next: {nextTab.name} →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* My orders button: always reachable, also after a refresh */}
       <button
         onClick={() => { setJustPlaced(false); setOrdersOpen(true); }}
-        className="fixed right-4 top-20 z-40 flex items-center gap-2 px-4 py-2 rounded-full shadow-xl text-sm font-bold"
+        className="fixed right-4 bottom-36 sm:bottom-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-xl text-sm font-bold"
         style={{ backgroundColor: theme, color: onAccent(theme) }}
       >
         <Receipt size={16} /> My orders
@@ -282,8 +468,8 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
       </button>
 
       {canOrder && count > 0 && (
-        <div className="fixed inset-x-0 bottom-20 sm:bottom-6 z-40 px-4">
-          <button onClick={() => setCheckout(true)} className="w-full max-w-md mx-auto flex items-center justify-between px-5 py-3.5 rounded-full shadow-2xl font-bold" style={{ backgroundColor: theme, color: onAccent(theme) }}>
+        <div className="fixed inset-x-0 bottom-20 sm:bottom-6 z-40 px-4 pointer-events-none">
+          <button onClick={() => setCheckout(true)} className="pointer-events-auto w-full max-w-md mx-auto flex items-center justify-between px-5 py-3.5 rounded-full shadow-2xl font-bold" style={{ backgroundColor: theme, color: onAccent(theme) }}>
             <span className="flex items-center gap-2"><ShoppingBag size={18} /> {count} item{count > 1 ? "s" : ""}</span>
             <span>View cart · {money(subtotal)}</span>
           </button>
@@ -373,6 +559,6 @@ export default function FoodStorefront({ config, theme, toneIdx, venue, Fallback
           )}
         </Drawer>
       )}
-    </SectionShell>
+    </section>
   );
 }

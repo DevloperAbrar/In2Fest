@@ -20,7 +20,7 @@ const router = express.Router({ mergeParams: true });
 // Loads venue + settings once per request and blocks every non-food business.
 async function loadFood(req, res, next) {
   try {
-    const venue = await Venue.findByPk(req.params.venueId);
+    const venue = req.planVenue || (await Venue.findByPk(req.params.venueId));
     if (!venue) throw new AppError("Venue not found", 404);
     const sub = C.subtypeFor(venue);
     if (!sub) throw new AppError("Restaurant tools are available only for food businesses", 403);

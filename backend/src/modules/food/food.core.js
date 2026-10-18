@@ -12,6 +12,9 @@ const hourIST = () => new Date(Date.now() + 330 * 60000).getUTCHours();
 const siteUrl = (venue) => `https://${venue.subdomain}.${env.baseDomain}`;
 
 async function getSettings(venueId) {
+  // Fast path: a single SELECT. Only create the row (inside findOrCreate's transaction) the first time.
+  const existing = await FoodSettings.findByPk(venueId);
+  if (existing) return existing;
   const [row] = await FoodSettings.findOrCreate({ where: { venue_id: venueId }, defaults: { venue_id: venueId } });
   return row;
 }

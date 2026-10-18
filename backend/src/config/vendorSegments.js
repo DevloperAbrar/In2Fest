@@ -69,14 +69,15 @@ const SEGMENTS = {
     modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "clients", "billing"],
     nav: [...ALWAYS_NAV, "inquiries", "clients", "billing", ...COMMON_NAV]
   },
-  // Restaurants keep everything they had before (reservations, slots, customers, billing)
-  // and additionally get the Restaurant suite (one sidebar entry, tabs inside).
+  // Restaurants get only what they need: the Restaurant suite (orders, POS, menu, offers, stock,
+  // customers, setup as tabs inside one sidebar entry) plus inquiries, website, marketplace,
+  // reviews, referrals and analytics. No reservations or separate billing (POS handles billing).
   food: {
     key: "food",
     label: "Restaurants & Food Businesses",
     categories: ["restaurant", "cloud-kitchen", "bakery-sweets", "food-court", "restaurant-franchise", "small-hotel"],
-    modules: [...EVENT_BASE, "food"],
-    nav: [...ALWAYS_NAV, "food", "inquiries", "bookings", "clients", "billing", ...COMMON_NAV]
+    modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "food"],
+    nav: [...ALWAYS_NAV, "food", "inquiries", ...COMMON_NAV]
   }
 };
 

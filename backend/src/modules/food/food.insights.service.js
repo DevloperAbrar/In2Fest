@@ -121,8 +121,13 @@ async function loadRange(venueId, q) {
 }
 
 async function reports(venue, settings, q = {}) {
-  const { from, to, rows, where } = await loadRange(venue.id, q);
-  const cancelled = await FoodOrder.findAll({ where: { ...where, status: "cancelled" }, attributes: ["total"], raw: true });
+  const { from, to } = range(q);
+  const where = { venue_id: venue.id, order_date: { [Op.between]: [from, to] } };
+  const [rows, cancelled, units] = await Promise.all([
+    FoodOrder.findAll({ where: { ...where, status: { [Op.ne]: "cancelled" } }, order: [["seq", "ASC"]], raw: true, limit: 20000 }),
+    FoodOrder.findAll({ where: { ...where, status: "cancelled" }, attributes: ["total"], raw: true }),
+    FoodUnit.findAll({ where: { venue_id: venue.id } })
+  ]);
 
   const gst = new Map();
   rows.forEach((o) => (o.tax_breakup || []).forEach((b) => {
@@ -142,7 +147,6 @@ async function reports(venue, settings, q = {}) {
   });
 
   // Stall / outlet settlement from line-level taxable value
-  const units = await FoodUnit.findAll({ where: { venue_id: venue.id } });
   const unitRows = new Map();
   if (units.length) {
     rows.forEach((o) => (o.items || []).forEach((l) => {
