@@ -412,6 +412,12 @@ const CATEGORY_ATTRIBUTES = {
 
   /* ---- general ---- */
   "other-business": [
+    tags("keywords", "What does your business do?", {
+      group: "Business details",
+      max: 10,
+      placeholder: "e.g. CCTV installation, security cameras, AMC",
+      hint: "Customers find you by these words in search. Add what you sell or do, one keyword at a time (up to 10)."
+    }),
     multi("service_mode", "How you serve customers", [
       "At our location", "At customer's location", "Online", "Delivery"
     ], { group: "Business details", required: true, filterable: true }),

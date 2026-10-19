@@ -1,8 +1,9 @@
-const { Op, literal } = require("sequelize");
+const { Op, literal, where: sqlWhere, cast, col } = require("sequelize");
 const { Venue, City, Category } = require("../../database/models");
 const { slugify, unslugify } = require("../../utils/slugify");
 const { getVertical, getCardTags } = require("../../config/marketplaceVerticals");
 const { getBusinessTypeKey } = require("../../config/businessTypes");
+
 const PAGE_SIZE = 20;
 
 const RELEVANCE_SCORE_SQL = `
@@ -23,6 +24,44 @@ const SAFE_SLUG_RE = /^[a-z0-9-]+$/;
 
 function baseWhere() {
   return { is_active: true, marketplace_listed: true, business_category: { [Op.ne]: null } };
+}
+
+// ---------------------------------------------------------------------------
+// Keyword search (the ?q= box and the autocomplete)
+// A listing matches when EVERY word of the query is found somewhere in: its
+// name, tagline, category, city, locality, services, sub-services or the
+// "keywords" detail (Other Business). So "cctv gwalior" finds a CCTV vendor
+// in Gwalior even if the business name has neither word.
+// ---------------------------------------------------------------------------
+const STOP_WORDS = new Set(["in", "near", "me", "the", "and", "for", "of", "at", "to"]);
+
+function keywordTerms(q) {
+  return String(q || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !STOP_WORDS.has(w))
+    .slice(0, 5);
+}
+
+// Escape the characters that mean something inside an ILIKE pattern.
+const likeEscape = (s) => s.replace(/[\\%_]/g, "\\$&");
+
+function termCondition(term) {
+  const pattern = `%${likeEscape(term)}%`;
+  return {
+    [Op.or]: [
+      { hall_name: { [Op.iLike]: pattern } },
+      { specialty_tagline: { [Op.iLike]: pattern } },
+      { business_category: { [Op.iLike]: pattern } },
+      { city: { [Op.iLike]: pattern } },
+      { primary_locality: { [Op.iLike]: pattern } },
+      sqlWhere(cast(col("secondary_categories"), "text"), { [Op.iLike]: pattern }),
+      sqlWhere(cast(col("marketplace_services"), "text"), { [Op.iLike]: pattern }),
+      sqlWhere(cast(col("marketplace_services_detail"), "text"), { [Op.iLike]: pattern }),
+      sqlWhere(cast(literal("profile_attributes->'keywords'"), "text"), { [Op.iLike]: pattern })
+    ]
+  };
 }
 
 // Extracts [lat, lng] from a Google Maps link string.
@@ -93,7 +132,7 @@ function vendorSummary(venue, cityRow, matchedCategory) {
 
 async function search(query) {
   const {
-    city, category, budget_min, budget_max, capacity_min,
+    q, city, category, budget_min, budget_max, capacity_min,
     rating, services, date, sort = "relevant", page = 1, limit = PAGE_SIZE
   } = query;
 
@@ -144,7 +183,12 @@ async function search(query) {
       });
     }
   });
-  if (attrConds.length) where[Op.and] = attrConds;
+
+  // Keyword search: every word has to match somewhere on the listing.
+  const keywordConds = keywordTerms(q).map(termCondition);
+
+  const andConds = [...attrConds, ...keywordConds];
+  if (andConds.length) where[Op.and] = andConds;
 
   let order = [
     ["featured_on_homepage", "DESC"],
@@ -190,14 +234,13 @@ async function search(query) {
 async function autocomplete(q) {
   if (!q || q.length < 2) return [];
 
+  const terms = keywordTerms(q);
+  if (!terms.length) return [];
+
   const venues = await Venue.findAll({
     where: {
       ...baseWhere(),
-      [Op.or]: [
-        { hall_name: { [Op.iLike]: `%${q}%` } },
-        { city: { [Op.iLike]: `%${q}%` } },
-        { business_category: { [Op.iLike]: `%${q}%` } }
-      ]
+      [Op.and]: terms.map(termCondition)
     },
     limit: 8,
     attributes: ["id", "hall_name", "city", "business_category", "subdomain"]

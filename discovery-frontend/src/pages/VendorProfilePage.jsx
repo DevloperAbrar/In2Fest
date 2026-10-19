@@ -529,6 +529,7 @@ export default function VendorProfilePage() {
           initialDate={inquiryDate}
           slotsEnabled={!!planFeatures.slots}
           vertical={vertical}
+          businessType={schema?.business_type}
           onClose={() => { setShowInquiry(false); setInquiryDate(""); }}
         />
       )}

@@ -17,9 +17,9 @@ function fmt(t) {
   return `${hr % 12 || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
 }
 
-export default function InquiryModal({ venue, onClose, initialDate = "", slotsEnabled = false, vertical = null }) {
-  // Vertical-aware wording (gym -> "Preferred trial date", etc.)
-  const copy = inquiryCopy(vertical?.key);
+export default function InquiryModal({ venue, onClose, initialDate = "", slotsEnabled = false, vertical = null, businessType = null }) {
+  // Wording per kind of business (gym -> "Preferred trial date", other business -> the vendor's own services, etc.)
+  const copy = inquiryCopy(vertical?.key, businessType, venue?.marketplace_services);
 
   const [step, setStep] = useState("form"); // "form" | "google" | "done"
   const [form, setForm] = useState({
@@ -279,8 +279,10 @@ export default function InquiryModal({ venue, onClose, initialDate = "", slotsEn
               <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
 
-            <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder={copy?.countLabel || "Guest count"}
-              value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
+            {copy?.countLabel !== null && (
+              <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder={copy?.countLabel || "Guest count"}
+                value={form.guest_count} onChange={(e) => setForm({ ...form, guest_count: e.target.value })} />
+            )}
 
             <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Message"
               value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
