@@ -10,6 +10,7 @@ import { marketplaceProfileService } from "../../../services/marketplaceProfileS
 import { showSuccess, showError } from "../../../components/common/Toast";
 
 import BusinessDetailsTab from "./tabs/BusinessDetailsTab.jsx";
+import PhotosTab from "./tabs/PhotosTab.jsx";
 import ServiceAreasTab from "./tabs/ServiceAreasTab.jsx";
 import ServicesChecklistTab from "./tabs/ServicesChecklistTab.jsx";
 import DetailsTab from "./tabs/DetailsTab.jsx";
@@ -51,8 +52,14 @@ export default function MarketplaceProfilePage() {
   const venue = profile.venue;
   const completion = profile.completion;
 
+  // Free listing vendors (no website builder) upload their hero + photos here.
+  // Vendors whose plan has a website do it from the Website Builder, so the tab is hidden.
+  const photoUpload = profile.photo_upload;
+  const showPhotosTab = Boolean(photoUpload?.enabled);
+
   const TABS = [
     { key: "business", label: "Business Details" },
+    ...(showPhotosTab ? [{ key: "photos", label: "Hero & Photos" }] : []),
     { key: "areas", label: "Service Areas" },
     { key: "services", label: schema.labels.services },
     { key: "details", label: schema.details_title },
@@ -116,6 +123,11 @@ export default function MarketplaceProfilePage() {
     }
   };
 
+  // Photos are saved the moment they are uploaded or removed, so just reload the data.
+  const handlePhotosChanged = async () => {
+    await Promise.all([refetch(), refetchVenue()]);
+  };
+
   const navProps = {
     onNext: isLastTab ? null : goNext,
     onBack: isFirstTab ? null : goBack
@@ -171,6 +183,14 @@ export default function MarketplaceProfilePage() {
               }}
               onSave={handleSaveProfile}
               saving={saving}
+              {...navProps}
+            />
+          )}
+          {activeTab === "photos" && showPhotosTab && (
+            <PhotosTab
+              venue={venue}
+              photoUpload={photoUpload}
+              onChanged={handlePhotosChanged}
               {...navProps}
             />
           )}

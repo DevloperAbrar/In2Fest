@@ -40,4 +40,43 @@ async function getCompletion(req, res, next) {
   }
 }
 
-module.exports = { getProfile, updateProfile, updateServiceAreas, getCompletion };
+async function uploadHeroPhoto(req, res, next) {
+  try {
+    const result = await marketplaceProfileService.uploadHeroPhoto(req.params.venueId, req.user.id, req.file);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function addGalleryPhotos(req, res, next) {
+  try {
+    const result = await marketplaceProfileService.addGalleryPhotos(req.params.venueId, req.user.id, req.files);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteGalleryPhoto(req, res, next) {
+  try {
+    const result = await marketplaceProfileService.deleteGalleryPhoto(
+      req.params.venueId,
+      req.user.id,
+      req.params.imageId
+    );
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  getProfile,
+  updateProfile,
+  updateServiceAreas,
+  getCompletion,
+  uploadHeroPhoto,
+  addGalleryPhotos,
+  deleteGalleryPhoto
+};

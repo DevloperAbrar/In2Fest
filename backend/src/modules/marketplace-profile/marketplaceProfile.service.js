@@ -1,6 +1,9 @@
+const sharp = require("sharp");
 const { Venue, City, VenueServiceArea } = require("../../database/models");
 const { sanitizeSecondaryCategories } = require("../../utils/sanitizeSecondaryCategories");
 const { AppError } = require("../../middleware/error.middleware");
+const { uploadToR2 } = require("../../middleware/upload.middleware");
+const { getActiveFeatures } = require("../../utils/planAccess");
 const { getRedisClient } = require("../../config/redis");
 const { slugify } = require("../../utils/slugify");
 const {
@@ -8,6 +11,9 @@ const {
   sanitizeProfileAttributes,
   isAttributeFilled
 } = require("../../config/marketplaceSchemas");
+
+// Free listing vendors (no website builder) get 1 hero image + this many gallery photos.
+const FREE_GALLERY_LIMIT = 4;
 
 // Fields the venue owner is allowed to edit from the Marketplace Profile tabs.
 // Verification badges and featured_on_homepage are intentionally excluded  - admin only.
@@ -70,10 +76,68 @@ function calculateCompletion(venue) {
   return { percentage, missing_fields: missing };
 }
 
+// ---------------------------------------------------------------------------
+// Hero image + photos for FREE LISTING vendors
+// A vendor whose current plan includes the website builder uploads these from
+// the Website Builder instead, so the marketplace upload is switched off for them.
+// ---------------------------------------------------------------------------
+
+async function hasWebsiteBuilder(venueId) {
+  const features = await getActiveFeatures(venueId);
+  return features.includes("website_builder");
+}
+
+async function getPhotoAccess(venue) {
+  const hasWebsite = await hasWebsiteBuilder(venue.id);
+  return {
+    enabled: !hasWebsite,
+    max_gallery: FREE_GALLERY_LIMIT,
+    gallery_count: Array.isArray(venue.gallery) ? venue.gallery.length : 0
+  };
+}
+
+async function assertPhotoUploadAllowed(venue) {
+  if (await hasWebsiteBuilder(venue.id)) {
+    throw new AppError(
+      "Your plan includes a website. Upload your hero image and photos from the Website Builder.",
+      403
+    );
+  }
+}
+
+async function compressImage(file, maxWidth, quality) {
+  // rotate() applies the phone's EXIF orientation so photos are not sideways.
+  let pipeline = sharp(file.buffer).rotate().resize({ width: maxWidth, withoutEnlargement: true });
+
+  if (file.mimetype === "image/png") {
+    pipeline = pipeline.png({ quality, compressionLevel: 8 });
+  } else if (file.mimetype === "image/webp") {
+    pipeline = pipeline.webp({ quality });
+  } else {
+    pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+  }
+  return pipeline.toBuffer();
+}
+
+// Same cache keys updateProfile clears, so the new images show up in search quickly.
+async function clearListingCache(venue) {
+  try {
+    const redis = await getRedisClient();
+    if (redis && venue.business_category) {
+      const citySlug = slugify(venue.city);
+      const keys = await redis.keys(`marketplace:city:${citySlug}:cat:${venue.business_category}:*`);
+      if (keys.length) await redis.del(keys);
+    }
+  } catch (err) {
+    console.error("[MARKETPLACE] cache clear failed:", err.message);
+  }
+}
+
 async function getProfile(venueId, ownerId) {
   const venue = await getOwnedVenue(venueId, ownerId);
   const { percentage, missing_fields } = calculateCompletion(venue);
-  return { venue, completion: { percentage, missing_fields } };
+  const photo_upload = await getPhotoAccess(venue);
+  return { venue, completion: { percentage, missing_fields }, photo_upload };
 }
 
 async function updateProfile(venueId, ownerId, payload) {
@@ -190,4 +254,84 @@ async function getCompletion(venueId, ownerId) {
   return calculateCompletion(venue);
 }
 
-module.exports = { getProfile, updateProfile, updateServiceAreas, getCompletion, calculateCompletion, MANDATORY_FIELDS };
+// Replaces the hero image shown on the marketplace profile and the search card.
+async function uploadHeroPhoto(venueId, ownerId, file) {
+  if (!file) throw new AppError("Choose an image to upload", 400);
+
+  const venue = await getOwnedVenue(venueId, ownerId);
+  await assertPhotoUploadAllowed(venue);
+
+  const compressed = await compressImage(file, 1920, 78);
+  const url = await uploadToR2(compressed, file.originalname, "venues", file.mimetype);
+  if (!url) throw new AppError("Storage not configured. Please set R2 credentials.", 500);
+
+  await venue.update({ hero_image_url: url });
+  await clearListingCache(venue);
+
+  const refreshed = await getOwnedVenue(venueId, ownerId);
+  return { venue: refreshed, photo_upload: await getPhotoAccess(refreshed) };
+}
+
+// Adds gallery photos (max FREE_GALLERY_LIMIT in total) for free listing vendors.
+async function addGalleryPhotos(venueId, ownerId, files) {
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new AppError("Choose at least one photo to upload", 400);
+  }
+
+  const venue = await getOwnedVenue(venueId, ownerId);
+  await assertPhotoUploadAllowed(venue);
+
+  const existing = Array.isArray(venue.gallery) ? venue.gallery : [];
+  const slotsLeft = Math.max(0, FREE_GALLERY_LIMIT - existing.length);
+  if (files.length > slotsLeft) {
+    throw new AppError(
+      slotsLeft === 0
+        ? `Free listing allows up to ${FREE_GALLERY_LIMIT} photos. Remove one to add another.`
+        : `Free listing allows up to ${FREE_GALLERY_LIMIT} photos. You can add ${slotsLeft} more.`,
+      400
+    );
+  }
+
+  const stamp = Date.now();
+  const added = await Promise.all(
+    files.map(async (file, idx) => {
+      const compressed = await compressImage(file, 1600, 72);
+      const url = await uploadToR2(compressed, file.originalname, "gallery", file.mimetype);
+      if (!url) throw new AppError("Storage not configured. Please set R2 credentials.", 500);
+      return { id: `${stamp}-${idx}`, url, category: null, order: existing.length + idx };
+    })
+  );
+
+  await venue.update({ gallery: [...existing, ...added] });
+  await clearListingCache(venue);
+
+  const refreshed = await getOwnedVenue(venueId, ownerId);
+  return { venue: refreshed, photo_upload: await getPhotoAccess(refreshed) };
+}
+
+async function deleteGalleryPhoto(venueId, ownerId, imageId) {
+  const venue = await getOwnedVenue(venueId, ownerId);
+  await assertPhotoUploadAllowed(venue);
+
+  const existing = Array.isArray(venue.gallery) ? venue.gallery : [];
+  const filtered = existing.filter((img) => String(img.id) !== String(imageId));
+  if (filtered.length === existing.length) throw new AppError("Photo not found", 404);
+
+  await venue.update({ gallery: filtered });
+  await clearListingCache(venue);
+
+  const refreshed = await getOwnedVenue(venueId, ownerId);
+  return { venue: refreshed, photo_upload: await getPhotoAccess(refreshed) };
+}
+
+module.exports = {
+  getProfile,
+  updateProfile,
+  updateServiceAreas,
+  getCompletion,
+  uploadHeroPhoto,
+  addGalleryPhotos,
+  deleteGalleryPhoto,
+  calculateCompletion,
+  MANDATORY_FIELDS
+};
