@@ -27,6 +27,20 @@ import LiveSections from "../components/vendor-profile/LiveSections";
 import VerticalSchema from "../components/vendor-profile/VerticalSchema";
 import { buildWhatsAppLink } from "../components/vendor-profile/verticalCopy";
 
+// Vendors often type "mysite.com" without https://. This adds it, and only
+// allows http/https links so nothing unsafe can be rendered as a link.
+function normalizeExternalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProtocol);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function InstagramIcon(props) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -93,6 +107,10 @@ export default function VendorProfilePage() {
 
   // Branded website link only exists for plans that include the website builder.
   const brandedWebsiteUrl = hasWebsite ? getVendorSiteUrl(venue.slug || vendorSlug) : null;
+
+  // The vendor's own website, typed in Marketplace Profile > Social & Media.
+  // Works for every plan, including free listing.
+  const ownWebsiteUrl = normalizeExternalUrl(venue.external_website);
 
   // ----- stats strip: chosen by the kind of business -----
   const unit = venue.pricing_unit || "";
@@ -219,7 +237,7 @@ export default function VendorProfilePage() {
           />
         </div>
 
-        {(venue.instagram_handle || venue.youtube_channel_link || brandedWebsiteUrl || venue.video_intro_url) && (
+        {(venue.instagram_handle || venue.youtube_channel_link || brandedWebsiteUrl || ownWebsiteUrl || venue.video_intro_url) && (
           <div className="flex flex-wrap gap-2 mb-8">
             {venue.instagram_handle && (
               <a href={`https://instagram.com/${venue.instagram_handle.replace("@", "")}`}
@@ -238,6 +256,12 @@ export default function VendorProfilePage() {
               <a href={brandedWebsiteUrl} target="_blank" rel="noreferrer"
                 className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:border-navy-300 hover:text-navy-700 hover:bg-navy-50 text-sm px-4 py-2 rounded-xl transition-colors">
                 <Globe size={14} /> Website
+              </a>
+            )}
+            {ownWebsiteUrl && ownWebsiteUrl !== brandedWebsiteUrl && (
+              <a href={ownWebsiteUrl} target="_blank" rel="noreferrer"
+                className="flex items-center gap-1.5 border border-gray-200 text-gray-600 hover:border-navy-300 hover:text-navy-700 hover:bg-navy-50 text-sm px-4 py-2 rounded-xl transition-colors">
+                <Globe size={14} /> {brandedWebsiteUrl ? "Official Site" : "Website"}
               </a>
             )}
             {venue.video_intro_url && (
