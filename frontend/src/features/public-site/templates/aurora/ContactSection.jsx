@@ -2,7 +2,8 @@ import React from "react";
 import { Phone, MapPin, ExternalLink, Send } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { inquiryFormSchema } from "../../../../components/forms/validationSchemas";
+import { useInquiryConfig } from "../../inquiry-form/inquiryConfig";
+import InquiryFields from "../../inquiry-form/InquiryFields";
 import { inquiryService } from "../../../../services/inquiryService";
 import { showSuccess, showError } from "../../../../components/common/Toast";
 import { useScrollReveal } from "../../../../hooks/useScrollReveal";
@@ -25,7 +26,8 @@ function Reveal({ children, delay = 0, className = "", id }) {
 
 export default function ContactSection({ venue, slots }) {
   const theme = venue.theme_color || "#a855f7";
-  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm({ resolver: yupResolver(inquiryFormSchema) });
+  const { cfg, schema, showSlots } = useInquiryConfig(venue, slots);
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm({ resolver: yupResolver(schema) });
   useInquiryDatePrefill(setValue);
   const mapEmbedUrl = getMapEmbedUrl(venue);
   const mapOpenUrl = getMapOpenUrl(venue);
@@ -122,26 +124,17 @@ export default function ContactSection({ venue, slots }) {
                   </div>
                 </div>
                 <input className={inputClass} style={inputStyle} placeholder="Email (optional)" {...register("email")} />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <input type="date" className={inputClass} style={{ ...inputStyle, colorScheme: "dark" }} {...register("event_date")} min={new Date().toISOString().split("T")[0]} />
-                    {errors.event_date && <p className="text-red-400 text-xs mt-1">{errors.event_date.message}</p>}
-                  </div>
-                  <select className={inputClass} style={{ ...inputStyle, colorScheme: "dark" }} {...register("slot_id")}>
-                    <option value="">Select Slot (optional)</option>
-                    {(slots || []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <input className={inputClass} style={inputStyle} placeholder="Event Type *" {...register("event_type")} />
-                    {errors.event_type && <p className="text-red-400 text-xs mt-1">{errors.event_type.message}</p>}
-                  </div>
-                  <div>
-                    <input type="number" className={inputClass} style={inputStyle} placeholder="Guest Count *" {...register("guest_count")} />
-                    {errors.guest_count && <p className="text-red-400 text-xs mt-1">{errors.guest_count.message}</p>}
-                  </div>
-                </div>
+                <InquiryFields
+                  register={register}
+                  errors={errors}
+                  cfg={cfg}
+                  showSlots={showSlots}
+                  slots={slots}
+                  inputClass={inputClass}
+                  inputStyle={inputStyle}
+                  selectStyle={{ colorScheme: "dark" }}
+                  errorClass="text-red-400 text-xs mt-1"
+                />
                 <textarea className={inputClass} style={{ ...inputStyle, resize: "none" }} rows={3} placeholder="Message (optional)" {...register("message")} />
                 <button
                   type="submit"

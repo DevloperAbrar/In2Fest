@@ -15,6 +15,14 @@ const VALID_TRANSITIONS = {
   lost: []
 };
 
+// Vendors that are not event businesses can skip the date. The column is NOT NULL,
+// so an empty date is saved as the day the enquiry was sent.
+const inquiryDate = (value) => value || new Date().toISOString().slice(0, 10);
+
+// The quantity / guest box is optional for some businesses. An empty box sends "",
+// which an integer column rejects, so it is saved as null instead.
+const inquiryCount = (value) => (value === "" || value === undefined ? null : value);
+
 async function createPublicInquiry(venueId, payload) {
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
@@ -25,16 +33,18 @@ async function createPublicInquiry(venueId, payload) {
   }
   const slotsEnabled = features.includes("slots");
 
+  const eventDate = inquiryDate(payload.event_date);
+
   const inquiry = await Inquiry.create({
     venue_id: venueId,
-    slot_id: slotsEnabled ? payload.slot_id : null,
+    slot_id: slotsEnabled ? payload.slot_id || null : null,
     selected_slots: slotsEnabled && Array.isArray(payload.selected_slots) ? payload.selected_slots : [],
     customer_name: payload.customer_name,
     phone: payload.phone,
     email: payload.email,
-    event_date: payload.event_date,
+    event_date: eventDate,
     event_type: payload.event_type,
-    guest_count: payload.guest_count,
+    guest_count: inquiryCount(payload.guest_count),
     message: payload.message,
     status: "new"
   });
@@ -43,7 +53,7 @@ async function createPublicInquiry(venueId, payload) {
     venueId,
     recipientPhone: venue.phone,
     triggerType: "new_inquiry",
-    variables: { customerName: payload.customer_name, eventDate: payload.event_date }
+    variables: { customerName: payload.customer_name, eventDate: eventDate }
   }).catch((err) => console.error("[WHATSAPP] Failed to notify owner of new inquiry:", err.message));
 
   return inquiry;
@@ -110,6 +120,8 @@ async function createMarketplaceInquiry(venueId, payload) {
 
   const selectedSlots = slotsEnabled && Array.isArray(payload.selected_slots) ? payload.selected_slots : [];
 
+  const eventDate = inquiryDate(payload.event_date);
+
   const inquiry = await Inquiry.create({
     venue_id: venueId,
     slot_id: selectedSlots[0]?.slot_id || null,
@@ -118,9 +130,9 @@ async function createMarketplaceInquiry(venueId, payload) {
     phone: payload.phone,
     // Use verified Google email — payload.email is empty when signed in with Google
     email: googleUser.email,
-    event_date: payload.event_date,
+    event_date: eventDate,
     event_type: payload.event_type,
-    guest_count: payload.guest_count,
+    guest_count: inquiryCount(payload.guest_count),
     message: payload.message,
     status: "new",
     source: "marketplace"
@@ -132,7 +144,7 @@ async function createMarketplaceInquiry(venueId, payload) {
     venueId,
     recipientPhone: venue.phone,
     triggerType: "marketplace_inquiry_to_vendor",
-    variables: { customerName: payload.customer_name, eventType: payload.event_type, date: payload.event_date }
+    variables: { customerName: payload.customer_name, eventType: payload.event_type, date: eventDate }
   }).catch((err) => console.error("[WHATSAPP] Failed to notify owner of marketplace inquiry:", err.message));
 
   return inquiry;
