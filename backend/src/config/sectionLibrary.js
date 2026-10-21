@@ -214,6 +214,16 @@ const SECTION_TYPES = {
     itemFields: ["title", "description", "tag"],
     fieldLabels: { title: "Offer headline", description: "Details / validity", tag: "Badge (e.g. 20% OFF)" },
     defaultConfig: { title: "Today's Offers", items: [] }
+  },
+  supplements: {
+    label: "Supplement Store",
+    description: "Shown automatically from Gym > Store. Add products there.",
+    icon: "catalog",
+    removable: true,
+    toggleable: true,
+    autoManaged: true,
+    gymOnly: true,
+    defaultConfig: { title: "Gym Supplements", items: [] }
   }
 };
 
@@ -266,7 +276,7 @@ const CATEGORY_SECTION_DEFAULTS = {
   "small-hotel": ["stats", "menu", "offers", "video_tour", "hours", "cta_banner", "faq"],
 
   // health & wellness
-  "gym-fitness": ["stats", "courses", "packages", "schedule", "team", "results", "hours", "faq", "cta_banner"],
+  "gym-fitness": ["stats", "courses", "packages", "schedule", "team", "results", "supplements", "hours", "faq", "cta_banner"],
   "salon-spa": ["menu", "portfolio", "team", "hours", "faq"],
   clinic: ["team", "hours", "cta_banner", "faq"],
   "yoga-center": ["courses", "packages", "schedule", "team", "hours", "faq"],

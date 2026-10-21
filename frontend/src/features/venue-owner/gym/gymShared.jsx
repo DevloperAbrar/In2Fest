@@ -18,8 +18,19 @@ export const errMsg = (e, fallback = "Something went wrong") => e?.response?.dat
 const opts = (pairs) => pairs.map(([value, label]) => ({ value, label }));
 export const GOALS = opts([["fat_loss", "Fat loss"], ["muscle_gain", "Muscle gain"], ["strength", "Strength"], ["flexibility", "Flexibility"], ["endurance", "Endurance"], ["general_fitness", "General fitness"], ["rehab", "Rehab"], ["other", "Other"]]);
 export const MODES = opts([["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["bank_transfer", "Bank transfer"], ["other", "Other"]]);
-export const BODY_PARTS = ["chest", "back", "legs", "shoulders", "arms", "core", "cardio", "full_body"];
-
+export const BODY_PART_GROUPS = [
+  { key: "chest", label: "Chest", parts: ["chest"] },
+  { key: "back", label: "Back", parts: ["back", "lower_back", "traps"] },
+  { key: "shoulders", label: "Shoulders", parts: ["shoulders", "neck"] },
+  { key: "arms", label: "Arms", parts: ["biceps", "triceps", "forearms", "arms"] },
+  { key: "legs", label: "Legs", parts: ["quads", "hamstrings", "glutes", "calves", "hips", "legs"] },
+  { key: "core", label: "Core", parts: ["core", "obliques"] },
+  { key: "cardio", label: "Cardio", parts: ["cardio"] },
+  { key: "full_body", label: "Full body", parts: ["full_body"] }
+];
+// "arms" and "legs" are old values kept only so old data still opens. New plans use the specific muscle.
+export const BODY_PARTS = BODY_PART_GROUPS.flatMap((g) => g.parts).filter((p) => p !== "arms" && p !== "legs");
+export const waUrl = (phone, text) => `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 /* ---------- download / copy / share (all from the vendor's own device) ---------- */
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -96,6 +107,7 @@ export const TextArea = ({ className = "", ...p }) => (
 export function MessageModal({ onClose, vid, memberId, title = "Message", types, params = {} }) {
   const [type, setType] = useState(types ? types[0].key : params.type);
   const [text, setText] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -104,7 +116,7 @@ export function MessageModal({ onClose, vid, memberId, title = "Message", types,
     setLoading(true);
     setError("");
     gymService.message(vid, memberId, { ...params, type })
-      .then((r) => { if (!off) setText(r.data.data.text); })
+      .then((r) => { if (!off) { setText(r.data.data.text); setPhone(r.data.data.phone || ""); } })
       .catch((e) => { if (!off) { setText(""); setError(errMsg(e, "Could not prepare the message")); } })
       .finally(() => { if (!off) setLoading(false); });
     return () => { off = true; };
@@ -112,10 +124,9 @@ export function MessageModal({ onClose, vid, memberId, title = "Message", types,
   }, [type, memberId, params.payment_id, params.plan_id]);
 
   const copy = async () => (await copyText(text)) ? showSuccess("Copied") : showError("Could not copy");
-  const share = async () => {
-    const r = await shareContent({ title, text });
-    if (r === "copied") showSuccess("Copied");
-    if (r === "failed") showError("Could not share");
+  const whatsapp = () => {
+    window.open(waUrl(phone, text), "_blank", "noopener");
+    gymService.msgSent(vid, { items: [{ type: "member", id: memberId }], label: title }).catch(() => {});
   };
 
   return (
@@ -133,10 +144,10 @@ export function MessageModal({ onClose, vid, memberId, title = "Message", types,
           <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
         )}
-        <p className="text-xs text-gray-500">You can edit the text. Copy or share it from your own phone. Nothing is sent from here.</p>
+        <p className="text-xs text-gray-500">You can edit the text. Tap WhatsApp to open this member's chat, then press send from your own phone.</p>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={copy} disabled={!text}>Copy</Button>
-          <Button onClick={share} disabled={!text}>Share</Button>
+          <Button onClick={whatsapp} disabled={!text || !phone}>WhatsApp</Button>
         </div>
       </div>
     </Modal>
@@ -147,7 +158,8 @@ export function GymTabs() {
   const { user } = useAuth();
   const tabs = [
     ["/dashboard/gym", "Overview", true], ["/dashboard/gym/members", "Members"], ["/dashboard/gym/plans", "Plans"],
-    ["/dashboard/gym/workouts", "Workouts"], ["/dashboard/gym/leads", "Leads"]
+    ["/dashboard/gym/workouts", "Workouts"], ["/dashboard/gym/leads", "Leads"], ["/dashboard/gym/messages", "Messages"],
+    ["/dashboard/gym/store", "Store"]
   ];
   if (user?.role !== "team_member") tabs.push(["/dashboard/gym/settings", "Settings"]);
   return (

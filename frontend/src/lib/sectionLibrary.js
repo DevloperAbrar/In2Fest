@@ -291,6 +291,17 @@ const MARKET_FIT_SECTION_TYPES = {
     itemFields: ["title", "description", "tag"],
     fieldLabels: { title: "Offer headline", description: "Details / validity", tag: "Badge (e.g. 20% OFF)" },
     defaultConfig: { title: "Today's Offers", items: [] }
+  },
+  supplements: {
+    label: "Supplement Store",
+    description: "Shown automatically from Gym > Store. Add products there.",
+    icon: ShoppingBag,
+    color: "bg-lime-50 text-lime-600",
+    removable: true,
+    toggleable: true,
+    autoManaged: true,
+    gymOnly: true,
+    defaultConfig: { title: "Gym Supplements", items: [] }
   }
 };
 

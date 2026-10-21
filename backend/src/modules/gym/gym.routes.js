@@ -15,7 +15,8 @@ const messages = require("./gym.messages.service");
 const receipt = require("./gym.receipt");
 const card = require("./gym.card");
 const workout = require("./gym.workout.service");
-
+const store = require("./gym.store.service");
+const invoicePdf = require("./gym.store.invoice");
 const router = express.Router({ mergeParams: true });
 
 // Loads the venue + settings once per request and blocks non-gym businesses.
@@ -112,5 +113,54 @@ router.post("/workout-plans/:id/assign", h((req) => workout.assign(ctx(req), req
 // free-trial leads
 router.get("/leads", h((req) => insights.listLeads(req.gymVenue.id, req.query)));
 router.patch("/leads/:id", h((req) => insights.updateLead(req.gymVenue.id, req.params.id, req.body)));
+
+// ---------- WhatsApp message centre ----------
+router.get("/messages/templates", h((req) => messages.listTemplates(ctx(req))));
+router.post("/messages/templates", h((req) => messages.createTemplate(req.gymVenue.id, req.body), 201));
+router.patch("/messages/templates/:id", h((req) => messages.updateTemplate(req.gymVenue.id, req.params.id, req.body)));
+router.delete("/messages/templates/:id", h((req) => messages.deleteTemplate(req.gymVenue.id, req.params.id)));
+router.put("/messages/system/:key", h((req) => messages.saveSystemTemplate(ctx(req), req.params.key, req.body.body)));
+router.delete("/messages/system/:key", h((req) => messages.resetSystemTemplate(ctx(req), req.params.key)));
+router.get("/messages/segments", h((req) => messages.segments(ctx(req))));
+router.get("/messages/audience", h((req) => messages.audience(ctx(req), req.query)));
+router.post("/messages/sent", h((req) => messages.logSent(ctx(req), req.body)));
+
+// ---------- supplement store ----------
+router.get("/store/overview", h((req) => store.overview(req.gymVenue.id)));
+router.get("/store/settings", h((req) => store.getSettings(req.gymVenue.id)));
+router.put("/store/settings", ownerOnly, h((req) => store.updateSettings(req.gymVenue, req.body)));
+
+router.get("/store/categories", h((req) => store.listCategories(req.gymVenue.id)));
+router.post("/store/categories", h((req) => store.createCategory(req.gymVenue.id, req.body), 201));
+router.patch("/store/categories/:id", h((req) => store.updateCategory(req.gymVenue.id, req.params.id, req.body)));
+router.delete("/store/categories/:id", ownerOnly, h((req) => store.deleteCategory(req.gymVenue.id, req.params.id)));
+
+router.post("/store/upload", upload.single("image"), h(async (req) => {
+  if (!req.file) throw new AppError("Choose an image to upload", 400);
+  const url = await uploadToR2(req.file.buffer, req.file.originalname, `gym-store/${req.gymVenue.id}`, req.file.mimetype);
+  if (!url) throw new AppError("Image storage is not configured", 503);
+  return { url };
+}));
+
+router.get("/store/products", h((req) => store.listProducts(req.gymVenue.id, req.query)));
+router.post("/store/products", h((req) => store.createProduct(ctx(req), req.body), 201));
+router.get("/store/products/:id", h((req) => store.getProduct(req.gymVenue.id, req.params.id)));
+router.patch("/store/products/:id", h((req) => store.updateProduct(ctx(req), req.params.id, req.body)));
+router.delete("/store/products/:id", ownerOnly, h((req) => store.deleteProduct(req.gymVenue.id, req.params.id)));
+router.post("/store/variants/:id/stock", h((req) => store.adjustStock(ctx(req), req.params.id, req.body)));
+router.get("/store/variants/:id/movements", h((req) => store.listMovements(req.gymVenue.id, req.params.id)));
+
+router.get("/store/pos/search", h((req) => store.posSearch(req.gymVenue.id, req.query)));
+router.get("/store/sales", h((req) => store.listSales(req.gymVenue.id, req.query)));
+router.post("/store/sales", h((req) => store.createSale(ctx(req), req.body), 201));
+router.get("/store/sales/:id", h((req) => store.getSale(req.gymVenue.id, req.params.id)));
+router.post("/store/sales/:id/payments", h((req) => store.addPayment(ctx(req), req.params.id, req.body)));
+router.post("/store/sales/:id/cancel", ownerOnly, h((req) => store.cancelSale(ctx(req), req.params.id, req.body)));
+router.get("/store/sales/:id/invoice", async (req, res, next) => {
+  try {
+    const [sale, st] = await Promise.all([store.getSale(req.gymVenue.id, req.params.id), store.getSettings(req.gymVenue.id)]);
+    invoicePdf.render(res, req.gymVenue, sale, { terms: st.invoice_terms || "" });
+  } catch (e) { next(e); }
+});
 
 module.exports = router;

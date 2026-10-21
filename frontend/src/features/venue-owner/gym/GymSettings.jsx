@@ -8,16 +8,9 @@ import Card from "../../../components/common/Card";
 import Input from "../../../components/common/Input";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { GymPage, Field, TextArea, errMsg } from "./gymShared.jsx";
+import { GymPage,  errMsg } from "./gymShared.jsx";
 
-const TEMPLATES = [
-  ["expiry_reminder", "Renewal reminder (before expiry)", "{{name}} {{gym}} {{plan}} {{when}} {{expiry}} {{link}}"],
-  ["winback", "Win-back (after expiry)", "{{name}} {{gym}} {{expiry}} {{link}}"],
-  ["payment_due", "Dues reminder", "{{name}} {{gym}} {{balance}} {{link}}"],
-  ["receipt", "Payment receipt text", "{{name}} {{gym}} {{amount}} {{receipt}} {{balance}}"],
-  ["welcome", "Welcome message", "{{name}} {{gym}} {{plan}} {{expiry}}"],
-  ["workout_plan", "Workout plan message", "{{name}} {{gym}} {{plan}} {{link}}"]
-];
+
 
 export default function GymSettings() {
   const { venue } = useVenue();
@@ -72,16 +65,11 @@ export default function GymSettings() {
         </div>
       </Card>
 
-      <Card title="Message text (for the Message button on each member)">
-        <p className="text-xs text-gray-500 mb-4">The platform does not send messages. These texts are filled in for you, and you copy or share them from your own phone. Leave a box blank to use the default.</p>
-        <div className="space-y-4">
-          {TEMPLATES.map(([key, title, vars]) => (
-            <Field key={key} label={title}>
-              <TextArea rows={3} placeholder={data.default_messages?.[key]} value={f.message_templates[key] || ""} onChange={setT(key)} />
-              <span className="text-[11px] text-gray-400">Variables: {vars}</span>
-            </Field>
-          ))}
-        </div>
+      <Card title="Message templates">
+        <p className="text-sm text-gray-600">
+          Renewal, dues, birthday, offer and lead messages now live in the <Link to="/dashboard/gym/messages" className="text-primary-600 font-medium">Messages</Link> tab,
+          where you can edit them and create your own. Your earlier edits are kept.
+        </p>
       </Card>
     </GymPage>
   );

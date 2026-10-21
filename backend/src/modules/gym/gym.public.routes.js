@@ -10,6 +10,8 @@ router.use(rateLimit({
 }));
 
 router.get("/:venueId/plans", c.plans);
+router.get("/:venueId/store", c.storeData);
+router.get("/invoice/:token/pdf", c.invoice);
 router.post("/:venueId/trial", c.trial);
 router.get("/workout/:token/pdf", c.workoutPdf);
 router.get("/renew/:token", c.renewPage);

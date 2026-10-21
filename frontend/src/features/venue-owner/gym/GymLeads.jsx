@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Phone, UserPlus } from "lucide-react";
+import { Phone, UserPlus, MessageCircle } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
@@ -10,6 +10,7 @@ import Loader from "../../../components/common/Loader";
 import EmptyState from "../../../components/common/EmptyState";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, errMsg } from "./gymShared.jsx";
+import { QuickSendModal } from "./GymMessages.jsx";
 
 const STATUSES = [["new", "New"], ["contacted", "Contacted"], ["trial_booked", "Trial booked"], ["trial_done", "Trial done"], ["converted", "Converted"], ["lost", "Lost"]]
   .map(([value, label]) => ({ value, label }));
@@ -18,6 +19,7 @@ export default function GymLeads() {
   const { venue } = useVenue();
   const vid = venue?.id;
   const nav = useNavigate();
+  const [wa, setWa] = useState(null);
   const { data: leads, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/leads` : null, { skip: !vid });
 
   const setStatus = async (lead, status) => {
@@ -40,7 +42,7 @@ export default function GymLeads() {
               </div>
               <div className="w-40"><Select value={l.status} onChange={(e) => setStatus(l, e.target.value)} options={STATUSES} /></div>
               <a href={`tel:+91${l.phone}`} className="p-2 text-primary-600"><Phone size={16} /></a>
- 
+              <Button variant="outline" onClick={() => setWa(l.id)}><MessageCircle size={14} /> WhatsApp</Button>
               {l.status !== "converted" && (
                 <Button variant="outline" onClick={() => nav("/dashboard/gym/members", { state: { lead: l } })}><UserPlus size={14} /> Enroll</Button>
               )}
@@ -48,6 +50,7 @@ export default function GymLeads() {
           ))}
         </div>
       )}
+      {wa && <QuickSendModal vid={vid} kind="lead" id={wa} onClose={() => setWa(null)} onSent={refetch} />}
     </GymPage>
   );
 }

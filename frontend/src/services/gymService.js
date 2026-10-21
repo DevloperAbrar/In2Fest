@@ -43,5 +43,30 @@ export const gymService = {
   installStarters: (v) => api.post(`${b(v)}/workout-plans/starter-templates`),
 
   listLeads: (v, params) => api.get(`${b(v)}/leads`, { params }),
-  updateLead: (v, id, body) => api.patch(`${b(v)}/leads/${id}`, body)
+  updateLead: (v, id, body) => api.patch(`${b(v)}/leads/${id}`, body),
+  createExercise: (v, body) => api.post(`${b(v)}/exercises`, body),
+
+  // WhatsApp message centre
+  msgTemplates: (v) => api.get(`${b(v)}/messages/templates`),
+  msgCreateTemplate: (v, body) => api.post(`${b(v)}/messages/templates`, body),
+  msgUpdateTemplate: (v, id, body) => api.patch(`${b(v)}/messages/templates/${id}`, body),
+  msgDeleteTemplate: (v, id) => api.delete(`${b(v)}/messages/templates/${id}`),
+  msgSaveSystem: (v, key, body) => api.put(`${b(v)}/messages/system/${key}`, { body }),
+  msgResetSystem: (v, key) => api.delete(`${b(v)}/messages/system/${key}`),
+  msgSegments: (v) => api.get(`${b(v)}/messages/segments`),
+  msgAudience: (v, params) => api.get(`${b(v)}/messages/audience`, { params }),
+  msgSent: (v, body) => api.post(`${b(v)}/messages/sent`, body),
+
+  // supplement store
+  storeGet: (v, path, params) => api.get(`${b(v)}/store${path}`, { params }),
+  storePost: (v, path, body) => api.post(`${b(v)}/store${path}`, body),
+  storePatch: (v, path, body) => api.patch(`${b(v)}/store${path}`, body),
+  storePut: (v, path, body) => api.put(`${b(v)}/store${path}`, body),
+  storeDelete: (v, path) => api.delete(`${b(v)}/store${path}`),
+  storeUpload: (v, file) => {
+    const fd = new FormData();
+    fd.append("image", file);
+    return api.post(`${b(v)}/store/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+  },
+  storeInvoice: (v, id) => api.get(`${b(v)}/store/sales/${id}/invoice`, { responseType: "blob" })
 };

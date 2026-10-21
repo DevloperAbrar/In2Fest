@@ -10,9 +10,11 @@ const core = require("./gym.core");
 /* ---------- exercise library ---------- */
 const listExercises = (venueId, q) => {
   const where = { is_active: true, [Op.or]: [{ venue_id: null }, { venue_id: venueId }] };
-  if (C.BODY_PARTS.includes(q.body_part)) where.body_part = q.body_part;
+  // body_part can be one value or a comma separated list (for example "biceps,triceps,forearms")
+  const parts = String(q.body_part || "").split(",").map((s) => s.trim()).filter((s) => C.BODY_PARTS.includes(s));
+  if (parts.length) where.body_part = parts.length === 1 ? parts[0] : { [Op.in]: parts };
   if (q.q && String(q.q).trim()) where.name = { [Op.iLike]: `%${U.likeEscape(q.q)}%` };
-  return GymExercise.findAll({ where, order: [["body_part", "ASC"], ["name", "ASC"]], limit: 300 });
+  return GymExercise.findAll({ where, order: [["body_part", "ASC"], ["name", "ASC"]], limit: 1000 });
 };
 
 function exerciseFields(b) {

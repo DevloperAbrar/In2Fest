@@ -9,7 +9,7 @@ import { GymPlans, GymPrograms, GymTransformations, GymTrainers } from "./vertic
 import ShopStorefront from "./verticals/ShopStorefront.jsx";
 import FoodStorefront from "./verticals/FoodStorefront.jsx";
 import { Reveal, SectionShell } from "./SectionShell.jsx";
-
+import GymSupplements from "./verticals/GymSupplements.jsx";
 
 /* ─── Portfolio ─── */
 function Portfolio({ config, theme, toneIdx }) {
@@ -601,7 +601,8 @@ const GYM_RENDERERS = {
   packages: GymPlans,
   courses: GymPrograms,
   results: GymTransformations,
-  team: GymTrainers
+  team: GymTrainers,
+  supplements: GymSupplements
 };
 
 // Food businesses: the "menu" section becomes live online ordering.

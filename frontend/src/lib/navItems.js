@@ -37,7 +37,8 @@ const DYNAMIC_LABELS = {
   social_links: "Social",
   schedule: "Timetable",
   video_tour: "Virtual Tour",
-  offers: "Offers"
+  offers: "Offers",
+  supplements: "Supplements"
 };
 
 function dynamicHasContent(section, venue) {
@@ -119,8 +120,10 @@ export function getNavCandidates(venue, opts = {}) {
 
     const label = vertical.navLabels[section.type] || DYNAMIC_LABELS[section.type];
     if (!label) return;
-    const isFoodMenu = vertical.key === "food" && (section.type === "menu" || section.type === "product_catalog");
-    if (strict && !isFoodMenu && !dynamicHasContent(section, venue)) return;
+    const isLiveSection =
+      (vertical.key === "food" && (section.type === "menu" || section.type === "product_catalog")) ||
+      (vertical.key === "gym" && section.type === "supplements");
+    if (strict && !isLiveSection && !dynamicHasContent(section, venue)) return;
     list.push({ key: section.type, anchor: `section-${section.type}`, label, defaultShow: false });
   });
 

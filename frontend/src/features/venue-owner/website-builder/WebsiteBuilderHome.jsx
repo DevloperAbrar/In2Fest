@@ -119,8 +119,12 @@ export default function WebsiteBuilderHome() {
     }
   };
 
+  const isGymVenue = [venue?.business_category, ...(venue?.secondary_categories || [])].includes("gym-fitness");
   const addableTypes = Object.keys(SECTION_TYPES).filter(
-    (type) => SECTION_TYPES[type].removable && !sections.some((s) => s.type === type)
+    (type) =>
+      SECTION_TYPES[type].removable &&
+      (!SECTION_TYPES[type].gymOnly || isGymVenue) &&
+      !sections.some((s) => s.type === type)
   );
 
   const visibleSections = sections.filter((s) => SECTION_TYPES[s.type]);

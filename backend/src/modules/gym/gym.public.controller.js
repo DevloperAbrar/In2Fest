@@ -8,6 +8,8 @@ const core = require("./gym.core");
 const payments = require("./gym.payments.service");
  
 const workout = require("./gym.workout.service");
+const store = require("./gym.store.service");
+const invoicePdf = require("./gym.store.invoice");
 const { getSettings } = require("./gym.insights.service");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -153,4 +155,20 @@ async function payClaimed(req, res, next) {
     } catch (e) { next(e); }
   }
 
-module.exports = { plans, trial, workoutPdf, renewPage, renewStart, payPage, payClaimed };
+  
+  async function storeData(req, res, next) {
+    try {
+      const v = await gymVenue(req.params.venueId);
+      res.json({ success: true, data: await store.publicStore((v && v.id) || req.params.venueId) });
+    } catch (e) { next(e); }
+  }
+  
+  async function invoice(req, res, next) {
+    try {
+      const sale = await store.publicInvoice(req.params.token);
+      const [venue, st] = await Promise.all([Venue.findByPk(sale.venue_id), store.getSettings(sale.venue_id)]);
+      invoicePdf.render(res, venue, store.presentSale(sale), { inline: true, terms: st.invoice_terms || "" });
+    } catch (e) { next(e); }
+  }
+  
+  module.exports = { plans, trial, workoutPdf, renewPage, renewStart, payPage, payClaimed, storeData, invoice };

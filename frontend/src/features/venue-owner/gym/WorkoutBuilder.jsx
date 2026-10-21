@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
@@ -11,44 +11,88 @@ import Select from "../../../components/common/Select";
 import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { GymPage, Field, TextArea, GOALS, BODY_PARTS, errMsg } from "./gymShared.jsx";
+import { GymPage, Field, TextArea, GOALS, BODY_PARTS, BODY_PART_GROUPS, errMsg } from "./gymShared.jsx";
 
 const LEVELS = [{ value: "beginner", label: "Beginner" }, { value: "intermediate", label: "Intermediate" }, { value: "advanced", label: "Advanced" }];
 const newDay = (n) => ({ title: `Day ${n}`, focus: [], notes: "", exercises: [] });
 const label = (s) => s.replace(/_/g, " ");
 
 function ExercisePicker({ isOpen, onClose, vid, onPick }) {
-  const [bp, setBp] = useState("");
+  const [group, setGroup] = useState("");
+  const [part, setPart] = useState("");
+  const [equip, setEquip] = useState("");
   const [q, setQ] = useState("");
-  const [custom, setCustom] = useState("");
-  const { data, loading } = useFetch(
-    isOpen ? `/venues/${vid}/gym/exercises?body_part=${bp}&q=${encodeURIComponent(q)}` : null,
-    { skip: !isOpen }
-  );
+  const [custom, setCustom] = useState({ name: "", part: "", save: false });
+  const { data, loading } = useFetch(isOpen ? `/venues/${vid}/gym/exercises` : null, { skip: !isOpen });
+  const list = useMemo(() => data || [], [data]);
+  const g = BODY_PART_GROUPS.find((x) => x.key === group);
+
+  const inGroup = useMemo(() => list.filter((e) => !g || g.parts.includes(e.body_part)), [list, g]);
+  const equipment = useMemo(() => [...new Set(inGroup.map((e) => e.equipment).filter(Boolean))].sort(), [inGroup]);
+  const shown = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return inGroup.filter((e) => (!part || e.body_part === part) && (!equip || e.equipment === equip) && (!n || e.name.toLowerCase().includes(n)));
+  }, [inGroup, part, equip, q]);
+  const subParts = g ? g.parts.filter((p) => list.some((e) => e.body_part === p)) : [];
+  const chip = (on) => `px-3 py-1 rounded-full text-xs border ${on ? "bg-primary-600 text-white border-primary-600" : "text-gray-600"}`;
+
+  const addCustom = async () => {
+    const name = custom.name.trim();
+    if (!name) return;
+    try {
+      let exercise_id;
+      if (custom.save && custom.part) {
+        const r = await gymService.createExercise(vid, { name, body_part: custom.part });
+        exercise_id = r.data.data.id;
+      }
+      onPick({ exercise_id, name, body_part: custom.part || part || null });
+      setCustom({ name: "", part: "", save: false });
+      onClose();
+    } catch (e) { showError(errMsg(e)); }
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add exercise" size="lg">
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {["", ...BODY_PARTS].map((b) => (
-          <button key={b || "all"} onClick={() => setBp(b)}
-            className={`px-3 py-1 rounded-full text-xs border capitalize ${bp === b ? "bg-primary-600 text-white border-primary-600" : "text-gray-600"}`}>
-            {b ? label(b) : "All"}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        <button onClick={() => { setGroup(""); setPart(""); setEquip(""); }} className={chip(!group)}>All ({list.length})</button>
+        {BODY_PART_GROUPS.map((x) => (
+          <button key={x.key} onClick={() => { setGroup(x.key); setPart(""); setEquip(""); }} className={chip(group === x.key)}>
+            {x.label} ({list.filter((e) => x.parts.includes(e.body_part)).length})
           </button>
         ))}
       </div>
-      <Input placeholder="Search exercise" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="mt-3 max-h-64 overflow-y-auto divide-y">
-        {loading ? <Loader /> : (data || []).map((ex) => (
+      {subParts.length > 1 && (
+        <div className="flex flex-wrap gap-1.5 mb-2 pl-1 border-l-2 border-primary-200">
+          <button onClick={() => setPart("")} className={chip(!part)}>All {g.label.toLowerCase()}</button>
+          {subParts.map((p) => <button key={p} onClick={() => setPart(p)} className={`${chip(part === p)} capitalize`}>{label(p)}</button>)}
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-2"><Input placeholder="Search exercise" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <Select value={equip} onChange={(e) => setEquip(e.target.value)} options={[{ value: "", label: "Any equipment" }, ...equipment.map((v) => ({ value: v, label: v }))]} />
+      </div>
+      <p className="text-xs text-gray-400 mt-2">{shown.length} exercises</p>
+      <div className="mt-1 max-h-64 overflow-y-auto divide-y">
+        {loading ? <Loader /> : shown.map((ex) => (
           <button key={ex.id} onClick={() => { onPick({ exercise_id: ex.id, name: ex.name, body_part: ex.body_part }); onClose(); }}
-            className="w-full text-left py-2 px-1 flex justify-between text-sm hover:bg-gray-50">
+            className="w-full text-left py-2 px-1 flex justify-between gap-2 text-sm hover:bg-gray-50">
             <span>{ex.name}</span>
-            <span className="text-xs text-gray-400 capitalize">{label(ex.body_part)}{ex.equipment ? ` · ${ex.equipment}` : ""}</span>
+            <span className="text-xs text-gray-400 capitalize whitespace-nowrap">{label(ex.body_part)}{ex.equipment ? ` · ${ex.equipment}` : ""}</span>
           </button>
         ))}
       </div>
-      <div className="flex gap-2 mt-3 pt-3 border-t">
-        <Input placeholder="Not in the list? Type a custom exercise" value={custom} onChange={(e) => setCustom(e.target.value)} />
-        <Button variant="outline" disabled={!custom.trim()}
-          onClick={() => { onPick({ name: custom.trim(), body_part: bp || null }); setCustom(""); onClose(); }}>Add</Button>
+      <div className="mt-3 pt-3 border-t space-y-2">
+        <p className="text-xs text-gray-500">Not in the list? Add your own</p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2"><Input placeholder="Exercise name" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} /></div>
+          <Select value={custom.part} onChange={(e) => setCustom({ ...custom, part: e.target.value })} options={[{ value: "", label: "Body part" }, ...BODY_PARTS.map((p) => ({ value: p, label: label(p) }))]} />
+        </div>
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-gray-600 flex items-center gap-2">
+            <input type="checkbox" checked={custom.save} disabled={!custom.part} onChange={(e) => setCustom({ ...custom, save: e.target.checked })} /> Save to my exercise library
+          </label>
+          <Button variant="outline" disabled={!custom.name.trim()} onClick={addCustom}>Add</Button>
+        </div>
       </div>
     </Modal>
   );
@@ -145,7 +189,7 @@ export default function WorkoutBuilder() {
               )}
             </div>
             <div className="flex flex-wrap gap-1.5 mb-3">
-              {BODY_PARTS.map((bp) => (
+              {[...BODY_PARTS, ...d.focus.filter((x) => !BODY_PARTS.includes(x))].map((bp) => (
                 <button key={bp} onClick={() => toggleFocus(di, bp)}
                   className={`px-2.5 py-0.5 rounded-full text-xs border capitalize ${d.focus.includes(bp) ? "bg-primary-50 border-primary-500 text-primary-700" : "text-gray-500"}`}>
                   {label(bp)}
