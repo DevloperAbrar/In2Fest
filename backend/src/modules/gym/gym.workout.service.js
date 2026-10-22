@@ -5,7 +5,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
 const C = require("./gym.constants");
 const core = require("./gym.core");
- 
+const { T, gymIdentity, caps, line1, pill } = require("./gym.brand");
 
 /* ---------- exercise library ---------- */
 const listExercises = (venueId, q) => {
@@ -151,43 +151,197 @@ async function pdfByToken(token, res) {
   const plan = token ? await GymWorkoutPlan.findOne({ where: { share_token: token, is_template: false } }) : null;
   if (!plan) throw new AppError("Workout plan not found", 404);
   const [venue, member] = await Promise.all([Venue.findByPk(plan.venue_id), plan.member_id ? GymMember.findByPk(plan.member_id) : null]);
-  renderPdf(res, { gym: venue ? venue.hall_name : "Workout Plan", member, plan });
+  const identity = venue ? await gymIdentity(venue) : { name: "Workout Plan", owner: "", phone: "", email: "", address: "" };
+  renderPdf(res, { identity, member, plan });
 }
 
-function renderPdf(res, { gym, member, plan }) {
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
+function renderPdf(res, { identity: id, member, plan }) {
+  const doc = new PDFDocument({ size: "A4", margin: 0, bufferPages: true, info: { Title: plan.name || "Workout plan", Author: id.name } });
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `inline; filename="${String(plan.name || "workout").replace(/[^\w-]+/g, "_")}.pdf"`);
   doc.pipe(res);
 
-  doc.fontSize(20).fillColor("#111").text(gym);
-  doc.fontSize(10).fillColor("#777").text("Workout Plan");
-  doc.moveDown(0.6).fontSize(16).fillColor("#111").text(plan.name);
-  const meta = [member && `Member: ${member.name}`, plan.goal && `Goal: ${plan.goal.replace(/_/g, " ")}`, plan.level && `Level: ${plan.level}`, plan.duration_weeks && `${plan.duration_weeks} weeks`]
-    .filter(Boolean).join("   |   ");
-  if (meta) doc.fontSize(10).fillColor("#555").text(meta);
+  const PW = doc.page.width;
+  const PH = doc.page.height;
+  const M = 40;
+  const CW = PW - M * 2;
+  const LIMIT = PH - 56; // content never goes below this line (footer lives under it)
+  const label = (v) => String(v || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const days = plan.days || [];
+  let y = 0;
 
-  (plan.days || []).forEach((d) => {
-    if (doc.y > 690) doc.addPage();
-    doc.x = 40;
-    doc.moveDown(1).fontSize(13).fillColor("#16a34a").text(`Day ${d.day_number} - ${d.title}`, 40);
-    if (!d.exercises.length) { doc.fontSize(10).fillColor("#666").text("Rest / recovery", 40); return; }
-    let y = doc.y + 6;
-    doc.fontSize(9).fillColor("#888").text("#", 40, y, { width: 20 }).text("Exercise", 62, y, { width: 250 })
-      .text("Sets", 320, y, { width: 40 }).text("Reps", 365, y, { width: 60 }).text("Rest", 430, y, { width: 60 });
-    y += 16;
-    d.exercises.forEach((e, i) => {
-      const h = Math.max(doc.fontSize(10).heightOfString(e.name, { width: 250 }), 12);
-      if (y + h > 780) { doc.addPage(); y = 40; }
-      doc.fillColor("#111").text(String(i + 1), 40, y, { width: 20 }).text(e.name, 62, y, { width: 250 })
-        .text(e.sets ? String(e.sets) : "-", 320, y, { width: 40 }).text(e.reps || "-", 365, y, { width: 60 })
-        .text(e.rest_sec ? `${e.rest_sec}s` : "-", 430, y, { width: 60 });
-      y += h + 6;
-    });
-    doc.y = y; doc.x = 40;
-    if (d.notes) doc.fontSize(9).fillColor("#666").text(`Note: ${d.notes}`, 40, y, { width: 500 });
+  /* ---------- header (first page): gym branding + contact details ---------- */
+  const contact = [
+    id.owner && ["Owner", id.owner],
+    id.phone && ["Phone", id.phone],
+    id.email && ["Email", id.email],
+    id.address && ["Address", id.address]
+  ].filter(Boolean);
+  const colX = PW - M - 210;
+  const colW = 210;
+  let blockH = 0;
+  contact.forEach(([k, v]) => {
+    doc.font("Helvetica").fontSize(8.5);
+    blockH += 9 + Math.min(doc.heightOfString(v, { width: colW }), 34) + 7;
   });
-  if (plan.notes) doc.moveDown(1).fontSize(10).fillColor("#333").text(plan.notes, 40, undefined, { width: 500 });
+  const headerH = Math.max(124, 30 + blockH + 14);
+  doc.rect(0, 0, PW, headerH).fill(T.ink);
+  doc.rect(0, 0, PW, 5).fill(T.accent);
+  doc.font("Helvetica-Bold").fontSize(26);
+  const gymLines = Math.min(2, Math.ceil(doc.widthOfString(id.name) / (colX - M - 24)));
+  doc.fillColor("#ffffff").text(id.name, M, 34, { width: colX - M - 24, height: 32 * gymLines, ellipsis: true });
+  const afterName = 34 + 32 * gymLines + 4;
+  caps(doc, "Personal workout plan", M, afterName, { color: "#fca5a5", size: 9, width: 250 });
+  doc.rect(M, afterName + 18, 34, 3).fill(T.accent);
+  if (contact.length) {
+    doc.moveTo(colX - 14, 28).lineTo(colX - 14, headerH - 18).lineWidth(0.6).strokeColor("#334155").stroke();
+    let cy = 30;
+    contact.forEach(([k, v]) => {
+      caps(doc, k, colX, cy, { color: T.faint, size: 6.5, width: colW });
+      doc.font("Helvetica").fontSize(8.5).fillColor("#ffffff").text(v, colX, cy + 9, { width: colW, height: 34, ellipsis: true });
+      cy += 9 + Math.min(doc.heightOfString(v, { width: colW }), 34) + 7;
+    });
+  }
+  y = headerH + 24;
+
+  /* ---------- plan title, member, tags ---------- */
+  if (member) {
+    caps(doc, "Prepared for", M, y, { color: T.muted, size: 7, width: 200 });
+    line1(doc, member.name, M, y + 10, { font: "Helvetica-Bold", size: 13, color: T.accent, width: CW });
+    y += 32;
+  }
+  doc.font("Helvetica-Bold").fontSize(22).fillColor(T.ink);
+  const titleH = Math.min(doc.heightOfString(plan.name, { width: CW }), 56);
+  doc.text(plan.name, M, y, { width: CW, height: 56, ellipsis: true });
+  y += titleH + 10;
+
+  let px = M;
+  [plan.goal && `Goal: ${label(plan.goal)}`, plan.level && `Level: ${label(plan.level)}`, plan.duration_weeks && `${plan.duration_weeks} weeks`]
+    .filter(Boolean).forEach((t) => { px += pill(doc, t, px, y, { bg: T.accentSoft, fg: T.accent, border: T.accentSoft, size: 8.5, h: 20 }) + 6; });
+  if (px > M) y += 30;
+
+  /* ---------- summary tiles ---------- */
+  const totalEx = days.reduce((n, d) => n + (d.exercises || []).length, 0);
+  const totalSets = days.reduce((n, d) => n + (d.exercises || []).reduce((a, e) => a + (e.sets || 0), 0), 0);
+  const trainingDays = days.filter((d) => (d.exercises || []).length).length;
+  const tiles = [["Days / week", String(days.length)], ["Training days", String(trainingDays)], ["Exercises", String(totalEx)], ["Total sets", String(totalSets)]];
+  const tw = (CW - 3 * 8) / 4;
+  tiles.forEach(([k, v], i) => {
+    const tx = M + i * (tw + 8);
+    doc.save().roundedRect(tx, y, tw, 46, 8).fillAndStroke(T.soft, T.line).restore();
+    line1(doc, v, tx + 12, y + 8, { font: "Helvetica-Bold", size: 18, color: T.ink, width: tw - 20 });
+    caps(doc, k, tx + 12, y + 31, { color: T.muted, size: 6.5, width: tw - 20 });
+  });
+  y += 46 + 22;
+
+  /* ---------- page helpers ---------- */
+  const newPage = () => {
+    doc.addPage({ size: "A4", margin: 0 });
+    doc.rect(0, 0, PW, 30).fill(T.ink);
+    doc.rect(0, 0, PW, 3).fill(T.accent);
+    line1(doc, id.name, M, 11, { font: "Helvetica-Bold", size: 10, color: "#ffffff", width: 280 });
+    line1(doc, plan.name, PW - M - 220, 12, { size: 8.5, color: T.faint, width: 220, align: "right" });
+    y = 30 + 24;
+  };
+  const ensure = (h) => { if (y + h > LIMIT) newPage(); };
+
+  const C = { n: M + 12, ex: M + 36, sets: M + 292, reps: M + 352, rest: M + 428 };
+  const tableHead = () => {
+    doc.rect(M, y, CW, 22).fill(T.soft);
+    doc.moveTo(M, y + 22).lineTo(M + CW, y + 22).lineWidth(0.6).strokeColor(T.line).stroke();
+    caps(doc, "#", C.n, y + 8, { color: T.muted, size: 7, width: 20 });
+    caps(doc, "Exercise", C.ex, y + 8, { color: T.muted, size: 7, width: 200 });
+    caps(doc, "Sets", C.sets, y + 8, { color: T.muted, size: 7, width: 56, align: "center" });
+    caps(doc, "Reps", C.reps, y + 8, { color: T.muted, size: 7, width: 66, align: "center" });
+    caps(doc, "Rest", C.rest, y + 8, { color: T.muted, size: 7, width: 60, align: "center" });
+    y += 22;
+  };
+  const dayBar = (d, cont) => {
+    doc.save().roundedRect(M, y, CW, 34, 8).fill(T.ink).restore();
+    doc.circle(M + 21, y + 17, 11).fill(T.accent);
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#ffffff").text(String(d.day_number), M + 10, y + 12, { width: 22, align: "center", lineBreak: false });
+    const focus = (d.focus || []).map((f) => String(f).replace(/_/g, " ")).join("  -  ").toUpperCase();
+    const focusW = focus ? 190 : 0;
+    line1(doc, `${d.title || `Day ${d.day_number}`}${cont ? "  (continued)" : ""}`, M + 42, y + 11, { font: "Helvetica-Bold", size: 11.5, color: "#ffffff", width: CW - 60 - focusW });
+    if (focus) line1(doc, focus, M + CW - 14 - focusW, y + 14, { font: "Helvetica-Bold", size: 7, color: "#fca5a5", width: focusW, align: "right" });
+    y += 34;
+  };
+
+  /* ---------- days ---------- */
+  days.forEach((d) => {
+    const ex = d.exercises || [];
+    ensure(34 + (ex.length ? 22 + 30 : 40));
+    dayBar(d, false);
+
+    if (!ex.length) {
+      doc.rect(M, y, CW, 36).fill(T.soft);
+      line1(doc, "Rest and recovery day. Light walk, stretching, good sleep and plenty of water.", M + 14, y + 13, { size: 9, color: T.muted, width: CW - 28 });
+      y += 36;
+    } else {
+      tableHead();
+      ex.forEach((e, i) => {
+        const sub = [e.body_part && label(e.body_part), e.notes].filter(Boolean).join("   |   ");
+        doc.font("Helvetica-Bold").fontSize(9.5);
+        const nameH = Math.min(doc.heightOfString(e.name, { width: 248 }), 28);
+        doc.font("Helvetica").fontSize(7.5);
+        const subH = sub ? Math.min(doc.heightOfString(sub, { width: 248 }), 22) + 2 : 0;
+        const rowH = Math.max(26, nameH + subH + 14);
+        if (y + rowH > LIMIT) { newPage(); dayBar(d, true); tableHead(); }
+        if (i % 2 === 1) doc.rect(M, y, CW, rowH).fill(T.soft);
+        doc.moveTo(M, y + rowH).lineTo(M + CW, y + rowH).lineWidth(0.4).strokeColor(T.line).stroke();
+        const mid = y + (rowH - 9) / 2;
+        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(T.accent).text(String(i + 1), C.n, mid, { width: 20, lineBreak: false });
+        doc.font("Helvetica-Bold").fontSize(9.5).fillColor(T.text).text(e.name, C.ex, y + 7, { width: 248, height: 28, ellipsis: true });
+        if (sub) doc.font("Helvetica").fontSize(7.5).fillColor(T.muted).text(sub, C.ex, y + 7 + nameH + 2, { width: 248, height: 22, ellipsis: true });
+        const cell = (txt, x, w, strong) => doc.font(strong ? "Helvetica-Bold" : "Helvetica").fontSize(9.5).fillColor(strong ? T.ink : T.body)
+          .text(txt, x, mid, { width: w, align: "center", lineBreak: false });
+        cell(e.sets ? String(e.sets) : "-", C.sets, 56, true);
+        cell(e.reps || "-", C.reps, 66, true);
+        cell(e.rest_sec ? `${e.rest_sec}s` : "-", C.rest, 60, false);
+        y += rowH;
+      });
+    }
+
+    if (d.notes) {
+      doc.font("Helvetica-Oblique").fontSize(8.5);
+      const nh = doc.heightOfString(d.notes, { width: CW - 28 }) + 16;
+      ensure(nh + 6);
+      y += 6;
+      doc.rect(M, y, CW, nh).fill(T.accentSoft);
+      doc.rect(M, y, 3, nh).fill(T.accent);
+      doc.font("Helvetica-Oblique").fontSize(8.5).fillColor("#7f1d1d").text(d.notes, M + 14, y + 8, { width: CW - 28 });
+      y += nh;
+    }
+    y += 20;
+  });
+
+  /* ---------- trainer notes + sign-off ---------- */
+  if (plan.notes) {
+    doc.font("Helvetica").fontSize(9);
+    const nh = doc.heightOfString(plan.notes, { width: CW - 32 }) + 34;
+    ensure(nh + 6);
+    doc.save().roundedRect(M, y, CW, nh, 8).fillAndStroke(T.soft, T.line).restore();
+    caps(doc, "Trainer's notes", M + 16, y + 12, { color: T.accent, size: 7.5, width: 200 });
+    doc.font("Helvetica").fontSize(9).fillColor(T.body).text(plan.notes, M + 16, y + 26, { width: CW - 32 });
+    y += nh + 16;
+  }
+  const signH = 52;
+  ensure(signH + 6);
+  doc.save().roundedRect(M, y, CW, signH, 10).fill(T.ink).restore();
+  doc.rect(M, y + 12, 4, signH - 24).fill(T.accent);
+  line1(doc, "Stay consistent. Results follow.", M + 20, y + 11, { font: "Helvetica-Bold", size: 12, color: "#ffffff", width: CW - 40 });
+  line1(doc, ["Questions about your plan?", id.owner && `Ask ${id.owner}`, id.phone].filter(Boolean).join("  |  "), M + 20, y + 29, { size: 8.5, color: T.faint, width: CW - 40 });
+
+  /* ---------- footer on every page ---------- */
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(range.start + i);
+    doc.page.margins.bottom = 0; // footer sits inside the bottom margin; stop pdfkit adding a page
+    const fy = PH - 38;
+    doc.moveTo(M, fy).lineTo(PW - M, fy).lineWidth(0.5).strokeColor(T.line).stroke();
+    line1(doc, [id.name, id.phone, id.email].filter(Boolean).join("   |   "), M, fy + 9, { size: 7.5, color: T.muted, width: CW - 80 });
+    line1(doc, `Page ${i + 1} of ${range.count}`, PW - M - 70, fy + 9, { font: "Helvetica-Bold", size: 7.5, color: T.muted, width: 70, align: "right" });
+  }
   doc.end();
 }
 
