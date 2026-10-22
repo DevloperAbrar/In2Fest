@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info } from "lucide-react";
 import Input from "../../../../components/common/Input";
 import Select from "../../../../components/common/Select";
 import MultiSelect from "../../../../components/common/MultiSelect";
@@ -86,6 +86,11 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
     [sortedCategories, form.business_category]
   );
 
+  // Vendors listed under a General category (Other Business) are nudged to check for a better fit.
+  const savedCategory = sortedCategories.find((c) => c.slug === venue.business_category);
+  const savedIsGeneral = Boolean(venue.business_category) && savedCategory?.business_type === "general";
+  const categoryChanged = Boolean(venue.business_category) && form.business_category !== venue.business_category;
+
   const wordCount = form.long_description.trim().split(/\s+/).filter(Boolean).length;
   const wordsRemaining = minWords - wordCount;
   const descriptionMet = wordCount >= minWords;
@@ -115,8 +120,36 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
     if (onCategoryChange) onCategoryChange(form.business_category, secondary);
   };
 
+  const handleSave = () => {
+    if (!form.business_category) {
+      setTriedNext(true);
+      return;
+    }
+    if (categoryChanged) {
+      const ok = window.confirm(
+        "You are changing your primary category.\n\n" +
+          "- Your listing moves to the new category page and its old link will stop working.\n" +
+          "- The new category has its own required details (Details tab). Until they are filled, your listing stays hidden from the marketplace.\n" +
+          "- Your old details are kept and come back if you switch back.\n\nContinue?"
+      );
+      if (!ok) return;
+    }
+    onSave(form);
+  };
+
   return (
     <div className="space-y-5">
+      {savedIsGeneral && !categoryChanged && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+          <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-blue-800">
+            You are listed under a general category. If there is a category that matches your business better
+            (for example Auto Garage or Electronics Store), choose it below so customers find you in the right place.
+            If there is none, stay here and pick your kind of business in the Details tab.
+          </p>
+        </div>
+      )}
+
       <Select
         label="Primary category"
         options={placeholderOption}
@@ -128,6 +161,12 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
         <p className="-mt-3 text-xs text-gray-400">
           This sets the questions and labels you see in the next tabs ({schema.business_type_label}).
         </p>
+      )}
+      {categoryChanged && (
+        <div className="-mt-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+          Category changed. After you save, open the Details tab and fill the new required details, otherwise your
+          listing stays hidden from the marketplace.
+        </div>
       )}
 
       {maxSecondary > 0 || form.secondary_categories.length > 0 ? (
@@ -243,7 +282,7 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
           <span />
         )}
         <div className="flex items-center gap-2">
-          <Button loading={saving} onClick={() => onSave(form)}>Save Business Details</Button>
+          <Button loading={saving} onClick={handleSave}>Save Business Details</Button>
           {onNext && (
             <Button variant="outline" onClick={handleNext}>Next</Button>
           )}

@@ -1,5 +1,5 @@
 const sharp = require("sharp");
-const { Venue, City, VenueServiceArea } = require("../../database/models");
+const { Venue, City, VenueServiceArea, Category } = require("../../database/models");
 const { sanitizeSecondaryCategories } = require("../../utils/sanitizeSecondaryCategories");
 const { AppError } = require("../../middleware/error.middleware");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
@@ -7,6 +7,7 @@ const { getActiveFeatures } = require("../../utils/planAccess");
 const { getRedisClient } = require("../../config/redis");
 const { slugify } = require("../../utils/slugify");
 const { resolveTypeList } = require("../../config/otherBusinessTaxonomy");
+const { buildDefaultSections } = require("../../utils/pageSections");
 const {
   getProfileSchema,
   sanitizeProfileAttributes,
@@ -159,6 +160,20 @@ async function updateProfile(venueId, ownerId, payload) {
     }
   }
 
+  // Primary category change (for example Other Business -> Auto Garage).
+  // The new category must be a real, active one. Keeping the current category is always allowed,
+  // even if the admin has deactivated it since.
+  const previousCategory = venue.business_category;
+  const categoryChanged =
+    updates.business_category !== undefined && updates.business_category !== previousCategory;
+  if (categoryChanged) {
+    const target = await Category.findOne({
+      where: { slug: String(updates.business_category || ""), active: true },
+      attributes: ["slug"]
+    });
+    if (!target) throw new AppError("Selected category is not available", 400);
+  }
+
   // This is the write path the vendor portal's Business Details tab actually
   // uses - so this is where the "also offers X" data has to be trustworthy.
   // See sanitizeSecondaryCategories for why.
@@ -189,6 +204,13 @@ async function updateProfile(venueId, ownerId, payload) {
     }
   }
 
+  // A saved pricing unit that does not exist in the new category would make the next save fail.
+  if (categoryChanged && updates.pricing_unit === undefined && venue.pricing_unit) {
+    if (!schema.price_units.some((u) => u.value === venue.pricing_unit)) {
+      updates.pricing_unit = null;
+    }
+  }
+
   if (updates.profile_attributes !== undefined) {
     const clean = sanitizeProfileAttributes(updates.profile_attributes, schema);
     // Keep values that belong to another category (e.g. the vendor switched category
@@ -214,15 +236,38 @@ async function updateProfile(venueId, ownerId, payload) {
     }
   }
 
+  // Website: add the sections the new category normally has (for example a menu for a restaurant).
+  // Nothing the vendor already built is removed or reordered; new ones go in before the gallery.
+  if (categoryChanged && updates.page_sections === undefined && Array.isArray(venue.page_sections) && venue.page_sections.length) {
+    const have = new Set(venue.page_sections.map((s) => s && s.type));
+    const extra = buildDefaultSections(targetCategory).filter((s) => !have.has(s.type));
+    if (extra.length) {
+      const next = [...venue.page_sections];
+      const galleryAt = next.findIndex((s) => s && s.type === "gallery");
+      if (galleryAt === -1) next.push(...extra);
+      else next.splice(galleryAt, 0, ...extra);
+      updates.page_sections = next;
+    }
+  }
+
+  const previousCitySlug = slugify(venue.city);
+
   await venue.update(updates);
 
   const refreshed = await getOwnedVenue(venueId, ownerId);
 
+  // Clear the city listing cache of the new category and, when it changed, of the old one too,
+  // so the vendor leaves the old category page and shows on the new one straight away.
   const redis = await getRedisClient();
-  if (redis && refreshed.business_category) {
+  if (redis) {
     const citySlug = slugify(refreshed.city);
-    const keys = await redis.keys(`marketplace:city:${citySlug}:cat:${refreshed.business_category}:*`);
-    if (keys.length) await redis.del(keys);
+    const patterns = new Set();
+    if (refreshed.business_category) patterns.add(`marketplace:city:${citySlug}:cat:${refreshed.business_category}:*`);
+    if (categoryChanged && previousCategory) patterns.add(`marketplace:city:${previousCitySlug}:cat:${previousCategory}:*`);
+    for (const pattern of patterns) {
+      const keys = await redis.keys(pattern);
+      if (keys.length) await redis.del(keys);
+    }
   }
   const { percentage, missing_fields } = calculateCompletion(refreshed);
   const isComplete = percentage === 100;
