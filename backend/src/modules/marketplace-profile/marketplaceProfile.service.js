@@ -142,21 +142,45 @@ async function getProfile(venueId, ownerId) {
   return { venue, completion: { percentage, missing_fields }, photo_upload };
 }
 
+// Number columns of the venue. The profile forms send an empty box as "" and Postgres rejects ""
+// for a number column, which used to surface as a 500 "Something went wrong" on save
+// (for example when Year established or Faculty size is left blank).
+// kind "int" = whole number, "decimal" = money. min / max are the accepted range.
+const NUMBER_FIELDS = {
+  year_established: { label: "Year established", kind: "int", min: 1800, max: 2100 },
+  total_events_completed: { label: "Total events completed", kind: "int", min: 0, max: 2000000000 },
+  team_size: { label: "Team size", kind: "int", min: 0, max: 2000000000 },
+  advance_payment_percentage: { label: "Advance payment percentage", kind: "int", min: 0, max: 2000000000 },
+  booking_advance_notice_days: { label: "Booking advance notice", kind: "int", min: 0, max: 2000000000 },
+  starting_price: { label: "Starting price", kind: "decimal", min: 0, max: 99999999.99 },
+  maximum_price: { label: "Maximum price", kind: "decimal", min: 0, max: 99999999.99 }
+};
+
+// Empty -> null. Otherwise a real number inside the allowed range, or a clear 400 message.
+function cleanNumberField(field, raw) {
+  const rule = NUMBER_FIELDS[field];
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "string" && raw.trim() === "") return null;
+  const num = typeof raw === "number" ? raw : Number(String(raw).replace(/,/g, "").trim());
+  if (!Number.isFinite(num)) throw new AppError(`${rule.label} must be a number`, 400);
+  if (rule.kind === "int" && !Number.isInteger(num)) throw new AppError(`${rule.label} must be a whole number`, 400);
+  if (num < rule.min || num > rule.max) throw new AppError(`${rule.label} is out of range`, 400);
+  return num;
+}
+
 async function updateProfile(venueId, ownerId, payload) {
   const venue = await getOwnedVenue(venueId, ownerId);
 
-  const NUMERIC_FIELDS = ["starting_price", "maximum_price", "advance_payment_percentage"];
-
   const updates = {};
   for (const field of EDITABLE_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(payload, field)) {
-      // Convert empty strings to null for numeric DB columns so Postgres doesn't choke
-      if (NUMERIC_FIELDS.includes(field)) {
-        const val = payload[field];
-        updates[field] = (val === "" || val === null || val === undefined) ? null : val;
-      } else {
-        updates[field] = payload[field];
-      }
+    if (!Object.prototype.hasOwnProperty.call(payload, field)) continue;
+    if (NUMBER_FIELDS[field]) {
+      const num = cleanNumberField(field, payload[field]);
+      // An empty notice-days box keeps the value already saved (the column defaults to 1).
+      if (field === "booking_advance_notice_days" && num === null) continue;
+      updates[field] = num;
+    } else {
+      updates[field] = payload[field];
     }
   }
 
