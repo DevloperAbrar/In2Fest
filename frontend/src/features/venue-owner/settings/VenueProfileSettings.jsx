@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -162,6 +163,14 @@ export default function VenueProfileSettings() {
           onChange={(val) => setValue("venue_type", val, { shouldValidate: true })}
           placeholder={t("settings.venueProfile.venueTypePlaceholder")}
         />
+        <div className="-mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+          This list is only a label for your bookings. To change the category customers find you in (and to choose
+          what kind of business you are, for example CCTV or Solar), open{" "}
+          <Link to="/dashboard/marketplace-profile" className="font-semibold underline">
+            Marketplace Profile &rarr; Business Details
+          </Link>
+          .
+        </div>
         <Button type="submit" loading={isSubmitting}>{t("settings.venueProfile.save")}</Button>
       </form>
     </DashboardLayout>
