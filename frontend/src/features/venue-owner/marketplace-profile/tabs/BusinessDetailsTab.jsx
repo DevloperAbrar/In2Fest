@@ -4,12 +4,14 @@ import Input from "../../../../components/common/Input";
 import Select from "../../../../components/common/Select";
 import MultiSelect from "../../../../components/common/MultiSelect";
 import Button from "../../../../components/common/Button";
+import DynamicField from "../DynamicField.jsx";
 import { LANGUAGE_OPTIONS } from "../../../../lib/marketplaceCategories";
 import { getMaxSecondary } from "../../../../lib/vendorCategoryConfig";
 
 const fromVenue = (venue) => ({
   business_category: venue.business_category || "",
   secondary_categories: venue.secondary_categories || [],
+  business_types: Array.isArray(venue.profile_attributes?.business_types) ? venue.profile_attributes.business_types : [],
   long_description: venue.long_description || "",
   specialty_tagline: venue.specialty_tagline || "",
   year_established: venue.year_established || "",
@@ -91,6 +93,10 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
   const savedIsGeneral = Boolean(venue.business_category) && savedCategory?.business_type === "general";
   const categoryChanged = Boolean(venue.business_category) && form.business_category !== venue.business_category;
 
+  // General categories (Other Business): the vendor says what they do, from the list or in their own words.
+  const typeAttr = (schema.attributes || []).find((a) => a.key === "business_types");
+  const showTypeField = Boolean(schema.taxonomy && typeAttr);
+
   const wordCount = form.long_description.trim().split(/\s+/).filter(Boolean).length;
   const wordsRemaining = minWords - wordCount;
   const descriptionMet = wordCount >= minWords;
@@ -120,6 +126,17 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
     if (onCategoryChange) onCategoryChange(form.business_category, secondary);
   };
 
+  const buildPayload = () => {
+    const { business_types, ...rest } = form;
+    if (!showTypeField) return rest;
+    // The server keeps only the detail keys it receives, so send ALL existing details
+    // with the new business types merged in. Otherwise keywords, brands etc. would be lost.
+    const attrs = { ...(venue.profile_attributes || {}) };
+    if (business_types.length) attrs.business_types = business_types;
+    else delete attrs.business_types;
+    return { ...rest, profile_attributes: attrs };
+  };
+
   const handleSave = () => {
     if (!form.business_category) {
       setTriedNext(true);
@@ -134,7 +151,7 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
       );
       if (!ok) return;
     }
-    onSave(form);
+    onSave(buildPayload());
   };
 
   return (
@@ -145,7 +162,7 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
           <p className="text-sm text-blue-800">
             You are listed under a general category. If there is a category that matches your business better
             (for example Auto Garage or Electronics Store), choose it below so customers find you in the right place.
-            If there is none, stay here and pick your kind of business in the Details tab.
+            If there is none, stay here and write what you do in "What kind of business is this?" below.
           </p>
         </div>
       )}
@@ -166,6 +183,21 @@ export default function BusinessDetailsTab({ venue, categories, schema, onCatego
         <div className="-mt-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
           Category changed. After you save, open the Details tab and fill the new required details, otherwise your
           listing stays hidden from the marketplace.
+        </div>
+      )}
+
+      {showTypeField && (
+        <div className="border border-primary-100 bg-primary-50/40 rounded-xl p-4">
+          <DynamicField
+            attr={{
+              ...typeAttr,
+              label: "What kind of business is this?",
+              placeholder: "Type your own, e.g. Monitor Dealer, then press Enter",
+              hint: "Pick from the list or type your own words (up to 3). Customers find you in search and on category pages by this."
+            }}
+            value={form.business_types}
+            onChange={(v) => setForm({ ...form, business_types: Array.isArray(v) ? v : [] })}
+          />
         </div>
       )}
 
