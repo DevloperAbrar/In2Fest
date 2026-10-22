@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Phone, RefreshCw, IndianRupee, Snowflake, Link2, Dumbbell, Camera, Pencil,
@@ -15,6 +15,7 @@ import Select from "../../../components/common/Select";
 import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
+import PhotoPicker from "./PhotoPicker.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import {
   GymPage, StatusPill, Field, TextArea, MessageModal,
@@ -117,33 +118,68 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     );
   }
 
-function EditModal({ isOpen, onClose, vid, member, onDone }) {
-  const [f, setF] = useState({});
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (isOpen) setF({ name: member.name, phone: member.phone, goal: member.goal || "", health_notes: member.health_notes || "", emergency_name: member.emergency_name || "", emergency_phone: member.emergency_phone || "", trainer_name: member.trainer_name || "", notes: member.notes || "" }); }, [isOpen, member]);
-  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
-  const submit = async () => {
-    setBusy(true);
-    try { await gymService.updateMember(vid, member.id, f); showSuccess("Saved"); onDone(); } catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
-  };
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Edit member" size="lg">
-      <div className="space-y-3">
-        <div className="grid sm:grid-cols-2 gap-3">
-          <Input label="Name" value={f.name || ""} onChange={set("name")} />
-          <Input label="Mobile" maxLength={10} value={f.phone || ""} onChange={set("phone")} />
-          <Select label="Goal" value={f.goal || ""} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
-          <Input label="Trainer" value={f.trainer_name || ""} onChange={set("trainer_name")} />
-          <Input label="Emergency contact" value={f.emergency_name || ""} onChange={set("emergency_name")} />
-          <Input label="Emergency phone" value={f.emergency_phone || ""} onChange={set("emergency_phone")} />
+  function EditModal({ isOpen, onClose, vid, member, onDone }) {
+    const [f, setF] = useState({});
+    const [photo, setPhoto] = useState(null);
+    const [busy, setBusy] = useState(false);
+    useEffect(() => { if (isOpen) { setPhoto(null); setF({ name: member.name, phone: member.phone, goal: member.goal || "", health_notes: member.health_notes || "", emergency_name: member.emergency_name || "", emergency_phone: member.emergency_phone || "", trainer_name: member.trainer_name || "", notes: member.notes || "" }); } }, [isOpen, member]);
+    const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+    const submit = async () => {
+      setBusy(true);
+      try {
+        await gymService.updateMember(vid, member.id, f);
+        if (photo) {
+          try { await gymService.uploadPhoto(vid, member.id, photo); }
+          catch (e) { showError(errMsg(e, "Details saved, but the photo could not be uploaded")); }
+        }
+        showSuccess("Saved");
+        onDone();
+      } catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
+    };
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Edit member" size="lg">
+        <div className="space-y-3">
+          <PhotoPicker currentUrl={member.photo_url} name={f.name || member.name} file={photo} onChange={setPhoto} disabled={busy} />
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Input label="Name" value={f.name || ""} onChange={set("name")} />
+            <Input label="Mobile" maxLength={10} value={f.phone || ""} onChange={set("phone")} />
+            <Select label="Goal" value={f.goal || ""} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+            <Input label="Trainer" value={f.trainer_name || ""} onChange={set("trainer_name")} />
+            <Input label="Emergency contact" value={f.emergency_name || ""} onChange={set("emergency_name")} />
+            <Input label="Emergency phone" value={f.emergency_phone || ""} onChange={set("emergency_phone")} />
+          </div>
+          <Field label="Health notes"><TextArea value={f.health_notes || ""} onChange={set("health_notes")} /></Field>
+          <Field label="Internal notes"><TextArea value={f.notes || ""} onChange={set("notes")} /></Field>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={busy}>Save</Button></div>
         </div>
-        <Field label="Health notes"><TextArea value={f.health_notes || ""} onChange={set("health_notes")} /></Field>
-        <Field label="Internal notes"><TextArea value={f.notes || ""} onChange={set("notes")} /></Field>
-        <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={busy}>Save</Button></div>
-      </div>
-    </Modal>
-  );
-}
+      </Modal>
+    );
+  }
+  
+  // Opened from the small camera button on the member's photo.
+  function PhotoModal({ isOpen, onClose, vid, member, onDone }) {
+    const [file, setFile] = useState(null);
+    const [busy, setBusy] = useState(false);
+    useEffect(() => { if (isOpen) setFile(null); }, [isOpen]);
+    const submit = async () => {
+      if (!file) return;
+      setBusy(true);
+      try { await gymService.uploadPhoto(vid, member.id, file); onDone(); }
+      catch (e) { showError(errMsg(e, "Could not upload the photo")); }
+      finally { setBusy(false); }
+    };
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Member photo" size="sm">
+        <div className="space-y-4">
+          <PhotoPicker currentUrl={member.photo_url} name={member.name} file={file} onChange={setFile} disabled={busy} />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={submit} loading={busy} disabled={!file}>Save photo</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
 function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     const { data: tpls, loading } = useFetch(isOpen ? `/venues/${vid}/gym/workout-plans?template=true` : null, { skip: !isOpen });
@@ -235,16 +271,13 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     const [modal, setModal] = useState(null);
     const [msg, setMsg] = useState(null);
     const [freezeDays, setFreezeDays] = useState("7");
-    const fileRef = useRef(null);
+
   
     if (loading || !data) return <GymPage title="Member"><Loader /></GymPage>;
     const { member: m, memberships, payments, workout_plans: plans, renewal_quote: rq, pay_ready: pr, plan } = data;
     const done = (text) => () => { setModal(null); if (text) showSuccess(text); refetch(); };
     const act = async (fn, ok) => { try { await fn(); showSuccess(ok); refetch(); } catch (e) { showError(errMsg(e)); } };
-    const upload = async (e) => {
-      const file = e.target.files?.[0];
-      if (file) await act(() => gymService.uploadPhoto(vid, m.id, file), "Photo updated");
-    };
+ 
     const downloadReceipt = async (p) => {
       try { const r = await gymService.receiptPdf(vid, p.id); downloadBlob(r.data, `${p.receipt_no || "receipt"}.pdf`); }
       catch { showError("Could not download the receipt"); }
@@ -265,8 +298,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
           <div className="flex items-start gap-4">
             <div className="relative">
               {m.photo_url ? <img src={m.photo_url} alt="" className="w-16 h-16 rounded-full object-cover" /> : <div className="w-16 h-16 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-xl font-semibold">{m.name[0]}</div>}
-              <button onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 bg-white border rounded-full p-1.5"><Camera size={13} /></button>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={upload} />
+              <button onClick={() => setModal("photo")} aria-label="Change photo" className="absolute -bottom-1 -right-1 bg-white border rounded-full p-1.5"><Camera size={13} /></button>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap"><StatusPill status={m.display_status} daysLeft={m.days_left} />{m.has_pt && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">PT</span>}</div>
@@ -356,6 +388,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         <PayModal isOpen={modal === "pay"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <LinkModal isOpen={modal === "link"} onClose={() => setModal(null)} vid={vid} member={m} hasDue={hasDue} />
         <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
+        <PhotoModal isOpen={modal === "photo"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Photo updated")} />
         <AssignWorkoutModal isOpen={modal === "workout"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <Modal isOpen={modal === "freeze"} onClose={() => setModal(null)} title="Freeze membership" size="sm">
           <div className="space-y-3">

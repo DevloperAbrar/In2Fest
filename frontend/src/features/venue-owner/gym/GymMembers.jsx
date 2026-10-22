@@ -12,6 +12,7 @@ import Loader from "../../../components/common/Loader";
 import EmptyState from "../../../components/common/EmptyState";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, Field, TextArea, GOALS, MODES, inr, fmtDate, errMsg, todayISO, downloadBlob } from "./gymShared.jsx";
+import PhotoPicker from "./PhotoPicker.jsx";
 
 const TABS = [["all", "All"], ["active", "Active"], ["expiring", "Expiring"], ["expired", "Expired"], ["frozen", "Frozen"], ["dues", "Dues"]];
  
@@ -28,11 +29,15 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   const { data: plans } = useFetch(isOpen && vid ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen || !vid });
   const blank = { name: "", phone: "", gender: "", goal: "", health_notes: "", emergency_name: "", emergency_phone: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
   const [f, setF] = useState(blank);
+  const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   useEffect(() => {
-    if (isOpen) setF({ ...blank, name: lead?.name || "", phone: lead?.phone || "", goal: lead?.goal || "" });
+    if (isOpen) {
+      setF({ ...blank, name: lead?.name || "", phone: lead?.phone || "", goal: lead?.goal || "" });
+      setPhoto(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, lead]);
 
@@ -49,14 +54,21 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
         source: lead ? "website_trial" : "walk_in",
         payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, reference: f.reference } : undefined
       });
+      const memberId = res.data.data.member.id;
       showSuccess("Member added");
-      onDone(res.data.data.member.id);
+      // The photo goes up right after the member exists. If it fails the member is still saved.
+      if (photo) {
+        try { await gymService.uploadPhoto(vid, memberId, photo); }
+        catch (e) { showError(errMsg(e, "Member added, but the photo could not be uploaded. Add it from the member page.")); }
+      }
+      onDone(memberId);
     } catch (e) { showError(errMsg(e, "Could not add member")); } finally { setBusy(false); }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add member" size="lg">
       <div className="space-y-3">
+        <PhotoPicker name={f.name} file={photo} onChange={setPhoto} disabled={busy} />
         <div className="grid sm:grid-cols-2 gap-3">
           <Input label="Name *" value={f.name} onChange={set("name")} />
           <Input label="Mobile *" inputMode="numeric" maxLength={10} value={f.phone} onChange={set("phone")} />
