@@ -6,6 +6,7 @@ const { uploadToR2 } = require("../../middleware/upload.middleware");
 const { getActiveFeatures } = require("../../utils/planAccess");
 const { getRedisClient } = require("../../config/redis");
 const { slugify } = require("../../utils/slugify");
+const { resolveTypeList } = require("../../config/otherBusinessTaxonomy");
 const {
   getProfileSchema,
   sanitizeProfileAttributes,
@@ -198,6 +199,19 @@ async function updateProfile(venueId, ownerId, payload) {
       if (!schemaKeys.has(key)) preserved[key] = value;
     });
     updates.profile_attributes = { ...preserved, ...clean };
+
+    // General businesses: keep the business types in one clean form (canonical names for the
+    // known types) and store their slugs next to them for fast filtering.
+    if (schema.taxonomy) {
+      const types = resolveTypeList(updates.profile_attributes.business_types);
+      if (types.length) {
+        updates.profile_attributes.business_types = types.map((t) => t.label);
+        updates.profile_attributes.business_type_slugs = types.map((t) => t.slug);
+      } else {
+        delete updates.profile_attributes.business_types;
+        delete updates.profile_attributes.business_type_slugs;
+      }
+    }
   }
 
   await venue.update(updates);

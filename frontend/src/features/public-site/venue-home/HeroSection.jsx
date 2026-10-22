@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { getBusinessLabel } from "../../../lib/businessLabel";
 
 export default function HeroSection({ venue }) {
   const [loaded, setLoaded] = useState(false);
@@ -42,7 +43,7 @@ export default function HeroSection({ venue }) {
           style={{ backgroundColor: `${theme}33` }}
         >
           <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: theme }} />
-          {venue.business_category || "Welcome"}
+          {getBusinessLabel(venue) || venue.business_category || "Welcome"}
         </div>
 
         <h1

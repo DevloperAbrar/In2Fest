@@ -5,17 +5,30 @@ import Select from "../../../components/common/Select";
 import MultiSelect from "../../../components/common/MultiSelect";
 import CatalogInput from "./CatalogInput";
 
-function TagsInput({ label, hint, value = [], onChange, max = 10, placeholder }) {
+// Short free-text list (keywords, brands, business types). `suggestions` adds quick-pick chips that
+// narrow down as the vendor types, so they can choose a ready name or still type their own.
+function TagsInput({ label, hint, value = [], onChange, max = 10, maxLen = 30, placeholder, suggestions = [] }) {
   const [draft, setDraft] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
-  const add = () => {
-    const t = draft.trim().replace(/,$/, "").slice(0, 30);
-    setDraft("");
+  const addValue = (raw) => {
+    const t = String(raw || "").trim().replace(/,$/, "").slice(0, maxLen);
     if (!t) return;
     if (value.length >= max) return;
     if (value.some((v) => v.toLowerCase() === t.toLowerCase())) return;
     onChange([...value, t]);
   };
+
+  const add = () => {
+    const t = draft;
+    setDraft("");
+    addValue(t);
+  };
+
+  const chosen = new Set(value.map((v) => v.toLowerCase()));
+  const q = draft.trim().toLowerCase();
+  const pool = suggestions.filter((s) => !chosen.has(s.toLowerCase()) && (!q || s.toLowerCase().includes(q)));
+  const shown = showAll ? pool : pool.slice(0, q ? 12 : 8);
 
   return (
     <div>
@@ -37,6 +50,7 @@ function TagsInput({ label, hint, value = [], onChange, max = 10, placeholder })
           type="text"
           value={draft}
           disabled={value.length >= max}
+          maxLength={maxLen}
           placeholder={value.length >= max ? `Maximum ${max} reached` : placeholder || "Type and press Enter"}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -57,6 +71,29 @@ function TagsInput({ label, hint, value = [], onChange, max = 10, placeholder })
           <Plus size={16} />
         </button>
       </div>
+
+      {suggestions.length > 0 && value.length < max && shown.length > 0 && (
+        <div className="mt-2">
+          <div className="flex flex-wrap gap-2">
+            {shown.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => addValue(s)}
+                className="flex items-center gap-1 text-xs text-gray-600 border border-dashed border-gray-300 rounded-full px-3 py-1.5 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+              >
+                <Plus size={12} /> {s}
+              </button>
+            ))}
+          </div>
+          {!showAll && pool.length > shown.length && (
+            <button type="button" onClick={() => setShowAll(true)} className="mt-2 text-xs font-medium text-primary-600 hover:underline">
+              Show all {pool.length}
+            </button>
+          )}
+        </div>
+      )}
+
       {hint && <p className="mt-1 text-xs text-gray-400">{hint}</p>}
     </div>
   );
@@ -162,7 +199,9 @@ export default function DynamicField({ attr, value, onChange }) {
           value={Array.isArray(value) ? value : []}
           onChange={onChange}
           max={attr.max || 10}
+          maxLen={attr.maxLen || 30}
           placeholder={attr.placeholder}
+          suggestions={Array.isArray(attr.suggestions) ? attr.suggestions : []}
         />
       );
 

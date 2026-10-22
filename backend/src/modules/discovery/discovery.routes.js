@@ -13,6 +13,7 @@ const router = express.Router();
 router.get("/homepage", homepageController.getHomepage);
 router.get("/search", searchController.searchVendors);
 router.get("/autocomplete", searchController.autocomplete);
+router.get("/business-types", searchController.businessTypes);
 router.get("/cities-with-vendors", cityController.getCitiesWithVendors);
 
 // "Notify me when you launch in my city"

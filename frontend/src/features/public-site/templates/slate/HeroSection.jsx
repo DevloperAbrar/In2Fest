@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { getBusinessLabel } from "../../../../lib/businessLabel";
 
 export default function HeroSection({ venue }) {
   const [loaded, setLoaded] = useState(false);
@@ -31,7 +32,7 @@ export default function HeroSection({ venue }) {
 
       <div className="relative z-10 flex items-center justify-between px-8 md:px-16 h-20 border-b border-white/[0.06]">
         <span className="font-bold text-white tracking-widest uppercase" style={{ letterSpacing: "0.2em", fontSize: "11px" }}>
-          {venue.business_category || "Venue"}
+          {getBusinessLabel(venue) || venue.business_category || "Venue"}
         </span>
         
         <a  href="#inquiry"

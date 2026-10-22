@@ -1,6 +1,8 @@
 const { Venue, City, Category } = require("../../database/models");
 const { slugify } = require("../../utils/slugify");
 const env = require("../../config/env");
+const { classifyVenue } = require("../../config/otherBusinessTaxonomy");
+const { getBusinessTypeKey } = require("../../config/businessTypes");
 
 const BASE = env.baseDomain || "in2fest.com";
 
@@ -62,7 +64,8 @@ async function generateSitemapXml() {
     Category.findAll({ where: { active: true } }),
     Venue.findAll({
       where: { is_active: true, marketplace_listed: true },
-      attributes: ["subdomain", "city", "business_category", "hall_name", "hero_image_url", "gallery", "updatedAt"]
+      attributes: ["subdomain", "city", "business_category", "hall_name", "hero_image_url", "gallery", "updatedAt",
+        "profile_attributes", "marketplace_services", "specialty_tagline"]
     })
   ]);
 
@@ -92,6 +95,22 @@ async function generateSitemapXml() {
       }
     });
   });
+
+    // City + business type pages for General categories (Other Business), for example
+  // /gwalior/other-business/cctv-security. Listed only when at least one vendor is there.
+  const citySlugs = new Set(cities.map((c) => c.slug));
+  const typeLastmod = new Map(); // "city-slug/category-slug/type-slug" -> latest vendor update
+  venues.forEach((v) => {
+    if (!v.business_category || !v.city || getBusinessTypeKey(v.business_category) !== "general") return;
+    const citySlug = slugify(v.city);
+    if (!citySlugs.has(citySlug)) return;
+    const d = toDate(v.updatedAt);
+    classifyVenue(v).forEach((t) => {
+      const key = `${citySlug}/${v.business_category}/${t.slug}`;
+      if (!typeLastmod.has(key) || (d && d > typeLastmod.get(key))) typeLastmod.set(key, d);
+    });
+  });
+  typeLastmod.forEach((lastmod, key) => cityUrls.push({ loc: `${SITE}/${key}`, lastmod }));
 
   // 3. Vendor profile pages + image entries
   const vendorUrls = [];

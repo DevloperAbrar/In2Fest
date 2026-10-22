@@ -12,6 +12,7 @@ const { BUSINESS_TYPES, getBusinessTypeKey, getBusinessProfile } = require("./bu
 const { AppError } = require("../middleware/error.middleware");
 const { getVertical } = require("./marketplaceVerticals");
 const { EXTRA_ATTRIBUTES, cleanCatalog } = require("./marketplaceExtras");
+const taxonomy = require("./otherBusinessTaxonomy");
 
 /* ------------------------------------------------------------------ */
 /* Field helpers                                                        */
@@ -412,6 +413,20 @@ const CATEGORY_ATTRIBUTES = {
 
   /* ---- general ---- */
   "other-business": [
+    tags("business_types", "What kind of business is this?", {
+      group: "Business details",
+      max: 3,
+      suggestionsFrom: "taxonomy",
+      placeholder: "e.g. CCTV & Security Systems",
+      hint: "Pick up to 3 from the list, or type your own. Customers find you through this in search and on category pages."
+    }),
+    multi("business_role", "You are a", taxonomy.ROLES, { group: "Business details", filterable: true }),
+    tags("brands", "Brands you deal in or work with", {
+      group: "Business details",
+      max: 10,
+      placeholder: "e.g. Hikvision, CP Plus",
+      hint: "Customers often search by brand name (up to 10)."
+    }),
     tags("keywords", "What does your business do?", {
       group: "Business details",
       max: 10,
@@ -422,7 +437,10 @@ const CATEGORY_ATTRIBUTES = {
       "At our location", "At customer's location", "Online", "Delivery"
     ], { group: "Business details", required: true, filterable: true }),
     num("experience_years", "Years of experience", { group: "Business details", min: 0, max: 100 }),
-    bool("free_estimate", "Free estimate / quote", { group: "Business details" })
+    bool("free_estimate", "Free estimate / quote", { group: "Business details", filterable: true }),
+    bool("gst_billing", "GST invoice provided", { group: "Business details", filterable: true }),
+    bool("bulk_orders", "Bulk / project orders accepted", { group: "Business details", filterable: true }),
+    bool("warranty_support", "Warranty / after-sales support", { group: "Business details", filterable: true })
   ]
 };
 
@@ -659,6 +677,7 @@ const TYPE_PROFILES = {
 
   general: {
     detailsTitle: "More Details",
+    stats: ["starting_price", "attr:business_role", "year_established", "attr:experience_years"],
     labels: {
       services: "Products & services",
       servicesHint: "Add what you sell or offer. Break each into sub-items if it helps customers.",
@@ -706,6 +725,15 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
 
   const requiredColumns = override.required || BASE_PROFILE.required;
 
+  // General businesses (Other Business and any category added with the General type) get a list
+  // of business types to pick from, plus quick-add services per type.
+  const isGeneralType = typeKey === "general";
+  if (isGeneralType) {
+    attributes.forEach((a) => {
+      if (a.suggestionsFrom === "taxonomy") a.suggestions = taxonomy.TYPES.map((t) => t.label);
+    });
+  }
+
   return {
     category: slug,
     business_type: typeKey,
@@ -727,7 +755,10 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
     stats: vertical.stats || override.stats || BASE_PROFILE.stats,
     features: { availability: getBusinessProfile(slug, secondary).modules.includes("slots") },
     attributes,
-    groups: [...new Set(attributes.map((a) => a.group))]
+    groups: [...new Set(attributes.map((a) => a.group))],
+    taxonomy: isGeneralType
+      ? { types: taxonomy.TYPES.map(({ slug: s, label, group, services }) => ({ slug: s, label, group, services })), roles: taxonomy.ROLES }
+      : null
   };
 }
 
@@ -774,7 +805,7 @@ function cleanValue(attr, value) {
       const seen = new Set();
       const out = [];
       value.forEach((v) => {
-        const t = String(v ?? "").trim().slice(0, 30);
+        const t = String(v ?? "").trim().slice(0, attr.maxLen || 30);
         const k = t.toLowerCase();
         if (!t || seen.has(k) || out.length >= max) return;
         seen.add(k);

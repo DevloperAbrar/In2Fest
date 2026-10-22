@@ -3,8 +3,14 @@ const { Venue, City, Category } = require("../../database/models");
 const { slugify, unslugify } = require("../../utils/slugify");
 const { getVertical, getCardTags } = require("../../config/marketplaceVerticals");
 const { getBusinessTypeKey } = require("../../config/businessTypes");
+const taxonomy = require("../../config/otherBusinessTaxonomy");
 
 const PAGE_SIZE = 20;
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+// "General" categories (Other Business and any category an admin adds with the General type)
+// have no built-in kind of service, so they are grouped by the business type the vendor declares.
+const isGeneral = (slug) => !!slug && getBusinessTypeKey(slug) === "general";
 
 const RELEVANCE_SCORE_SQL = `
   (CASE WHEN badge_premium_partner THEN 30 ELSE 0 END) +
@@ -47,21 +53,97 @@ function keywordTerms(q) {
 // Escape the characters that mean something inside an ILIKE pattern.
 const likeEscape = (s) => s.replace(/[\\%_]/g, "\\$&");
 
+// Every place a word can match on a listing.
+function fieldConditions(pattern) {
+  return [
+    { hall_name: { [Op.iLike]: pattern } },
+    { specialty_tagline: { [Op.iLike]: pattern } },
+    { business_category: { [Op.iLike]: pattern } },
+    { city: { [Op.iLike]: pattern } },
+    { primary_locality: { [Op.iLike]: pattern } },
+    sqlWhere(cast(col("secondary_categories"), "text"), { [Op.iLike]: pattern }),
+    sqlWhere(cast(col("marketplace_services"), "text"), { [Op.iLike]: pattern }),
+    sqlWhere(cast(col("marketplace_services_detail"), "text"), { [Op.iLike]: pattern }),
+    sqlWhere(cast(literal("profile_attributes->'keywords'"), "text"), { [Op.iLike]: pattern }),
+    sqlWhere(cast(literal("profile_attributes->'business_types'"), "text"), { [Op.iLike]: pattern }),
+    sqlWhere(cast(literal("profile_attributes->'brands'"), "text"), { [Op.iLike]: pattern })
+  ];
+}
+
+// One query word also matches its synonyms ("cctv" finds "security camera" listings).
 function termCondition(term) {
-  const pattern = `%${likeEscape(term)}%`;
-  return {
-    [Op.or]: [
-      { hall_name: { [Op.iLike]: pattern } },
-      { specialty_tagline: { [Op.iLike]: pattern } },
-      { business_category: { [Op.iLike]: pattern } },
-      { city: { [Op.iLike]: pattern } },
-      { primary_locality: { [Op.iLike]: pattern } },
-      sqlWhere(cast(col("secondary_categories"), "text"), { [Op.iLike]: pattern }),
-      sqlWhere(cast(col("marketplace_services"), "text"), { [Op.iLike]: pattern }),
-      sqlWhere(cast(col("marketplace_services_detail"), "text"), { [Op.iLike]: pattern }),
-      sqlWhere(cast(literal("profile_attributes->'keywords'"), "text"), { [Op.iLike]: pattern })
-    ]
-  };
+  const variants = taxonomy.expandTerm(term);
+  const list = variants.length ? variants : [term];
+  return { [Op.or]: list.flatMap((t) => fieldConditions(`%${likeEscape(t)}%`)) };
+}
+
+// ---------------------------------------------------------------------------
+// Business types (Other Business and other General categories)
+// Which type(s) a listing belongs to is worked out by taxonomy.classifyVenue: what the vendor
+// declared, else a guess from their keywords and services. The same function feeds the filter,
+// the facet counts and the sitemap, so a page never shows a different count from its list.
+// Results are cached for a minute per city (each server instance keeps its own copy).
+// ---------------------------------------------------------------------------
+const TYPE_CACHE_TTL_MS = 60 * 1000;
+const typeCache = new Map();
+
+function fromCache(key) {
+  const hit = typeCache.get(key);
+  return hit && Date.now() - hit.at < TYPE_CACHE_TTL_MS ? hit.value : null;
+}
+
+function toCache(key, value) {
+  typeCache.set(key, { at: Date.now(), value });
+  if (typeCache.size > 300) typeCache.delete(typeCache.keys().next().value);
+  return value;
+}
+
+async function generalCategorySlugs() {
+  const cached = fromCache("general-slugs");
+  if (cached) return cached;
+  const rows = await Category.findAll({ where: { active: true }, attributes: ["slug"], raw: true });
+  const slugs = rows.map((r) => r.slug).filter(isGeneral);
+  if (!slugs.includes("other-business")) slugs.push("other-business");
+  return toCache("general-slugs", slugs);
+}
+
+async function loadGeneralVenues(cityName) {
+  const key = `venues:${String(cityName || "*").toLowerCase()}`;
+  const cached = fromCache(key);
+  if (cached) return cached;
+
+  const where = { ...baseWhere(), business_category: { [Op.in]: await generalCategorySlugs() } };
+  if (cityName) where.city = { [Op.iLike]: cityName };
+
+  const venues = await Venue.findAll({
+    where,
+    attributes: ["id", "hall_name", "business_category", "specialty_tagline", "profile_attributes", "marketplace_services"],
+    limit: 5000
+  });
+  const rows = venues.map((v) => ({ id: v.id, category: v.business_category, types: taxonomy.classifyVenue(v) }));
+  return toCache(key, rows);
+}
+
+// Ids of the listings of one business type (optionally limited to one category).
+async function venueIdsForType({ city, typeSlug, category }) {
+  const rows = await loadGeneralVenues(city ? unslugify(city) : null);
+  return rows
+    .filter((r) => (!category || r.category === category) && r.types.some((t) => t.slug === typeSlug))
+    .map((r) => r.id);
+}
+
+// Business types that have listings, with counts. Powers the filter chips and the links on category pages.
+async function getBusinessTypeFacets({ city, category } = {}) {
+  if (category && !isGeneral(category)) return { items: [], total: 0 };
+  const rows = (await loadGeneralVenues(city ? unslugify(city) : null)).filter((r) => !category || r.category === category);
+  const counts = new Map();
+  rows.forEach((r) => r.types.forEach((t) => {
+    const cur = counts.get(t.slug) || { slug: t.slug, label: t.label, count: 0 };
+    cur.count += 1;
+    counts.set(t.slug, cur);
+  }));
+  const items = [...counts.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 40);
+  return { items, total: rows.length };
 }
 
 // Extracts [lat, lng] from a Google Maps link string.
@@ -74,6 +156,15 @@ function extractCoordsFromLink(link = "") {
   const q = link.match(/[?&](?:q|query|ll)=(-?\d+\.?\d+),\s*(-?\d+\.?\d+)/);
   if (q) return [parseFloat(q[1]), parseFloat(q[2])];
   return null;
+}
+
+// Up to 3 service chips for a listing card. General businesses that have not added services
+// yet fall back to their keywords, so the card still says what they do.
+function cardServices(venue) {
+  const services = Array.isArray(venue.marketplace_services) ? venue.marketplace_services : [];
+  if (services.length || !isGeneral(venue.business_category)) return services.slice(0, 3);
+  const kw = venue.profile_attributes && venue.profile_attributes.keywords;
+  return Array.isArray(kw) ? kw.slice(0, 3) : [];
 }
 
 // `matchedCategory`: the category slug the caller searched for, if any.
@@ -89,6 +180,7 @@ function vendorSummary(venue, cityRow, matchedCategory) {
   // centre coordinates so the vendor still appears on the map.
   const link = venue.google_maps_link || "";
   const linkCoords = extractCoordsFromLink(link);
+  const types = isGeneral(venue.business_category) ? taxonomy.classifyVenue(venue) : [];
 
   const latitude = linkCoords ? linkCoords[0] : (cityRow ? parseFloat(cityRow.latitude) : null);
   const longitude = linkCoords ? linkCoords[1] : (cityRow ? parseFloat(cityRow.longitude) : null);
@@ -112,7 +204,10 @@ function vendorSummary(venue, cityRow, matchedCategory) {
     badge_verified_business: venue.badge_verified_business,
     badge_documents_verified: venue.badge_documents_verified,
     badge_premium_partner: venue.badge_premium_partner,
-    marketplace_services: (venue.marketplace_services || []).slice(0, 3),
+    marketplace_services: cardServices(venue),
+    business_types: types.map((t) => t.label),
+    business_type_slugs: types.map((t) => t.slug),
+    business_type_label: types.length ? types[0].label : null,
     card_tags: getCardTags(
       getVertical(venue.business_category, getBusinessTypeKey(venue.business_category)),
       venue.profile_attributes || {}
@@ -150,6 +245,13 @@ async function search(query) {
       { business_category: category },
       { secondary_categories: { [Op.contains]: [category] } }
     ];
+  }
+
+  // Business type (Other Business): ?business_type=cctv-security
+  const typeSlug = taxonomy.slugifyLabel(query.business_type || "");
+  if (typeSlug) {
+    const ids = await venueIdsForType({ city, typeSlug, category });
+    where.id = { [Op.in]: ids.length ? ids : [NIL_UUID] };
   }
 
   if (budget_min || budget_max) {
@@ -254,4 +356,4 @@ async function autocomplete(q) {
   }));
 }
 
-module.exports = { search, autocomplete, vendorSummary, PAGE_SIZE };
+module.exports = { search, autocomplete, vendorSummary, venueIdsForType, getBusinessTypeFacets, isGeneral, PAGE_SIZE };

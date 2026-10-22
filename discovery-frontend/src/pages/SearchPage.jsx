@@ -11,6 +11,7 @@ import SearchBar from "../components/search/SearchBar";
 import MapView from "../components/search/MapView";
 import CategoryChipStrip from "../components/search/CategoryChipStrip";
 import VerticalFilters from "../components/search/VerticalFilters";
+import BusinessTypeChips from "../components/search/BusinessTypeChips";
 import ActiveFiltersBar from "../components/search/ActiveFiltersBar";
 import SearchStats from "../components/search/SearchStats";
 import CategoryComingSoon from "../components/search/CategoryComingSoon";
@@ -243,6 +244,12 @@ export default function SearchPage() {
 
 
               <div className="mt-3">
+              <BusinessTypeChips
+                city={filters.city}
+                category={filters.category}
+                active={filters.business_type}
+                onSelect={(slug) => updateFilters({ ...filters, business_type: slug, page: undefined })}
+              />
               <VerticalFilters category={filters.category} filters={filters} onChange={updateFilters} />
                 <ActiveFiltersBar filters={filters} onRemove={removeFilterKeys} onClearAll={clearAllFilters} />
               </div>

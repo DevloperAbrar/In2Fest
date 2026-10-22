@@ -1,7 +1,8 @@
 const { Op, fn, col } = require("sequelize");
 const { Venue, City, Category } = require("../../database/models");
 const { unslugify } = require("../../utils/slugify");
-const { vendorSummary, PAGE_SIZE } = require("./search.service");
+const { vendorSummary, venueIdsForType, getBusinessTypeFacets, isGeneral, PAGE_SIZE } = require("./search.service");
+const taxonomy = require("../../config/otherBusinessTaxonomy");
 const { AppError } = require("../../middleware/error.middleware");
 const { getRedisClient } = require("../../config/redis");
 
@@ -87,7 +88,9 @@ async function getCityCategory(req, res, next) {
   try {
     const { citySlug, categorySlug } = req.params;
     const page = Number(req.query.page) || 1;
-    const cacheKey = `marketplace:city:${citySlug}:cat:${categorySlug}:page:${page}`;
+    // Business type page, for example /gwalior/other-business/cctv-security (General categories only).
+    const typeSlug = taxonomy.slugifyLabel(req.query.type || "");
+    const cacheKey = `marketplace:city:${citySlug}:cat:${categorySlug}${typeSlug ? `:type:${typeSlug}` : ""}:page:${page}`;
 
     const redis = await getRedisClient();
     if (redis) {
@@ -99,17 +102,36 @@ async function getCityCategory(req, res, next) {
     const category = await Category.findOne({ where: { slug: categorySlug, active: true } });
     if (!category) throw new AppError("Category not found", 404);
 
+    const where = {
+      is_active: true,
+      marketplace_listed: true,
+      city: { [Op.iLike]: cityName },
+      business_category: categorySlug
+    };
+
+    let businessType = null;
+    if (typeSlug) {
+      if (!isGeneral(categorySlug)) throw new AppError("Business type not found", 404);
+      const ids = await venueIdsForType({ city: citySlug, typeSlug, category: categorySlug });
+      // No listings means no page, so empty pages are never indexed.
+      if (!ids.length) throw new AppError("Business type not found", 404);
+      where.id = { [Op.in]: ids };
+      const known = taxonomy.getType(typeSlug);
+      const facets = await getBusinessTypeFacets({ city: citySlug, category: categorySlug });
+      const fromFacet = facets.items.find((i) => i.slug === typeSlug);
+      businessType = { slug: typeSlug, label: known ? known.label : (fromFacet ? fromFacet.label : typeSlug.replace(/-/g, " ")) };
+    }
+
     const { count, rows } = await Venue.findAndCountAll({
-      where: {
-        is_active: true,
-        marketplace_listed: true,
-        city: { [Op.iLike]: cityName },
-        business_category: categorySlug
-      },
+      where,
       order: [["featured_on_homepage", "DESC"], ["average_rating", "DESC"]],
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE
     });
+
+    // The label used in headings, titles and the FAQ: the business type when there is one.
+    const subject = businessType ? businessType.label : category.name;
+    const lower = subject.toLowerCase();
 
     const responseBody = {
       success: true,
@@ -117,20 +139,23 @@ async function getCityCategory(req, res, next) {
         city_name: cityName,
         city_slug: citySlug,
         category,
-        vendors: rows.map(vendorSummary),
+        business_type: businessType,
+        // Links to every business type in this city, so crawlers and visitors can reach each type page.
+        type_facets: !typeSlug && isGeneral(categorySlug) ? (await getBusinessTypeFacets({ city: citySlug, category: categorySlug })).items : [],
+        vendors: rows.map((v) => vendorSummary(v)),
         total: count,
         page,
         totalPages: Math.ceil(count / PAGE_SIZE),
-        intro: `Looking for the best ${category.name.toLowerCase()} in ${cityName}? Browse ${count} verified ${category.name.toLowerCase()} on CampusSafar, compare prices and reviews, and contact your favorites directly.`,
+        intro: `Looking for the best ${lower} in ${cityName}? Browse ${count} verified ${lower} on In2Fest, compare prices and reviews, and contact your favorites directly.`,
         faq: [
           {
-            q: `How many ${category.name.toLowerCase()} are there in ${cityName}?`,
-            a: `There are ${count} verified ${category.name.toLowerCase()} listed on In2Fest in ${cityName}.`
+            q: `How many ${lower} are there in ${cityName}?`,
+            a: `There are ${count} verified ${lower} listed on In2Fest in ${cityName}.`
           }
         ],
         seo: {
-          title: `Best ${category.name} in ${cityName} - Book Verified Vendors - In2Fest`,
-          description: `Find and book verified ${category.name.toLowerCase()} in ${cityName}. Compare prices, check availability, and contact directly. ${count} vendors listed.`
+          title: `Best ${subject} in ${cityName} - ${businessType ? "Compare Prices & Contact" : "Book Verified Vendors"} - In2Fest`,
+          description: `Find verified ${lower} in ${cityName}. Compare prices, services and reviews, and contact directly. ${count} ${count === 1 ? "business" : "businesses"} listed.`
         }
       }
     };

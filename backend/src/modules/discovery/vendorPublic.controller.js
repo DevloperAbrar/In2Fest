@@ -3,12 +3,35 @@
 const { Op } = require("sequelize");
 const { Venue, Booking, Slot } = require("../../database/models");
 const { unslugify } = require("../../utils/slugify");
-const { vendorSummary } = require("./search.service");
+const { vendorSummary, venueIdsForType, isGeneral } = require("./search.service");
+const taxonomy = require("../../config/otherBusinessTaxonomy");
 const { AppError } = require("../../middleware/error.middleware");
 const { Package, BookingUnit } = require("../../database/models");
 const { getProfileSchema } = require("../../config/marketplaceSchemas");
 const { getActiveFeatures } = require("../../utils/planAccess");
 const { getLiveData } = require("./vendorLive.service");
+
+
+// Up to 4 similar listings. For General categories "similar" means the same business type
+// (a CCTV dealer sees other CCTV dealers), not just the same category.
+async function findSimilarVenues(venue, cityName, categorySlug, types) {
+  const base = {
+    id: { [Op.ne]: venue.id },
+    city: { [Op.iLike]: cityName },
+    business_category: categorySlug,
+    is_active: true,
+    marketplace_listed: true
+  };
+  if (!types.length) return Venue.findAll({ where: base, limit: 4 });
+
+  const mine = new Set(types.map((t) => t.slug));
+  const pool = await Venue.findAll({ where: base, limit: 60 });
+  return pool
+    .map((v) => ({ v, shared: taxonomy.classifyVenue(v).filter((t) => mine.has(t.slug)).length }))
+    .sort((a, b) => b.shared - a.shared)
+    .slice(0, 4)
+    .map((x) => x.v);
+}
 
 async function getVendorProfile(req, res, next) {
   try {
@@ -27,18 +50,11 @@ async function getVendorProfile(req, res, next) {
 
     if (!venue) throw new AppError("Vendor profile not found", 404);
 
+    const types = isGeneral(categorySlug) ? taxonomy.classifyVenue(venue) : [];
+
     const [activeFeatures, similar] = await Promise.all([
       getActiveFeatures(venue.id),
-      Venue.findAll({
-        where: {
-          id: { [Op.ne]: venue.id },
-          city: { [Op.iLike]: cityName },
-          business_category: categorySlug,
-          is_active: true,
-          marketplace_listed: true
-        },
-        limit: 4
-      })
+      findSimilarVenues(venue, cityName, categorySlug, types)
     ]);
 
     // What this vendor's CURRENT plan allows visitors to see / do.
@@ -67,9 +83,15 @@ async function getVendorProfile(req, res, next) {
       venueData.average_rating = null;
       venueData.review_count = 0;
     }
+    // What this business actually is, for the heading and the links to its type page.
+    venueData.business_types_resolved = types;
+    venueData.business_type_label = types.length ? types[0].label : null;
 
     const live = await getLiveData(venue, profileSchema.vertical, activeFeatures);
 
+    // "Shri Maya Associates - CCTV & Security Systems in Gwalior" instead of "... other business in Gwalior".
+    const kind = venueData.business_type_label || categorySlug.replace(/-/g, " ");
+    const serviceList = (venue.marketplace_services || []).slice(0, 4).join(", ");
     const description150 = (venue.long_description || "").slice(0, 155);
 
     res.json({
@@ -79,10 +101,10 @@ async function getVendorProfile(req, res, next) {
         plan_features: planFeatures,
         profile_schema: profileSchema,
         live,
-        similar_vendors: similar.map(vendorSummary),
+        similar_vendors: similar.map((v) => vendorSummary(v)),
         seo: {
-          title: `${venue.hall_name} - ${categorySlug.replace(/-/g, " ")} in ${cityName} - In2Fest`,
-          description: description150 || `${venue.hall_name}  - ${categorySlug.replace(/-/g, " ")} in ${cityName}. View gallery, pricing, and reviews on In2Fest.`
+          title: `${venue.hall_name} - ${kind} in ${cityName} - In2Fest`,
+          description: description150 || `${venue.hall_name} - ${kind} in ${cityName}.${serviceList ? ` Services: ${serviceList}.` : ""} View photos, pricing, and reviews on In2Fest.`
         }
       }
     });
@@ -108,6 +130,12 @@ async function resolveThirdSegment(req, res, next) {
 
     if (vendor) {
       return res.json({ success: true, data: { type: "vendor" } });
+    }
+
+    // A business type page such as /gwalior/other-business/cctv-security
+    if (isGeneral(categorySlug)) {
+      const ids = await venueIdsForType({ city: citySlug, typeSlug: taxonomy.slugifyLabel(slug), category: categorySlug });
+      if (ids.length) return res.json({ success: true, data: { type: "business_type" } });
     }
 
     res.json({ success: true, data: { type: "locality" } });

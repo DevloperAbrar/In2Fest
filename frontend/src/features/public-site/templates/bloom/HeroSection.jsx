@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { getBusinessLabel } from "../../../../lib/businessLabel";
 
 export default function HeroSection({ venue }) {
   const [loaded, setLoaded] = useState(false);
@@ -24,7 +25,7 @@ export default function HeroSection({ venue }) {
             style={{ fontFamily: "'DM Sans', sans-serif", color: theme, borderColor: `${theme}44`, backgroundColor: `${theme}0d` }}
           >
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme }} />
-            {venue.business_category || "Venue"}
+            {getBusinessLabel(venue) || venue.business_category || "Venue"}
           </div>
 
           <h1

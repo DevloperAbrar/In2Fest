@@ -4,6 +4,7 @@ const GYM = ["gym-fitness"];
 const FOOD = ["restaurant", "bakery-sweets", "cloud-kitchen"];
 const SHOPS = ["kirana-store", "clothing-store", "electronics-store", "mobile-shop", "pharmacy", "stationery-store"];
 const EVENTS = ["marriage-hall", "banquet-hall", "party-lawn", "farmhouse"];
+const GENERAL = ["other-business"];
 
 // key = attribute key, value "1" means yes/no attribute is true.
 const GROUPS = [
@@ -22,6 +23,14 @@ const GROUPS = [
     { key: "home_delivery", value: "1", label: "Home delivery" },
     { key: "emi_available", value: "1", label: "EMI" },
     { key: "open_sunday", value: "1", label: "Open Sundays" }
+  ] },
+  { slugs: GENERAL, items: [
+    { key: "business_role", value: "Dealer / Retailer", label: "Dealer" },
+    { key: "business_role", value: "Manufacturer", label: "Manufacturer" },
+    { key: "business_role", value: "Installer / Service provider", label: "Installer / Service" },
+    { key: "free_estimate", value: "1", label: "Free estimate" },
+    { key: "gst_billing", value: "1", label: "GST invoice" },
+    { key: "bulk_orders", value: "1", label: "Bulk orders" }
   ] },
   { slugs: EVENTS, items: [
     { key: "ac_hall", value: "1", label: "AC hall" },
@@ -60,7 +69,7 @@ export default function VerticalFilters({ category, filters, onChange }) {
         const on = filters[`f_${item.key}`] === item.value;
         return (
           <button
-            key={item.key}
+            key={`${item.key}:${item.value}`}
             type="button"
             onClick={() => toggle(item)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-navy-700 text-white border-navy-700" : "bg-white text-gray-600 border-gray-200 hover:border-navy-300"}`}

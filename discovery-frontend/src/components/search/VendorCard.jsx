@@ -7,6 +7,7 @@ import PriceRange from "../common/PriceRange";
 import { slugify } from "../../lib/seoHelpers";
 import { getImageUrl } from "../../lib/constants";
 import { getCategoryLabel } from "../common/CategoryIcon";
+import { getBusinessLabel } from "../../lib/businessLabel";
 
 // Premium ribbon SVG  - sits on the image corner
 function PremiumRibbon() {
@@ -84,7 +85,7 @@ export default function VendorCard({ vendor }) {
         </div>
 
         <p className="flex items-center gap-1 text-xs text-gray-500">
-          {getCategoryLabel(vendor.business_category)}
+          {getBusinessLabel(vendor) || getCategoryLabel(vendor.business_category)}
           <span className="text-gray-300">·</span>
           <MapPin size={11} className="text-gray-300" /> {vendor.city}
         </p>

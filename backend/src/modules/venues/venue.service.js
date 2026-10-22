@@ -9,6 +9,8 @@ const { uploadToR2 } = require("../../middleware/upload.middleware");
 const sharp = require("sharp");
 const { createFreeSubscription, adminAssignPlan } = require("../subscriptions/subscription.service");
 const { sanitizeBusinessHours, sanitizeServices, sanitizeNavConfig } = require("../../utils/venueContentSanitizer");
+const otherBiz = require("../../config/otherBusinessTaxonomy");
+const { getBusinessTypeKey: bizTypeKey } = require("../../config/businessTypes");
 
 function slugify(text) {
   return text
@@ -531,6 +533,18 @@ async function attachCatalogItems(venue) {
   venue.setDataValue("catalog_items", items);
 }
 
+// General businesses (Other Business): enter services once in the marketplace profile and they also
+// appear in the website's "Our Services" section, unless the vendor has added website services of their own.
+// Also adds the business type so the website banner shows "CCTV & Security Systems", not "other-business".
+function decorateGeneralVenue(venue) {
+  if (otherBiz.isGeneralVenue(venue, bizTypeKey)) {
+    const own = Array.isArray(venue.services) ? venue.services : [];
+    if (!own.length) venue.setDataValue("services", otherBiz.deriveWebsiteServices(venue));
+    const types = otherBiz.classifyVenue(venue);
+    venue.setDataValue("business_type_label", types.length ? types[0].label : null);
+  }
+}
+
 async function getPublicVenueBySubdomain(subdomain) {
   const venue = await Venue.findOne({
     where: {
@@ -550,6 +564,7 @@ async function getPublicVenueBySubdomain(subdomain) {
   }
 
   venue.setDataValue("page_sections", normalizeSections(venue));
+  decorateGeneralVenue(venue);
   await attachCatalogItems(venue);
   return venue;
 }

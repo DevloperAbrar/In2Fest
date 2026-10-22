@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { getBusinessLabel } from "../../../../lib/businessLabel";
 
 export default function HeroSection({ venue }) {
   const [loaded, setLoaded] = useState(false);
@@ -49,7 +50,7 @@ export default function HeroSection({ venue }) {
         <div className="inline-flex items-center gap-3 mb-10" style={{ opacity: loaded ? 1 : 0, transition: "opacity 1s ease 0.1s" }}>
           <div className="h-px w-12 opacity-60" style={{ backgroundColor: theme }} />
           <span className="text-xs tracking-[0.35em] uppercase font-light text-white/70" style={{ fontFamily: "'Inter', sans-serif" }}>
-            {venue.business_category || "Venue"}
+            {getBusinessLabel(venue) || venue.business_category || "Venue"}
           </span>
           <div className="h-px w-12 opacity-60" style={{ backgroundColor: theme }} />
         </div>

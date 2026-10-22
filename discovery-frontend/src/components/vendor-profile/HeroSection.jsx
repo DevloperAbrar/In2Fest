@@ -1,9 +1,12 @@
 import React from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { MapPin, BadgeCheck, Crown } from "lucide-react";
 import StarRating from "../common/StarRating";
 import Badge from "../common/Badge";
 import { getImageUrl } from "../../lib/constants";
+import { getBusinessLabel } from "../../lib/businessLabel";
+import { slugify } from "../../lib/seoHelpers";
 
 function TrustBar({ venue }) {
   const badges = [
@@ -29,6 +32,9 @@ function TrustBar({ venue }) {
 
 export default function HeroSection({ venue, showRating = true }) {
   const imageUrl = getImageUrl(venue.hero_image_url);
+  // Other Business: show what the business does (and link to that type page) instead of "other business".
+  const typeLabel = getBusinessLabel(venue);
+  const typeSlug = venue.business_types_resolved?.[0]?.slug;
 
   return (
     <div className="relative">
@@ -74,7 +80,13 @@ export default function HeroSection({ venue, showRating = true }) {
           className="bg-white rounded-2xl shadow-[0_8px_30px_rgba(11,14,28,0.12)] p-5 md:p-7"
         >
           <p className="text-xs uppercase tracking-wide text-accent-600 font-semibold mb-1.5">
-            {venue.business_category?.replace(/-/g, " ")}
+            {typeLabel && typeSlug ? (
+              <Link to={`/${slugify(venue.city || "")}/${venue.business_category}/${typeSlug}`} className="hover:underline">
+                {typeLabel}
+              </Link>
+            ) : (
+              typeLabel || venue.business_category?.replace(/-/g, " ")
+            )}
           </p>
 
           <div className="flex items-center gap-2 flex-wrap">

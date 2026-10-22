@@ -70,9 +70,17 @@ export default function ServicesChecklistTab({ venue, categories, schema, onSave
 
   const existingNames = groups.map((g) => g.name.trim().toLowerCase());
 
-  const suggestions = Array.from(new Set([...(schema.services_suggestions || []), ...registeredNames])).filter(
-    (name) => !existingNames.includes(name.trim().toLowerCase())
-  );
+  // General businesses (Other Business): quick-add the usual services of the business types they
+  // picked, plus their own keywords. The category name itself ("Other Business") is not a service.
+  const attrs = venue.profile_attributes || {};
+  const typeServices = schema.taxonomy
+    ? (attrs.business_types || []).flatMap((label) => schema.taxonomy.types.find((t) => t.label === label)?.services || [])
+    : [];
+  const ownKeywords = schema.taxonomy && Array.isArray(attrs.keywords) ? attrs.keywords : [];
+
+  const suggestions = Array.from(
+    new Set([...typeServices, ...ownKeywords, ...(schema.services_suggestions || []), ...(schema.taxonomy ? [] : registeredNames)])
+  ).filter((name) => !existingNames.includes(name.trim().toLowerCase()));
 
   const addGroup = (name) => {
     const trimmed = (name || "").trim().slice(0, 60);
