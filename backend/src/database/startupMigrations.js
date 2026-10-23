@@ -72,6 +72,10 @@ const SCHEMA_STATEMENTS = [
      PRIMARY KEY (venue_id, doc_type, fy)
    )`,
 
+
+  // ---- gym logo (member card, receipt, workout PDF) ----
+  `ALTER TABLE venues
+     ADD COLUMN IF NOT EXISTS logo_url TEXT`,
   // ---- website display options + opening hours ----
   `ALTER TABLE venues
      ADD COLUMN IF NOT EXISTS show_availability BOOLEAN NOT NULL DEFAULT true,

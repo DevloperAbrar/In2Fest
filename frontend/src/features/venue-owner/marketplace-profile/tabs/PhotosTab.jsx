@@ -4,6 +4,7 @@ import Button from "../../../../components/common/Button";
 import { showSuccess, showError } from "../../../../components/common/Toast";
 import { marketplaceProfileService } from "../../../../services/marketplaceProfileService";
 import { BACKEND_URL } from "../../../../lib/constants";
+import GymLogoUploader from "../../gym/GymLogoUploader.jsx";
 
 const MAX_MB = 5;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -28,7 +29,7 @@ export default function PhotosTab({ venue, photoUpload, onChanged, onNext, onBac
   const [uploadingHero, setUploadingHero] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-
+  const isGym = [venue.business_category, ...(venue.secondary_categories || [])].includes("gym-fitness");
   const maxGallery = photoUpload?.max_gallery || 4;
   const gallery = Array.isArray(venue.gallery) ? venue.gallery : [];
   const emptySlots = Math.max(0, maxGallery - gallery.length);
@@ -147,6 +148,14 @@ export default function PhotosTab({ venue, photoUpload, onChanged, onNext, onBac
           {venue.hero_image_url ? "Change hero image" : "Upload hero image"}
         </Button>
       </div>
+
+      {/* Gym logo: printed on member cards, receipts and workout PDFs */}
+      {isGym && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Gym logo</label>
+          <GymLogoUploader venueId={venue.id} logoUrl={venue.logo_url} onChanged={onChanged} />
+        </div>
+      )}
 
       {/* Gallery */}
       <div>

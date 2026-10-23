@@ -14,6 +14,7 @@ const insights = require("./gym.insights.service");
 const messages = require("./gym.messages.service");
 const receipt = require("./gym.receipt");
 const card = require("./gym.card");
+const logo = require("./gym.logo");
 const workout = require("./gym.workout.service");
 const store = require("./gym.store.service");
 const invoicePdf = require("./gym.store.invoice");
@@ -52,6 +53,10 @@ const proOnly = requirePlanFeature("gym_pro");
 router.get("/dashboard", h((req) => insights.dashboard(req.gymVenue.id)));
 router.get("/settings", h((req) => insights.publicSettings(req.gymSettings)));
 router.put("/settings", ownerOnly, h((req) => insights.updateSettings(req.gymVenue.id, req.body)));
+
+// gym logo (printed on member cards, receipts and workout PDFs)
+router.post("/logo", ownerOnly, upload.single("logo"), h((req) => logo.setLogo(req.gymVenue, req.file)));
+router.delete("/logo", ownerOnly, h((req) => logo.removeLogo(req.gymVenue)));
 
 // membership plans
 router.get("/plans", h((req) => members.listPlans(req.gymVenue.id, req.query.all === "true")));

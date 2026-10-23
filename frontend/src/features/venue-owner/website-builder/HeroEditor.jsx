@@ -9,12 +9,14 @@ import Button from "../../../components/common/Button";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { BACKEND_URL } from "../../../lib/constants"; // ADD
+import GymLogoUploader from "../gym/GymLogoUploader.jsx";
 
 export default function HeroEditor() {
   const { venue, refetchVenue } = useVenue();
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const isGym = [venue?.business_category, ...(venue?.secondary_categories || [])].includes("gym-fitness");
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm({
     defaultValues: { hero_heading: "", hero_subheading: "", hero_button_text: "Enquire Now" }
@@ -64,7 +66,7 @@ export default function HeroEditor() {
           <label className="block text-sm font-medium text-gray-700 mb-2">Hero Image</label>
           {venue?.hero_image_url && (
             <img
-            src={venue.hero_image_url}
+              src={venue.hero_image_url}
               alt="hero"
               className="w-full h-40 object-cover rounded-lg mb-3"
             />
@@ -72,6 +74,13 @@ export default function HeroEditor() {
           <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0])} className="mb-2 text-sm" />
           <Button onClick={handleImageUpload} loading={uploading} variant="outline">Upload Image</Button>
         </div>
+
+        {isGym && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Gym Logo</label>
+            <GymLogoUploader venueId={venue.id} logoUrl={venue.logo_url} onChanged={refetchVenue} />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input label="Heading" {...register("hero_heading")} />

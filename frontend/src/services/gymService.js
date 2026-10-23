@@ -6,6 +6,12 @@ export const gymService = {
   dashboard: (v) => api.get(`${b(v)}/dashboard`),
   getSettings: (v) => api.get(`${b(v)}/settings`),
   saveSettings: (v, body) => api.put(`${b(v)}/settings`, body),
+  uploadLogo: (v, file) => {
+    const fd = new FormData();
+    fd.append("logo", file);
+    return api.post(`${b(v)}/logo`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+  },
+  removeLogo: (v) => api.delete(`${b(v)}/logo`),
 
   listPlans: (v, all = false) => api.get(`${b(v)}/plans`, { params: { all } }),
   createPlan: (v, body) => api.post(`${b(v)}/plans`, body),

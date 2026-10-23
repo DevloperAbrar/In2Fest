@@ -1,3 +1,4 @@
+const axios = require("axios");
 const { User } = require("../../database/models");
 
 // One palette for the membership card, receipt, invoice and workout PDF.
@@ -22,6 +23,18 @@ function fmtPhone(raw) {
   return ten ? `+91 ${ten.slice(0, 5)} ${ten.slice(5)}` : String(raw || "").trim();
 }
 
+// The gym logo is stored as a PNG in our own storage. Only that storage is ever fetched.
+async function loadLogo(url) {
+  const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!url || !base || !String(url).startsWith(`${base}/`)) return null;
+  try {
+    const r = await axios.get(url, { responseType: "arraybuffer", timeout: 5000, maxContentLength: 3 * 1024 * 1024, maxRedirects: 0 });
+    return Buffer.from(r.data);
+  } catch {
+    return null;
+  }
+}
+
 // The gym's details exactly as the vendor saved them: owner name, gym name, phone,
 // login email of the owner account and address.
 async function gymIdentity(venue) {
@@ -41,7 +54,8 @@ async function gymIdentity(venue) {
     phone: fmtPhone(venue.phone),
     email,
     address,
-    gstin: venue.gst_enabled && venue.gst_number ? String(venue.gst_number).trim() : ""
+    gstin: venue.gst_enabled && venue.gst_number ? String(venue.gst_number).trim() : "",
+    logo: await loadLogo(venue.logo_url)
   };
 }
 
@@ -53,16 +67,41 @@ function clipTo(doc, text, width) {
   return `${s.trim()}...`;
 }
 
+// Draws ONE line of text. pdfkit wraps text whenever a width is passed (even with lineBreak:false),
+// so the width is only used here to align the line by hand.
+function drawOne(doc, str, x, y, width, align, spacing = 0) {
+  const w = doc.widthOfString(str, spacing ? { characterSpacing: spacing } : undefined);
+  let xx = x;
+  if (align === "right") xx = x + width - w;
+  else if (align === "center") xx = x + (width - w) / 2;
+  doc.text(str, xx, y, { lineBreak: false, characterSpacing: spacing || 0 });
+}
+
+// One line that SHRINKS the font until it fits the width (down to minSize) and only then cuts it.
+// Used for long emails and names so nothing is lost or looks chopped.
+function fitLine(doc, text, x, y, { font = "Helvetica", size = 9, minSize = 6.5, color = T.text, width = 200, align = "left" } = {}) {
+  const str = String(text == null ? "" : text).replace(/\s+/g, " ").trim();
+  let fs = size;
+  doc.font(font).fontSize(fs);
+  while (fs > minSize && doc.widthOfString(str) > width) {
+    fs = Math.max(minSize, fs - 0.25);
+    doc.fontSize(fs);
+  }
+  doc.fillColor(color);
+  drawOne(doc, clipTo(doc, str, width), x, y, width, align);
+  return fs;
+}
+
 // Small spaced-out caps label.
 function caps(doc, text, x, y, { color = T.faint, size = 6.5, width = 200, align = "left" } = {}) {
-  doc.font("Helvetica-Bold").fontSize(size).fillColor(color)
-    .text(String(text).toUpperCase(), x, y, { width, characterSpacing: 1, lineBreak: false, align });
+  doc.font("Helvetica-Bold").fontSize(size).fillColor(color);
+  drawOne(doc, String(text).toUpperCase(), x, y, width, align, 1);
 }
 
 // One line of text that never wraps.
 function line1(doc, text, x, y, { font = "Helvetica", size = 9, color = T.text, width = 200, align = "left" } = {}) {
   doc.font(font).fontSize(size).fillColor(color);
-  doc.text(clipTo(doc, text, width), x, y, { width, lineBreak: false, align });
+  drawOne(doc, clipTo(doc, text, width), x, y, width, align);
 }
 
 // Rounded pill with text. Returns its width so pills can be placed in a row.
@@ -74,4 +113,4 @@ function pill(doc, text, x, y, { bg = T.soft, fg = T.body, border = T.line, size
   return w;
 }
 
-module.exports = { T, gymIdentity, fmtPhone, clipTo, caps, line1, pill };
+module.exports = { T, gymIdentity, fmtPhone, loadLogo, clipTo, fitLine, caps, line1, pill };

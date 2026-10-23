@@ -5,8 +5,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
 const C = require("./gym.constants");
 const core = require("./gym.core");
-const { T, gymIdentity, caps, line1, pill } = require("./gym.brand");
-
+const { T, gymIdentity, caps, line1, fitLine, pill } = require("./gym.brand");
 /* ---------- exercise library ---------- */
 const listExercises = (venueId, q) => {
   const where = { is_active: true, [Op.or]: [{ venue_id: null }, { venue_id: venueId }] };
@@ -179,27 +178,43 @@ function renderPdf(res, { identity: id, member, plan }) {
   ].filter(Boolean);
   const colX = PW - M - 210;
   const colW = 210;
+  // Single-line values (owner, phone, email) are shrunk to fit; only the address may wrap.
+  const itemH = (k, v) => 9 + (k === "Address" ? Math.min((doc.font("Helvetica").fontSize(8.5), doc.heightOfString(v, { width: colW })), 34) : 11) + 7;
   let blockH = 0;
-  contact.forEach(([k, v]) => {
-    doc.font("Helvetica").fontSize(8.5);
-    blockH += 9 + Math.min(doc.heightOfString(v, { width: colW }), 34) + 7;
-  });
+  contact.forEach(([k, v]) => { blockH += itemH(k, v); });
   const headerH = Math.max(124, 30 + blockH + 14);
   doc.rect(0, 0, PW, headerH).fill(T.ink);
   doc.rect(0, 0, PW, 5).fill(T.accent);
-  doc.font("Helvetica-Bold").fontSize(26);
-  const gymLines = Math.min(2, Math.ceil(doc.widthOfString(id.name) / (colX - M - 24)));
-  doc.fillColor("#ffffff").text(id.name, M, 34, { width: colX - M - 24, height: 32 * gymLines, ellipsis: true });
-  const afterName = 34 + 32 * gymLines + 4;
-  caps(doc, "Personal workout plan", M, afterName, { color: "#fca5a5", size: 9, width: 250 });
-  doc.rect(M, afterName + 18, 34, 3).fill(T.accent);
+
+  let textX = M;
+  if (id.logo) {
+    try {
+      doc.save().roundedRect(M, 28, 68, 68, 12).fill("#ffffff").restore();
+      doc.image(id.logo, M + 6, 34, { fit: [56, 56], align: "center", valign: "center" });
+      textX = M + 68 + 16;
+    } catch { textX = M; }
+  }
+  const nameW = colX - textX - 24;
+  // Gym name: biggest font (down to 13pt) at which it fits in two lines - nothing is cut.
+  let nameFs = textX > M ? 22 : 26;
+  for (; nameFs > 13; nameFs -= 1) {
+    doc.font("Helvetica-Bold").fontSize(nameFs);
+    if (doc.heightOfString(id.name, { width: nameW }) <= doc.currentLineHeight() * 2 + 1) break;
+  }
+  doc.font("Helvetica-Bold").fontSize(nameFs);
+  const nameH = doc.heightOfString(id.name, { width: nameW });
+  doc.fillColor("#ffffff").text(id.name, textX, 34, { width: nameW });
+  const afterName = 34 + nameH + 6;
+  caps(doc, "Personal workout plan", textX, afterName, { color: "#fca5a5", size: 9, width: 250 });
+  doc.rect(textX, afterName + 18, 34, 3).fill(T.accent);
   if (contact.length) {
     doc.moveTo(colX - 14, 28).lineTo(colX - 14, headerH - 18).lineWidth(0.6).strokeColor("#334155").stroke();
     let cy = 30;
     contact.forEach(([k, v]) => {
       caps(doc, k, colX, cy, { color: T.faint, size: 6.5, width: colW });
-      doc.font("Helvetica").fontSize(8.5).fillColor("#ffffff").text(v, colX, cy + 9, { width: colW, height: 34, ellipsis: true });
-      cy += 9 + Math.min(doc.heightOfString(v, { width: colW }), 34) + 7;
+      if (k === "Address") doc.font("Helvetica").fontSize(8.5).fillColor("#ffffff").text(v, colX, cy + 9, { width: colW, height: 34, ellipsis: true });
+      else fitLine(doc, v, colX, cy + 9, { font: "Helvetica", size: 8.5, minSize: 5.5, color: "#ffffff", width: colW });
+      cy += itemH(k, v);
     });
   }
   y = headerH + 24;
@@ -282,17 +297,17 @@ function renderPdf(res, { identity: id, member, plan }) {
       ex.forEach((e, i) => {
         const sub = [e.body_part && label(e.body_part), e.notes].filter(Boolean).join("   |   ");
         doc.font("Helvetica-Bold").fontSize(9.5);
-        const nameH = Math.min(doc.heightOfString(e.name, { width: 248 }), 28);
+        const nameH2 = Math.min(doc.heightOfString(e.name, { width: 248 }), 28);
         doc.font("Helvetica").fontSize(7.5);
         const subH = sub ? Math.min(doc.heightOfString(sub, { width: 248 }), 22) + 2 : 0;
-        const rowH = Math.max(26, nameH + subH + 14);
+        const rowH = Math.max(26, nameH2 + subH + 14);
         if (y + rowH > LIMIT) { newPage(); dayBar(d, true); tableHead(); }
         if (i % 2 === 1) doc.rect(M, y, CW, rowH).fill(T.soft);
         doc.moveTo(M, y + rowH).lineTo(M + CW, y + rowH).lineWidth(0.4).strokeColor(T.line).stroke();
         const mid = y + (rowH - 9) / 2;
         doc.font("Helvetica-Bold").fontSize(8.5).fillColor(T.accent).text(String(i + 1), C.n, mid, { width: 20, lineBreak: false });
         doc.font("Helvetica-Bold").fontSize(9.5).fillColor(T.text).text(e.name, C.ex, y + 7, { width: 248, height: 28, ellipsis: true });
-        if (sub) doc.font("Helvetica").fontSize(7.5).fillColor(T.muted).text(sub, C.ex, y + 7 + nameH + 2, { width: 248, height: 22, ellipsis: true });
+        if (sub) doc.font("Helvetica").fontSize(7.5).fillColor(T.muted).text(sub, C.ex, y + 7 + nameH2 + 2, { width: 248, height: 22, ellipsis: true });
         const cell = (txt, x, w, strong) => doc.font(strong ? "Helvetica-Bold" : "Helvetica").fontSize(9.5).fillColor(strong ? T.ink : T.body)
           .text(txt, x, mid, { width: w, align: "center", lineBreak: false });
         cell(e.sets ? String(e.sets) : "-", C.sets, 56, true);
@@ -339,7 +354,7 @@ function renderPdf(res, { identity: id, member, plan }) {
     doc.page.margins.bottom = 0; // footer sits inside the bottom margin; stop pdfkit adding a page
     const fy = PH - 38;
     doc.moveTo(M, fy).lineTo(PW - M, fy).lineWidth(0.5).strokeColor(T.line).stroke();
-    line1(doc, [id.name, id.phone, id.email].filter(Boolean).join("   |   "), M, fy + 9, { size: 7.5, color: T.muted, width: CW - 80 });
+    fitLine(doc, [id.name, id.phone, id.email].filter(Boolean).join("   |   "), M, fy + 9, { size: 7.5, minSize: 5, color: T.muted, width: CW - 90 });
     line1(doc, `Page ${i + 1} of ${range.count}`, PW - M - 70, fy + 9, { font: "Helvetica-Bold", size: 7.5, color: T.muted, width: 70, align: "right" });
   }
   doc.end();

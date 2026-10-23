@@ -8,12 +8,11 @@ import Card from "../../../components/common/Card";
 import Input from "../../../components/common/Input";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { GymPage,  errMsg } from "./gymShared.jsx";
-
-
+import { GymPage, errMsg } from "./gymShared.jsx";
+import GymLogoUploader from "./GymLogoUploader.jsx";
 
 export default function GymSettings() {
-  const { venue } = useVenue();
+  const { venue, refetchVenue } = useVenue();
   const vid = venue?.id;
   const { data, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/settings` : null, { skip: !vid });
   const [f, setF] = useState(null);
@@ -42,6 +41,9 @@ export default function GymSettings() {
   return (
     <GymPage title="Gym settings" subtitle="Receipts, message text and online payments"
       actions={<Button onClick={() => save()} loading={busy}>Save</Button>}>
+      <Card title="Gym logo" className="mb-4">
+        <GymLogoUploader venueId={vid} logoUrl={venue?.logo_url} onChanged={refetchVenue} />
+      </Card>
       <Card title="Receipts" className="mb-4">
         <Input label="Receipt number prefix" maxLength={8} value={f.receipt_prefix} onChange={(e) => setF({ ...f, receipt_prefix: e.target.value })} />
         <p className="text-xs text-gray-500 mt-2">Receipts are numbered like RCPT-00001. Open a member and download any receipt as a PDF to share.</p>

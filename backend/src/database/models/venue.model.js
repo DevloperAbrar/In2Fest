@@ -43,6 +43,7 @@ module.exports = (sequelize, DataTypes) => {
     template_id: { type: DataTypes.STRING, defaultValue: "template-1" },
     theme_color: { type: DataTypes.STRING, defaultValue: "#7c3aed" },
     hero_image_url: DataTypes.STRING,
+    logo_url: DataTypes.TEXT, // gym logo: printed on member cards, receipts and workout PDFs
     hero_heading: DataTypes.STRING,
     hero_subheading: DataTypes.STRING,
     hero_button_text: { type: DataTypes.STRING, defaultValue: "Enquire Now" },

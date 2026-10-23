@@ -2,10 +2,11 @@ const PDFDocument = require("pdfkit");
 const { GymPayment, GymMember, GymMembership } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
-const { T, gymIdentity, caps, line1, pill } = require("./gym.brand");
+const { T, gymIdentity, caps, line1, fitLine, pill } = require("./gym.brand");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const titleCase = (s) => String(s || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+const modeLabel = (s) => (/^(upi|neft|rtgs|imps)$/i.test(String(s || "")) ? String(s).toUpperCase() : titleCase(s));
 
 // Streams a downloadable receipt PDF. The vendor saves it and shares it however they like.
 async function receiptPdf({ venue }, paymentId, res) {
@@ -29,24 +30,58 @@ async function receiptPdf({ venue }, paymentId, res) {
   const P = 28;
   const CW = W - P * 2;
 
-  /* ---------- header band: gym name + owner ---------- */
-  doc.rect(0, 0, W, 88).fill(T.ink);
-  doc.rect(0, 0, W, 5).fill(T.accent);
-  line1(doc, id.name, P, 22, { font: "Helvetica-Bold", size: 19, color: "#ffffff", width: CW });
-  caps(doc, "Payment receipt", P, 49, { color: "#fca5a5", size: 8, width: 200 });
-  if (id.owner) line1(doc, `Owner: ${id.owner}`, P, 64, { size: 9, color: T.faint, width: CW });
+  /* ---------- faint logo watermark behind everything ---------- */
+  let logoOk = false;
+  if (id.logo) {
+    try {
+      doc.save();
+      doc.opacity(0.05);
+      doc.image(id.logo, (W - 230) / 2, 238, { fit: [230, 230], align: "center", valign: "center" });
+      doc.restore();
+      logoOk = true;
+    } catch {
+      doc.restore();
+      logoOk = false;
+    }
+  }
 
-  /* ---------- contact strip: phone, email, address ---------- */
+  /* ---------- header band: logo + gym name ---------- */
+  doc.rect(0, 0, W, 90).fill(T.ink);
+  doc.rect(0, 0, W, 5).fill(T.accent);
+  let textX = P;
+  if (logoOk) {
+    doc.save().roundedRect(P, 19, 54, 54, 10).fill("#ffffff").restore();
+    try { doc.image(id.logo, P + 5, 24, { fit: [44, 44], align: "center", valign: "center" }); } catch { /* logo is optional */ }
+    textX = P + 54 + 14;
+  }
+  fitLine(doc, id.name, textX, 28, { font: "Helvetica-Bold", size: 19, minSize: 11, color: "#ffffff", width: W - textX - P });
+  caps(doc, "Payment receipt", textX, 56, { color: "#fca5a5", size: 8, width: 200 });
+
+  /* ---------- contact strip: owner, phone, GSTIN, email, address ---------- */
   doc.font("Helvetica").fontSize(8.5);
   const addrH = id.address ? doc.heightOfString(id.address, { width: CW }) : 0;
-  const hasRow1 = id.phone || id.email;
-  const stripH = 12 + (hasRow1 ? 26 : 0) + (id.address ? 11 + addrH + 6 : 0) + (id.gstin ? 24 : 0) + 4;
-  doc.rect(0, 88, W, stripH).fill(T.soft);
-  doc.moveTo(0, 88 + stripH).lineTo(W, 88 + stripH).lineWidth(0.6).strokeColor(T.line).stroke();
-  let y = 88 + 12;
-  if (hasRow1) {
-    if (id.phone) { caps(doc, "Phone", P, y, { width: 120 }); line1(doc, id.phone, P, y + 9, { font: "Helvetica-Bold", size: 9, width: 120 }); }
-    if (id.email) { caps(doc, "Email (login)", P + 140, y, { width: 220 }); line1(doc, id.email, P + 140, y + 9, { font: "Helvetica-Bold", size: 9, width: CW - 140 }); }
+  const row1 = [
+    id.owner && ["Owner", id.owner],
+    id.phone && ["Phone", id.phone],
+    id.gstin && ["GSTIN", id.gstin]
+  ].filter(Boolean);
+  const stripH = 12 + (row1.length ? 26 : 0) + (id.email ? 26 : 0) + (id.address ? 11 + addrH + 6 : 0) + 4;
+  doc.rect(0, 90, W, stripH).fill(T.soft);
+  doc.moveTo(0, 90 + stripH).lineTo(W, 90 + stripH).lineWidth(0.6).strokeColor(T.line).stroke();
+  let y = 90 + 12;
+  if (row1.length) {
+    const gap = 12;
+    const cw = (CW - gap * (row1.length - 1)) / row1.length;
+    row1.forEach(([k, v], i) => {
+      const x = P + i * (cw + gap);
+      caps(doc, k, x, y, { width: cw });
+      fitLine(doc, v, x, y + 9, { font: "Helvetica-Bold", size: 9, minSize: 6.5, width: cw });
+    });
+    y += 26;
+  }
+  if (id.email) {
+    caps(doc, "Email", P, y, { width: 120 });
+    fitLine(doc, id.email, P, y + 9, { font: "Helvetica-Bold", size: 9, minSize: 6, width: CW });
     y += 26;
   }
   if (id.address) {
@@ -54,14 +89,13 @@ async function receiptPdf({ venue }, paymentId, res) {
     doc.font("Helvetica").fontSize(8.5).fillColor(T.body).text(id.address, P, y + 9, { width: CW });
     y += 11 + addrH + 6;
   }
-  if (id.gstin) { caps(doc, "GSTIN", P, y, { width: 120 }); line1(doc, id.gstin, P, y + 9, { font: "Helvetica-Bold", size: 9, width: CW }); }
-  y = 88 + stripH + 18;
+  y = 90 + stripH + 18;
 
   /* ---------- receipt no, date, PAID ---------- */
   caps(doc, "Receipt no.", P, y, { width: 130 });
-  line1(doc, pay.receipt_no || "-", P, y + 10, { font: "Helvetica-Bold", size: 12, width: 150 });
+  fitLine(doc, pay.receipt_no || "-", P, y + 10, { font: "Helvetica-Bold", size: 12, minSize: 8, width: 150 });
   caps(doc, "Date", P + 170, y, { width: 100 });
-  line1(doc, pay.paid_on ? U.fmtDate(pay.paid_on) : "-", P + 170, y + 10, { font: "Helvetica-Bold", size: 12, width: 110 });
+  fitLine(doc, pay.paid_on ? U.fmtDate(pay.paid_on) : "-", P + 170, y + 10, { font: "Helvetica-Bold", size: 12, minSize: 8, width: 110 });
   doc.font("Helvetica-Bold").fontSize(9);
   const paidW = doc.widthOfString("PAID") + 24;
   pill(doc, "PAID", W - P - paidW, y + 3, { bg: T.greenSoft, fg: T.green, border: T.greenSoft, size: 9, h: 22, padX: 12 });
@@ -71,7 +105,7 @@ async function receiptPdf({ venue }, paymentId, res) {
 
   /* ---------- received from ---------- */
   caps(doc, "Received from", P, y, { width: 200 });
-  line1(doc, member ? member.name : "-", P, y + 11, { font: "Helvetica-Bold", size: 14, color: T.text, width: CW });
+  fitLine(doc, member ? member.name : "-", P, y + 11, { font: "Helvetica-Bold", size: 14, minSize: 9, color: T.text, width: CW });
   if (member) line1(doc, `${member.member_code}   |   +91 ${member.phone}`, P, y + 30, { size: 9, color: T.muted, width: CW });
   y += 54;
 
@@ -79,13 +113,13 @@ async function receiptPdf({ venue }, paymentId, res) {
   const rows = [
     ["Plan", ms ? ms.plan_name : "-"],
     ["Period", ms ? `${U.fmtDate(ms.start_date)}  to  ${U.fmtDate(ms.end_date)}` : "-"],
-    ["Payment mode", titleCase(pay.mode)]
+    ["Payment mode", modeLabel(pay.mode)]
   ];
   if (pay.reference) rows.push(["Reference", pay.reference]);
   rows.forEach(([k, v], i) => {
     if (i % 2 === 0) doc.rect(P, y, CW, 24).fill(T.soft);
     line1(doc, k, P + 10, y + 8, { size: 8.5, color: T.muted, width: 100 });
-    line1(doc, v, P + 120, y + 7.5, { font: "Helvetica-Bold", size: 9.5, color: T.text, width: CW - 130 });
+    fitLine(doc, v, P + 120, y + 7.5, { font: "Helvetica-Bold", size: 9.5, minSize: 6.5, color: T.text, width: CW - 130 });
     y += 24;
   });
   y += 16;
@@ -94,7 +128,7 @@ async function receiptPdf({ venue }, paymentId, res) {
   doc.save().roundedRect(P, y, CW, 70, 10).fill(T.ink).restore();
   doc.rect(P, y + 14, 4, 42).fill(T.accent);
   caps(doc, "Amount received", P + 18, y + 14, { color: T.faint, size: 7.5, width: 200 });
-  line1(doc, `Rs. ${U.inr(pay.amount)}`, P + 18, y + 28, { font: "Helvetica-Bold", size: 26, color: "#ffffff", width: 230 });
+  fitLine(doc, `Rs. ${U.inr(pay.amount)}`, P + 18, y + 28, { font: "Helvetica-Bold", size: 26, minSize: 14, color: "#ffffff", width: 190 });
   if (ms) {
     const bal = U.money(Number(ms.total_amount) - Number(ms.amount_paid));
     const text = bal > 0 ? `Balance due: Rs. ${U.inr(bal)}` : "Fully paid";
@@ -110,16 +144,16 @@ async function receiptPdf({ venue }, paymentId, res) {
   if (rate > 0) {
     const amt = Number(pay.amount);
     const tax = U.money((amt * rate) / (100 + rate)); // prices are GST-inclusive
-    line1(doc, `Includes GST @ ${rate}%: Rs. ${U.inr(tax)}   (taxable value Rs. ${U.inr(amt - tax)})`, P, y, { size: 8, color: T.muted, width: CW });
+    fitLine(doc, `Includes GST @ ${rate}%: Rs. ${U.inr(tax)}   (taxable value Rs. ${U.inr(amt - tax)})`, P, y, { size: 8, minSize: 6, color: T.muted, width: CW });
   }
 
   /* ---------- footer ---------- */
   const fy = H - 66;
   doc.moveTo(P, fy).lineTo(W - P, fy).lineWidth(0.6).strokeColor(T.line).stroke();
-  line1(doc, `Thank you for training with ${id.name}!`, P, fy + 10, { font: "Helvetica-Bold", size: 9, color: T.text, width: CW });
-  line1(doc, `Received by ${pay.received_by || "-"}   |   This is a computer generated receipt, no signature needed.`, P, fy + 24, { size: 7.5, color: T.muted, width: CW });
+  fitLine(doc, `Thank you for training with ${id.name}!`, P, fy + 10, { font: "Helvetica-Bold", size: 9, minSize: 6.5, color: T.text, width: CW });
+  fitLine(doc, `Received by ${pay.received_by || "-"}   |   This is a computer generated receipt, no signature needed.`, P, fy + 24, { size: 7.5, minSize: 5.5, color: T.muted, width: CW });
   const contact = [id.phone, id.email].filter(Boolean).join("   |   ");
-  if (contact) line1(doc, contact, P, fy + 36, { size: 7.5, color: T.faint, width: CW });
+  if (contact) fitLine(doc, contact, P, fy + 36, { size: 7.5, minSize: 5.5, color: T.faint, width: CW });
   doc.rect(0, H - 5, W, 5).fill(T.accent);
   doc.end();
 }
