@@ -7,6 +7,7 @@ import App from "./App.jsx";
 import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
 import "./i18n/index.js";
 import "./styles/tailwind.css";
+import "./pwa/init";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
