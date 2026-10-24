@@ -1,19 +1,7 @@
 const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
-
-/* ------------------------------------------------------------------ */
-/*  Design tokens                                                      */
-/* ------------------------------------------------------------------ */
-const C = {
-  brand: "#6d28d9",
-  brandSoft: "#f5f3ff",
-  ink: "#111827",
-  text: "#374151",
-  muted: "#6b7280",
-  line: "#e5e7eb",
-  soft: "#f9fafb",
-  white: "#ffffff"
-};
+const { loadLogo } = require("../gym/gym.brand");
+const { PAL: C, put, putFit, para, paraH, hline, vline, drawWave, drawTopStrip, navyBar } = require("./pdf.theme");
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
@@ -127,6 +115,13 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
     verifyQrBuffer = null;
   }
 
+  let logo = null;
+  try {
+    logo = await loadLogo(venue.logo_url);
+  } catch {
+    logo = null;
+  }
+
   return new Promise((resolve, reject) => {
     const isInvoice = invoice.type !== "quotation";
     const DOC_LABELS = {
@@ -158,221 +153,188 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
       const PAGE_H = doc.page.height;
       const MX = 40;
       const CW = PAGE_W - MX * 2;
-      const BOTTOM = PAGE_H - 64; // content must stay above the footer
+      const BOTTOM = PAGE_H - 58; // content must stay above the footer
       let y = 0;
 
-      /* ---------- small drawing helpers ---------- */
-      const setText = (font, size, color) => doc.font(font).fontSize(size).fillColor(color);
-      const textH = (str, width, font, size) => {
-        doc.font(font).fontSize(size);
-        return doc.heightOfString(String(str), { width });
+      const venueName = venue.hall_name || "Business";
+      const textH = (str, width, font, size) => paraH(doc, str, width, font, size, 0);
+
+      // Continuation page: thin strip + small label
+      const newPage = () => {
+        doc.addPage();
+        drawTopStrip(doc);
+        put(doc, `${docLabel}  |  ${invoice.invoice_number}  (continued)`, MX, 22, { size: 8.5, color: C.muted });
+        y = 46;
       };
-      const hairline = (x1, y1, x2, color = C.line, w = 0.75) => {
-        doc.moveTo(x1, y1).lineTo(x2, y1).lineWidth(w).strokeColor(color).stroke();
-      };
-      const topBar = () => doc.rect(0, 0, PAGE_W, 6).fill(C.brand);
 
       // Starts a new page when the next block would not fit
-      const ensure = (h, redrawTable = false) => {
+      const ensure = (h) => {
         if (y + h <= BOTTOM) return;
-        doc.addPage();
-        topBar();
-        setText("Helvetica", 8.5, C.muted)
-          .text(`${docLabel}  |  ${invoice.invoice_number}  (continued)`, MX, 22, { width: CW, lineBreak: false });
-        y = 48;
-        if (redrawTable) y = drawTableHeader(y);
-      };
-
-      const sectionTitle = (title) => {
-        ensure(30);
-        setText("Helvetica-Bold", 8, C.brand)
-          .text(title, MX, y, { characterSpacing: 0.9, lineBreak: false });
-        hairline(MX, y + 13, MX + CW);
-        y += 22;
+        newPage();
       };
 
       /* ============================================================ */
-      /*  1. HEADER                                                    */
+      /*  1. WAVE HEADER                                               */
       /* ============================================================ */
-      topBar();
-      const headTop = 32;
+      const HEAD_H = 112;
+      drawWave(doc, HEAD_H);
 
-      const venueName = venue.hall_name || "Venue";
-      setText("Helvetica-Bold", 18, C.ink).text(venueName, MX, headTop, { width: 310 });
-      let ly = headTop + textH(venueName, 310, "Helvetica-Bold", 18) + 5;
+      let titleX = MX;
+      if (logo) {
+        try {
+          doc.save().roundedRect(MX, 26, 60, 60, 10).fill("#ffffff").restore();
+          doc.image(logo, MX + 5, 31, { fit: [50, 50], align: "center", valign: "center" });
+          titleX = MX + 60 + 16;
+        } catch {
+          titleX = MX;
+        }
+      }
+      const titleSize = docLabel.length > 12 ? 24 : 34;
+      put(doc, docLabel, titleX, 26, { font: "Helvetica-Bold", size: titleSize, color: C.white, spacing: 1 });
+      putFit(doc, venueName, titleX, 26 + titleSize + 8, 300, { font: "Helvetica", size: 11, minSize: 8, color: "#c7d8f7" });
+      putFit(doc, `NO: ${invoice.invoice_number}`, MX + CW - 220, 38, 220, { font: "Helvetica-Bold", size: 13, minSize: 8, color: C.white, align: "right" });
 
+      y = HEAD_H + 20;
+
+      /* ============================================================ */
+      /*  2. BILL TO  |  FROM                                          */
+      /* ============================================================ */
+      const colW = (CW - 30) / 2;
+      const rightX = MX + CW - colW;
+
+      // Bill To (left)
+      const clientName = client?.name || "Customer";
+      const billLines = [];
+      if (client?.phone) billLines.push(String(client.phone));
+      if (client?.email) billLines.push(String(client.email));
+      if (client?.address) billLines.push(String(client.address));
+      if (client?.gstin) billLines.push(`GSTIN: ${client.gstin}`);
+      if (invoice.gst_enabled && invoice.place_of_supply) billLines.push(`Place of Supply: ${invoice.place_of_supply}`);
+
+      put(doc, "Bill To:", MX, y, { font: "Helvetica-Bold", size: 15, color: C.ink });
+      let ly = y + 24;
+      ly += para(doc, clientName, MX, ly, colW, { font: "Helvetica-Bold", size: 11, color: C.ink, lineGap: 1 }) + 4;
+      billLines.forEach((l) => {
+        ly += para(doc, l, MX, ly, colW, { size: 10, color: C.text, lineGap: 1 }) + 3;
+      });
+
+      // From (right)
       const addr = [venue.address, venue.city].filter(Boolean);
-      // avoid "Khargone, Khargone" when the address already contains the city
       const addressLine =
         venue.address && venue.city && String(venue.address).toLowerCase().includes(String(venue.city).toLowerCase())
           ? venue.address
           : addr.join(", ");
+      const fromLines = [];
+      if (venue.phone) fromLines.push(String(venue.phone));
+      if (venue.email) fromLines.push(String(venue.email));
+      if (addressLine) fromLines.push(String(addressLine));
+      if (invoice.gst_enabled && venue.gst_number) fromLines.push(`GSTIN: ${venue.gst_number}`);
 
-      const headLines = [];
-      if (addressLine) headLines.push(addressLine);
-      if (venue.phone) headLines.push(`Phone: ${venue.phone}`);
-      if (invoice.gst_enabled && venue.gst_number) headLines.push(`GSTIN: ${venue.gst_number}`);
-
-      headLines.forEach((line) => {
-        setText("Helvetica", 9, C.muted).text(line, MX, ly, { width: 310 });
-        ly += textH(line, 310, "Helvetica", 9) + 3;
+      put(doc, "From:", rightX, y, { font: "Helvetica-Bold", size: 15, color: C.ink, width: colW, align: "right" });
+      let ry = y + 24;
+      ry += para(doc, venueName, rightX, ry, colW, { font: "Helvetica-Bold", size: 11, color: C.ink, align: "right", lineGap: 1 }) + 4;
+      fromLines.forEach((l) => {
+        ry += para(doc, l, rightX, ry, colW, { size: 10, color: C.text, align: "right", lineGap: 1 }) + 3;
       });
 
-      // right side: document title + number
-      const rightW = 210;
-      const docTitleSize = docLabel.length > 12 ? 17 : 24;
-      setText("Helvetica-Bold", docTitleSize, C.brand)
-        .text(docLabel, MX + CW - rightW, headTop - 2 + (24 - docTitleSize) / 2, { width: rightW, align: "right", lineBreak: false });
-      setText("Helvetica", 10, C.muted)
-        .text(`No. ${invoice.invoice_number}`, MX + CW - rightW, headTop + 32, { width: rightW, align: "right", lineBreak: false });
-
-      y = Math.max(ly, headTop + 52) + 10;
-      hairline(MX, y, MX + CW);
-      y += 14;
+      y = Math.max(ly, ry) + 14;
 
       /* ============================================================ */
-      /*  2. KEY FACTS STRIP                                           */
+      /*  3. DATES + EVENT / PROFILE DETAILS                           */
       /* ============================================================ */
-      const cells = [];
-      cells.push({ label: "ISSUE DATE", value: fmtDate(invoice.created_at || invoice.createdAt || new Date()) });
-      if (!isInvoice && invoice.validity_date) {
-        cells.push({ label: "VALID UNTIL", value: fmtDate(invoice.validity_date) });
-      }
+      const meta = [];
+      meta.push(["Date", fmtDate(invoice.created_at || invoice.createdAt || new Date())]);
+      if (!isInvoice && invoice.validity_date) meta.push(["Valid Until", fmtDate(invoice.validity_date)]);
+      if (isInvoice && invoice.due_date) meta.push(["Due Date", fmtDate(invoice.due_date)]);
       const evFrom = booking?.date_from || booking?.event_date;
       if (evFrom) {
         const evTo = booking?.date_to;
-        cells.push({
-          label: "EVENT DATE",
-          value: evTo && evTo !== evFrom ? `${fmtDate(evFrom)} - ${fmtDate(evTo)}` : fmtDate(evFrom)
-        });
+        meta.push(["Event Date", evTo && evTo !== evFrom ? `${fmtDate(evFrom)} - ${fmtDate(evTo)}` : fmtDate(evFrom)]);
         if (booking.start_time && booking.end_time) {
-          cells.push({ label: "EVENT TIME", value: `${fmtTime(booking.start_time)} - ${fmtTime(booking.end_time)}` });
+          meta.push(["Event Time", `${fmtTime(booking.start_time)} - ${fmtTime(booking.end_time)}`]);
         }
       }
-      if (isInvoice && invoice.due_date) cells.push({ label: "DUE DATE", value: fmtDate(invoice.due_date) });
-      const hasPayments = Number(invoice.amount_paid) > 0;
-      cells.push({
-        label: !isInvoice ? "ESTIMATED TOTAL" : invoice.type === "credit_note" ? "CREDIT AMOUNT" : hasPayments ? "BALANCE DUE" : "AMOUNT PAYABLE",
-        value: money(hasPayments ? invoice.balance_due : invoice.total),
-        accent: true
-      });
-
-      const cellW = CW / cells.length;
-      const valueH = Math.max(...cells.map((c) => textH(c.value, cellW - 20, "Helvetica-Bold", 9.5)));
-      const stripH = 14 + 11 + valueH + 12;
-
-      doc.roundedRect(MX, y, CW, stripH, 4).lineWidth(0.75).fillAndStroke(C.soft, C.line);
-      cells.forEach((c, i) => {
-        const cx = MX + i * cellW;
-        if (i > 0) {
-          doc.moveTo(cx, y + 10).lineTo(cx, y + stripH - 10).lineWidth(0.75).strokeColor(C.line).stroke();
-        }
-        setText("Helvetica-Bold", 7, C.muted)
-          .text(c.label, cx + 12, y + 12, { width: cellW - 20, characterSpacing: 0.7, lineBreak: false });
-        setText("Helvetica-Bold", 9.5, c.accent ? C.brand : C.ink)
-          .text(c.value, cx + 12, y + 25, { width: cellW - 20 });
-      });
-      y += stripH + 14;
-
-      /* ============================================================ */
-      /*  3. BILL TO  |  BOOKING DETAILS                               */
-      /* ============================================================ */
-      const detailRows = [];
-      if (booking?.id) detailRows.push(["Booking Ref", `BK-${String(booking.id).slice(0, 8).toUpperCase()}`]);
+      if (booking?.id) meta.push(["Booking Ref", `BK-${String(booking.id).slice(0, 8).toUpperCase()}`]);
       const eventType = booking?.event_type || client?.event_type;
       const guests = booking?.guest_count || client?.guest_count;
-      if (eventType) detailRows.push(["Event Type", String(eventType)]);
-      if (guests) detailRows.push(["Expected Guests", String(guests)]);
+      if (eventType) meta.push(["Event Type", String(eventType)]);
+      if (guests) meta.push(["Guests", String(guests)]);
       const profileFields = invoice.custom_fields && typeof invoice.custom_fields === "object" ? invoice.custom_fields : {};
       Object.entries(profileFields).forEach(([k, v]) => {
-        if (v) detailRows.push([k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), String(v).slice(0, 40)]);
+        if (v) meta.push([k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()), String(v).slice(0, 40)]);
       });
 
-      const hasDetails = detailRows.length > 0;
-      const cardGap = 14;
-      const cardW = hasDetails ? (CW - cardGap) / 2 : CW;
-      const pad = 14;
-
-      // Bill To content
-      const clientName = client?.name || "Customer";
-      const billLines = [];
-      if (client?.address) billLines.push(String(client.address));
-      if (client?.phone) billLines.push(`Phone: ${client.phone}`);
-      if (client?.email) billLines.push(`Email: ${client.email}`);
-      if (client?.gstin) billLines.push(`GSTIN: ${client.gstin}`);
-      if (invoice.gst_enabled && invoice.place_of_supply) billLines.push(`Place of Supply: ${invoice.place_of_supply}`);
-
-      let billH = 12 + 8 + 12 + textH(clientName, cardW - pad * 2, "Helvetica-Bold", 12) + 6;
-      billLines.forEach((l) => { billH += textH(l, cardW - pad * 2, "Helvetica", 9) + 3; });
-      billH += pad - 2;
-
-      const detH = 12 + 8 + 12 + detailRows.length * 16 + pad - 4;
-      const cardH = Math.max(billH, hasDetails ? detH : 0, 64);
-
-      ensure(cardH + 20);
-
-      // Bill To card
-      doc.roundedRect(MX, y, cardW, cardH, 4).lineWidth(0.75).strokeColor(C.line).stroke();
-      setText("Helvetica-Bold", 7.5, C.brand)
-        .text("BILL TO", MX + pad, y + 12, { characterSpacing: 0.9, lineBreak: false });
-      setText("Helvetica-Bold", 12, C.ink).text(clientName, MX + pad, y + 28, { width: cardW - pad * 2 });
-      let by = y + 28 + textH(clientName, cardW - pad * 2, "Helvetica-Bold", 12) + 6;
-      billLines.forEach((l) => {
-        setText("Helvetica", 9, C.text).text(l, MX + pad, by, { width: cardW - pad * 2 });
-        by += textH(l, cardW - pad * 2, "Helvetica", 9) + 3;
+      const metaRows = Math.ceil(meta.length / 2);
+      ensure(metaRows * 18 + 20);
+      meta.forEach(([label, value], i) => {
+        const cx = MX + (i % 2) * (CW / 2);
+        const cy = y + Math.floor(i / 2) * 18;
+        const lw = (() => {
+          doc.font("Helvetica-Bold").fontSize(10);
+          return doc.widthOfString(`${label}: `);
+        })();
+        put(doc, `${label}:`, cx, cy, { font: "Helvetica-Bold", size: 10, color: C.ink });
+        putFit(doc, value, cx + lw, cy, CW / 2 - lw - 10, { font: "Helvetica", size: 10, minSize: 7, color: C.text });
       });
-
-      // Booking details card
-      if (hasDetails) {
-        const dx = MX + cardW + cardGap;
-        doc.roundedRect(dx, y, cardW, cardH, 4).lineWidth(0.75).strokeColor(C.line).stroke();
-        setText("Helvetica-Bold", 7.5, C.brand)
-          .text("BOOKING DETAILS", dx + pad, y + 12, { characterSpacing: 0.9, lineBreak: false });
-        let dy = y + 30;
-        detailRows.forEach(([label, value]) => {
-          setText("Helvetica", 9, C.muted).text(label, dx + pad, dy, { width: 95, lineBreak: false });
-          setText("Helvetica-Bold", 9, C.ink).text(value, dx + pad + 95, dy, { width: cardW - pad * 2 - 95, lineBreak: false });
-          dy += 16;
-        });
-      }
-      y += cardH + 18;
+      y += metaRows * 18 + 14;
 
       /* ============================================================ */
-      /*  4. LINE ITEMS TABLE                                          */
+      /*  4. LINE ITEMS TABLE (bordered grid)                          */
       /* ============================================================ */
-      const QTYW = 56;
-      const col = {
-        no: { x: MX, w: 26 },
-        desc: { x: MX + 26, w: CW - (26 + QTYW + 88 + 78 + 95) },
-        qty: { x: MX + CW - (QTYW + 88 + 78 + 95), w: QTYW },
-        rate: { x: MX + CW - (88 + 78 + 95), w: 88 },
-        disc: { x: MX + CW - (78 + 95), w: 78 },
-        amt: { x: MX + CW - 95, w: 95 }
+      const items = invoice.line_items || [];
+      const hasItemDiscount = items.some(
+        (it) => (it.discount_type === "percentage" || it.discount_type === "flat") && Number(it.discount_value) > 0
+      );
+      const W_QTY = 52;
+      const W_PRICE = 92;
+      const W_DISC = hasItemDiscount ? 76 : 0;
+      const W_TOTAL = 100;
+      const W_DESC = CW - (W_QTY + W_PRICE + W_DISC + W_TOTAL);
+      const colX = {
+        desc: MX,
+        qty: MX + W_DESC,
+        price: MX + W_DESC + W_QTY,
+        disc: MX + W_DESC + W_QTY + W_PRICE,
+        total: MX + W_DESC + W_QTY + W_PRICE + W_DISC
       };
+      const gridX = [colX.qty, colX.price, hasItemDiscount ? colX.disc : null, colX.total].filter((v) => v !== null);
 
       function drawTableHeader(top) {
-        doc.rect(MX, top, CW, 24).fill(C.ink);
-        const ty = top + 8;
-        setText("Helvetica-Bold", 7.5, C.white);
-        doc.text("#", col.no.x, ty, { width: col.no.w, align: "center", characterSpacing: 0.6, lineBreak: false });
-        doc.text("DESCRIPTION", col.desc.x + 4, ty, { width: col.desc.w - 4, characterSpacing: 0.6, lineBreak: false });
-        doc.text("QTY", col.qty.x, ty, { width: col.qty.w, align: "center", characterSpacing: 0.6, lineBreak: false });
-        doc.text("RATE", col.rate.x, ty, { width: col.rate.w - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
-        doc.text("DISCOUNT", col.disc.x, ty, { width: col.disc.w - 8, align: "right", characterSpacing: 0.6, lineBreak: false });
-        doc.text("AMOUNT", col.amt.x, ty, { width: col.amt.w - 10, align: "right", characterSpacing: 0.6, lineBreak: false });
-        return top + 24;
+        const TH = 28;
+        doc.rect(MX, top, CW, TH).fill(C.navy);
+        const ty = top + 10;
+        const hdr = { font: "Helvetica-Bold", size: 9.5, color: C.white };
+        put(doc, "Description", colX.desc, ty, { ...hdr, width: W_DESC, align: "center" });
+        put(doc, "Qty", colX.qty, ty, { ...hdr, width: W_QTY, align: "center" });
+        put(doc, "Price", colX.price, ty, { ...hdr, width: W_PRICE, align: "center" });
+        if (hasItemDiscount) put(doc, "Discount", colX.disc, ty, { ...hdr, width: W_DISC, align: "center" });
+        put(doc, "Total", colX.total, ty, { ...hdr, width: W_TOTAL, align: "center" });
+        // thin separators in the header
+        gridX.forEach((gx) => vline(doc, gx, top + 5, top + TH - 5, "#6f8fcf", 0.6));
+        return top + TH;
       }
 
-      ensure(24 + 40);
+      ensure(28 + 40);
+      let segTop = y; // top of the current page's table segment (for borders)
       y = drawTableHeader(y);
 
-      const items = invoice.line_items || [];
-      items.forEach((item, idx) => {
-        const desc = [item.description || "-", item.hsn_sac ? `(${item.hsn_sac})` : ""].filter(Boolean).join(" ");
-        const descH = textH(desc, col.desc.w - 8, "Helvetica-Bold", 9.5);
-        const rowH = Math.max(descH, 12) + 18;
+      // outer border + vertical grid lines for the rows drawn on this page
+      const closeSegment = () => {
+        doc.rect(MX, segTop, CW, y - segTop).lineWidth(0.8).strokeColor(C.grid).stroke();
+        gridX.forEach((gx) => vline(doc, gx, segTop + 28, y, C.grid, 0.6));
+      };
 
-        ensure(rowH, true);
+      items.forEach((item) => {
+        const descText = [item.description || "-", item.hsn_sac ? `(HSN/SAC ${item.hsn_sac})` : ""].filter(Boolean).join(" ");
+        const descH = textH(descText, W_DESC - 16, "Helvetica", 10);
+        const rowH = Math.max(descH + 12, 24);
+
+        if (y + rowH > BOTTOM) {
+          closeSegment();
+          newPage();
+          segTop = y;
+          y = drawTableHeader(y);
+        }
 
         const discountLabel =
           item.discount_type === "percentage" && Number(item.discount_value) > 0
@@ -381,29 +343,28 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
               ? money(item.discount_value)
               : "-";
 
-        const ty = y + 9;
-        setText("Helvetica", 9, C.muted).text(String(idx + 1), col.no.x, ty, { width: col.no.w, align: "center", lineBreak: false });
-        setText("Helvetica-Bold", 9.5, C.ink).text(desc, col.desc.x + 4, ty, { width: col.desc.w - 8 });
-        setText("Helvetica", 9.5, C.text).text(`${item.quantity}${item.unit ? " " + String(item.unit).slice(0, 4) : ""}`, col.qty.x, ty, { width: col.qty.w, align: "center", lineBreak: false });
-        doc.text(money(item.rate), col.rate.x, ty, { width: col.rate.w - 8, align: "right", lineBreak: false });
-        setText("Helvetica", 9.5, C.muted).text(discountLabel, col.disc.x, ty, { width: col.disc.w - 8, align: "right", lineBreak: false });
-        setText("Helvetica-Bold", 9.5, C.ink).text(money(item.amount), col.amt.x, ty, { width: col.amt.w - 10, align: "right", lineBreak: false });
+        const ty = y + 7;
+        para(doc, descText, colX.desc + 8, ty, W_DESC - 16, { size: 10, color: C.ink, lineGap: 0 });
+        put(doc, `${item.quantity}${item.unit ? " " + String(item.unit).slice(0, 4) : ""}`, colX.qty, ty, { size: 10, color: C.text, width: W_QTY, align: "center" });
+        put(doc, money(item.rate), colX.price, ty, { size: 10, color: C.text, width: W_PRICE - 8, align: "right" });
+        if (hasItemDiscount) put(doc, discountLabel, colX.disc, ty, { size: 10, color: C.muted, width: W_DISC - 8, align: "right" });
+        put(doc, money(item.amount), colX.total, ty, { font: "Helvetica-Bold", size: 10, color: C.ink, width: W_TOTAL - 8, align: "right" });
 
         y += rowH;
-        hairline(MX, y, MX + CW);
+        hline(doc, MX, MX + CW, y, C.line, 0.6);
       });
-
-      y += 18;
+      closeSegment();
+      y += 16;
 
       /* ============================================================ */
-      /*  5. AMOUNT IN WORDS  |  TOTALS                                */
+      /*  5. TOTALS (right)  |  AMOUNT IN WORDS (left)                 */
       /* ============================================================ */
-      const totalsW = 236;
+      const totalsW = 250;
       const totalsX = MX + CW - totalsW;
-      const wordsW = CW - totalsW - 22;
+      const wordsW = CW - totalsW - 24;
 
       const totalRows = [];
-      totalRows.push({ label: "Subtotal", value: money(invoice.subtotal) });
+      totalRows.push({ label: "Sub Total", value: money(invoice.subtotal) });
 
       const hasDiscount = invoice.discount_type && invoice.discount_type !== "none" && Number(invoice.discount_amount) > 0;
       if (hasDiscount) {
@@ -437,201 +398,146 @@ async function generateInvoicePdf(invoice, venue, client, upiQrBuffer = null, bo
         totalRows.push({ label: "Round Off", value: `${ro > 0 ? "+" : "-"}${money(Math.abs(ro))}`, muted: true });
       }
 
-      const paidRows = [];
-      if (isInvoice && invoice.type !== "credit_note" && Number(invoice.amount_paid) > 0) {
-        paidRows.push({ label: "Amount Paid", value: `-${money(invoice.amount_paid)}`, muted: true });
-        paidRows.push({ label: "Balance Due", value: money(invoice.balance_due), bold: true });
-      }
+      const showPaid = isInvoice && invoice.type !== "credit_note" && Number(invoice.amount_paid) > 0;
+      const totalsBlockH = totalRows.length * 18 + 6 + 32 + (showPaid ? 8 + 18 + 32 : 0);
 
-      const totalsBlockH = totalRows.length * 19 + 10 + 36 + paidRows.length * 19;
-      ensure(totalsBlockH + 10);
-
-      // totals (right)
-      let ty = y;
-      totalRows.forEach((r) => {
-        setText("Helvetica", 9.5, r.muted ? C.muted : C.text)
-          .text(r.label, totalsX, ty, { width: totalsW - 120, lineBreak: false });
-        setText("Helvetica", 9.5, r.muted ? C.muted : C.ink)
-          .text(r.value, totalsX + totalsW - 120, ty, { width: 120, align: "right", lineBreak: false });
-        ty += 19;
-      });
-      ty += 4;
-      doc.roundedRect(totalsX, ty, totalsW, 34, 4).fill(C.brand);
-      const grandLabel = !isInvoice ? "TOTAL ESTIMATE" : invoice.type === "credit_note" ? "CREDIT TOTAL" : "GRAND TOTAL";
-      setText("Helvetica-Bold", 9, C.white)
-        .text(grandLabel, totalsX + 14, ty + 12, { characterSpacing: 0.6, lineBreak: false });
-      setText("Helvetica-Bold", 13, C.white)
-        .text(money(invoice.total), totalsX + 100, ty + 10, { width: totalsW - 114, align: "right", lineBreak: false });
-
-      let py = ty + 34 + 8;
-      paidRows.forEach((r) => {
-        setText(r.bold ? "Helvetica-Bold" : "Helvetica", 9.5, r.muted ? C.muted : C.ink)
-          .text(r.label, totalsX, py, { width: totalsW - 120, lineBreak: false });
-        setText(r.bold ? "Helvetica-Bold" : "Helvetica", 9.5, r.muted ? C.muted : C.ink)
-          .text(r.value, totalsX + totalsW - 120, py, { width: 120, align: "right", lineBreak: false });
-        py += 19;
-      });
-      const totalsBottom = paidRows.length ? py : ty + 34;
-
-      // amount in words (left)
       const words = amountInWords(invoice.total);
-      const wordsTextH = textH(words, wordsW - 24, "Helvetica-Bold", 9.5);
-      const wordsH = 12 + 12 + wordsTextH + 14;
-      doc.roundedRect(MX, y, wordsW, wordsH, 4).lineWidth(0.75).fillAndStroke(C.brandSoft, C.line);
-      setText("Helvetica-Bold", 7.5, C.brand)
-        .text("AMOUNT IN WORDS", MX + 12, y + 12, { characterSpacing: 0.9, lineBreak: false });
-      setText("Helvetica-Bold", 9.5, C.ink).text(words, MX + 12, y + 27, { width: wordsW - 24 });
+      const wordsTextH = textH(words, wordsW - 28, "Helvetica-Bold", 10);
+      const wordsH = 14 + 14 + wordsTextH + 14;
 
-      y = Math.max(totalsBottom, y + wordsH) + 20;
-
-      /* ============================================================ */
-      /*  6. PAYMENT DETAILS                                           */
-      /* ============================================================ */
-      const bank = venue.bank_details || {};
-      const bankRows = [
-        bank.beneficiary_name && ["Account Name", bank.beneficiary_name],
-        bank.account_number && ["Account Number", bank.account_number],
-        bank.bank_name && ["Bank", bank.bank_name],
-        bank.ifsc_code && ["IFSC Code", bank.ifsc_code],
-        bank.branch_address && ["Branch", bank.branch_address]
-      ].filter(Boolean);
-
-      const hasBank = bankRows.length > 0;
-      const hasQr = !!upiQrBuffer;
-
-      if (hasBank || hasQr) {
-        const qrColW = hasQr ? 124 : 0;
-        const leftW = CW - qrColW;
-        const labelW = 100;
-        const padP = 14;
-
-        const rowHeights = bankRows.map(([, v]) => Math.max(16, textH(v, leftW - padP * 2 - labelW, "Helvetica-Bold", 9) + 6));
-        const leftH = hasBank ? 18 + rowHeights.reduce((a, b) => a + b, 0) : 0;
-        const rightH = hasQr ? 76 + 30 : 0;
-        const boxH = Math.max(leftH, rightH) + padP * 2;
-
-        sectionTitle("PAYMENT DETAILS");
-        ensure(boxH + 10);
-
-        doc.roundedRect(MX, y, CW, boxH, 4).lineWidth(0.75).strokeColor(C.line).stroke();
-
-        if (hasBank) {
-          setText("Helvetica-Bold", 8.5, C.ink)
-            .text("Bank Transfer (NEFT / IMPS / RTGS)", MX + padP, y + padP, { width: leftW - padP * 2, lineBreak: false });
-          let ry = y + padP + 18;
-          bankRows.forEach(([label, value], i) => {
-            setText("Helvetica", 9, C.muted).text(label, MX + padP, ry, { width: labelW, lineBreak: false });
-            setText("Helvetica-Bold", 9, C.ink).text(value, MX + padP + labelW, ry, { width: leftW - padP * 2 - labelW });
-            ry += rowHeights[i];
-          });
-        }
-
-        if (hasQr) {
-          const qx = MX + leftW;
-          if (hasBank) {
-            doc.moveTo(qx, y + 12).lineTo(qx, y + boxH - 12).lineWidth(0.75).strokeColor(C.line).stroke();
-          }
-          doc.image(upiQrBuffer, qx + (qrColW - 76) / 2, y + padP, { width: 76 });
-          setText("Helvetica-Bold", 8, C.ink)
-            .text("Scan to pay via UPI", qx, y + padP + 82, { width: qrColW, align: "center", lineBreak: false });
-          if (venue.upi_id) {
-            setText("Helvetica", 7.5, C.muted)
-              .text(venue.upi_id, qx + 4, y + padP + 94, { width: qrColW - 8, align: "center", lineBreak: false });
-          }
-        }
-
-        y += boxH + 18;
-      }
-
-      /* ============================================================ */
-      /*  7. TERMS  |  THANK YOU  |  VERIFICATION                      */
-      /* ============================================================ */
       const termLines = String([invoice.terms, invoice.notes].filter(Boolean).join("\n"))
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter(Boolean)
         .map((l, i, arr) => (arr.length > 1 ? `${i + 1}.  ${l.replace(/^(\d+[.)]|[-*•])\s*/, "")}` : l));
+      const notesBodyH = termLines.reduce((sum, t) => sum + textH(t, wordsW - 6, "Helvetica", 8.5) + 3, 0);
+      const notesInline = termLines.length > 0 && notesBodyH <= 110; // short notes sit under the words box
+      const leftH = wordsH + (notesInline ? 14 + 20 + notesBodyH : 0);
+      ensure(Math.max(totalsBlockH, leftH) + 10);
 
-      const thankYou = `Thank you for choosing ${venueName}.`;
+      let ty = y;
+      totalRows.forEach((r) => {
+        put(doc, r.label, totalsX + 14, ty, { size: 10, color: r.muted ? C.muted : C.text });
+        put(doc, r.value, totalsX + 100, ty, { size: 10, color: r.muted ? C.muted : C.ink, width: totalsW - 114, align: "right" });
+        ty += 18;
+      });
+      ty += 4;
+      const grandLabel = !isInvoice ? "Total Estimate" : invoice.type === "credit_note" ? "Credit Total" : "Grand Total";
+      navyBar(doc, totalsX, ty, totalsW, 32, grandLabel, money(invoice.total), { size: 11.5 });
+      ty += 32;
 
-      const VER_W = 176;
-      const VER_H = 96;
-      const leftW2 = CW - VER_W - 20;
+      if (showPaid) {
+        ty += 8;
+        put(doc, "Amount Paid", totalsX + 14, ty, { size: 10, color: C.muted });
+        put(doc, `-${money(invoice.amount_paid)}`, totalsX + 100, ty, { size: 10, color: C.muted, width: totalsW - 114, align: "right" });
+        ty += 18;
+        doc.rect(totalsX, ty, totalsW, 32).lineWidth(1.2).fillAndStroke(C.navySoft, C.navy);
+        put(doc, "Balance Due", totalsX + 14, ty + 11, { font: "Helvetica-Bold", size: 11.5, color: C.navy });
+        put(doc, money(invoice.balance_due), totalsX + 110, ty + 11, { font: "Helvetica-Bold", size: 11.5, color: C.navy, width: totalsW - 124, align: "right" });
+        ty += 32;
+      }
 
-      const termsBodyH = termLines.reduce((sum, t) => sum + textH(t, leftW2 - 6, "Helvetica", 8.5) + 4, 0);
-      const termsH = termLines.length ? 22 + termsBodyH : 0;
-      const thankH = textH(thankYou, leftW2, "Helvetica-Bold", 10);
-      const leftBlockH = termsH + (termsH ? 12 : 0) + thankH;
+      // amount in words (left)
+      doc.rect(MX, y, wordsW, wordsH).fill(C.soft);
+      doc.rect(MX, y, 4, wordsH).fill(C.navy);
+      put(doc, "AMOUNT IN WORDS", MX + 16, y + 13, { font: "Helvetica-Bold", size: 7.5, color: C.navy, spacing: 0.9 });
+      para(doc, words, MX + 16, y + 28, wordsW - 28, { font: "Helvetica-Bold", size: 10, color: C.ink, lineGap: 0 });
 
-      const drawVerifyCard = (vx, vy) => {
-        doc.roundedRect(vx, vy, VER_W, VER_H, 4).lineWidth(0.75).fillAndStroke(C.soft, C.line);
-        doc.image(verifyQrBuffer, vx + 12, vy + 12, { width: 54 });
-        setText("Helvetica-Bold", 8.5, C.ink)
-          .text("Verify this document", vx + 76, vy + 13, { width: VER_W - 86 });
-        setText("Helvetica", 7, C.muted)
-          .text(`Scan the QR code to confirm this ${isInvoice ? "invoice" : "quotation"} was issued by ${venueName}.`, vx + 76, vy + 36, { width: VER_W - 86 });
-        setText("Helvetica", 6.5, C.brand)
-          .text(verifyUrl, vx + 12, vy + 74, { width: VER_W - 24 });
-      };
-
-      if (leftBlockH <= 210) {
-        // Compact layout: terms on the left, verification card on the right,
-        // pinned to the bottom of the page so short invoices still look balanced.
-        const rowH = Math.max(leftBlockH, verifyQrBuffer ? VER_H : 0);
-        ensure(rowH + 4);
-        const rowY = Math.max(y, BOTTOM - rowH);
-
-        let cy = rowY;
-        if (termLines.length) {
-          setText("Helvetica-Bold", 8, C.brand)
-            .text("TERMS & CONDITIONS", MX, cy, { characterSpacing: 0.9, lineBreak: false });
-          hairline(MX, cy + 13, MX + leftW2);
-          cy += 22;
-          termLines.forEach((t) => {
-            setText("Helvetica", 8.5, C.muted).text(t, MX + 2, cy, { width: leftW2 - 6 });
-            cy += textH(t, leftW2 - 6, "Helvetica", 8.5) + 4;
-          });
-          cy += 12;
-        }
-        setText("Helvetica-Bold", 10, C.ink).text(thankYou, MX, cy, { width: leftW2 });
-
-        if (verifyQrBuffer) drawVerifyCard(MX + CW - VER_W, rowY);
-        y = rowY + rowH;
-      } else {
-        // Long terms: full-width flow that can span pages
-        sectionTitle("TERMS & CONDITIONS");
+      let leftBottom = y + wordsH;
+      if (notesInline) {
+        let ny = y + wordsH + 14;
+        put(doc, "Note:", MX, ny, { font: "Helvetica-Bold", size: 11, color: C.ink });
+        hline(doc, MX + 40, MX + wordsW, ny + 12, C.line, 0.6);
+        ny += 20;
         termLines.forEach((t) => {
-          const h = textH(t, CW - 6, "Helvetica", 8.5);
+          const h = textH(t, wordsW - 6, "Helvetica", 8.5);
+          para(doc, t, MX + 2, ny, wordsW - 6, { size: 8.5, color: C.muted, lineGap: 0 });
+          ny += h + 3;
+        });
+        leftBottom = ny;
+      }
+
+      y = Math.max(ty, leftBottom) + 18;
+
+      /* ============================================================ */
+      /*  6. NOTES / TERMS (long notes only, full width)               */
+      /* ============================================================ */
+      if (termLines.length && !notesInline) {
+        ensure(40);
+        put(doc, "Note:", MX, y, { font: "Helvetica-Bold", size: 11, color: C.ink });
+        hline(doc, MX + 40, MX + CW, y + 12, C.line, 0.6);
+        y += 20;
+        termLines.forEach((t) => {
+          const h = textH(t, CW - 6, "Helvetica", 9);
           ensure(h + 4);
-          setText("Helvetica", 8.5, C.muted).text(t, MX + 2, y, { width: CW - 6 });
+          para(doc, t, MX + 2, y, CW - 6, { size: 9, color: C.muted, lineGap: 0 });
           y += h + 4;
         });
-        y += 12;
-
-        ensure(30);
-        setText("Helvetica-Bold", 10, C.ink).text(thankYou, MX, y, { width: CW, lineBreak: false });
-        y += 24;
-
-        if (verifyQrBuffer) {
-          ensure(VER_H + 1);
-          drawVerifyCard(MX + CW - VER_W, Math.max(y, BOTTOM - VER_H));
-        }
+        y += 10;
       }
 
       /* ============================================================ */
-      /*  9. FOOTER ON EVERY PAGE                                      */
+      /*  7. PAYMENT INFORMATION | UPI QR | VERIFY QR + THANK YOU      */
+      /* ============================================================ */
+      const bank = venue.bank_details || {};
+      const bankRows = [
+        bank.bank_name && ["Bank", bank.bank_name],
+        bank.beneficiary_name && ["Account Name", bank.beneficiary_name],
+        bank.account_number && ["Account No", bank.account_number],
+        bank.ifsc_code && ["IFSC Code", bank.ifsc_code],
+        bank.branch_address && ["Branch", bank.branch_address]
+      ].filter(Boolean);
+
+      const hasBank = bankRows.length > 0;
+      const hasUpi = !!upiQrBuffer;
+      const bankW = hasBank ? (hasUpi ? 250 : 300) : 0;
+      const upiW = hasUpi ? 110 : 0;
+      const labelW = 82;
+      const rowHeights = bankRows.map(([, v]) => Math.max(15, textH(v, bankW - labelW - 6, "Helvetica", 9.5) + 4));
+      const bankH = hasBank ? 22 + rowHeights.reduce((a, b2) => a + b2, 0) : 0;
+      const blockH = Math.max(bankH, hasUpi ? 108 : 0, verifyQrBuffer ? 84 : 0, 64);
+
+      ensure(blockH + 4);
+      const blockY = Math.max(y, BOTTOM - blockH);
+
+      if (hasBank) {
+        put(doc, "Payment Information:", MX, blockY, { font: "Helvetica-Bold", size: 12, color: C.ink });
+        let by = blockY + 22;
+        bankRows.forEach(([label, value], i) => {
+          put(doc, `${label}:`, MX, by, { font: "Helvetica-Bold", size: 9.5, color: C.ink });
+          para(doc, value, MX + labelW, by, bankW - labelW - 6, { size: 9.5, color: C.text, lineGap: 0 });
+          by += rowHeights[i];
+        });
+      }
+
+      if (hasUpi) {
+        const ux = MX + bankW + (hasBank ? 10 : 0);
+        doc.image(upiQrBuffer, ux + (upiW - 76) / 2, blockY, { width: 76 });
+        put(doc, "Scan to pay via UPI", ux, blockY + 82, { font: "Helvetica-Bold", size: 8, color: C.ink, width: upiW, align: "center" });
+        if (venue.upi_id) putFit(doc, venue.upi_id, ux, blockY + 94, upiW, { size: 7.5, minSize: 6, color: C.muted, align: "center" });
+      }
+
+      const rx = MX + bankW + upiW + 20;
+      const rw = MX + CW - rx;
+      if (verifyQrBuffer) {
+        doc.image(verifyQrBuffer, MX + CW - 46, blockY, { width: 46 });
+        put(doc, "Verify this document", rx, blockY + 4, { font: "Helvetica-Bold", size: 8, color: C.ink, width: rw - 54, align: "right" });
+        para(doc, "Scan the QR to confirm it was issued by us.", rx, blockY + 16, rw - 54, { size: 7, color: C.muted, align: "right", lineGap: 1 });
+      }
+      put(doc, "Thank You!", rx, blockY + blockH - 34, { size: 26, color: C.ink, width: rw, align: "right" });
+      y = blockY + blockH;
+
+      /* ============================================================ */
+      /*  8. FOOTER ON EVERY PAGE                                      */
       /* ============================================================ */
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        const fy = PAGE_H - 46;
-        hairline(MX, fy, MX + CW);
-        setText("Helvetica", 7.5, C.muted);
-        doc.text(`${venueName}  |  ${invoice.invoice_number}`, MX, fy + 9, { width: CW / 2, lineBreak: false });
-        doc.text(`Page ${i + 1} of ${range.count}`, MX + CW / 2, fy + 9, { width: CW / 2, align: "right", lineBreak: false });
-        doc.text("This is a computer-generated document and does not require a signature.", MX, fy + 21, {
-          width: CW, align: "center", lineBreak: false
-        });
+        const fy = PAGE_H - 42;
+        hline(doc, MX, MX + CW, fy, C.line, 0.75);
+        put(doc, `${venueName}  |  ${invoice.invoice_number}`, MX, fy + 9, { size: 7.5, color: C.muted });
+        put(doc, `Page ${i + 1} of ${range.count}`, MX, fy + 9, { size: 7.5, color: C.muted, width: CW, align: "right" });
+        put(doc, "This is a computer-generated document and does not require a signature.", MX, fy + 21, { size: 7.5, color: C.muted, width: CW, align: "center" });
       }
 
       doc.end();
