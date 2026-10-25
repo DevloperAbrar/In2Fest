@@ -1,5 +1,4 @@
 const sharp = require("sharp");
-const QRCode = require("qrcode");
 const axios = require("axios");
 const { GymMember } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
@@ -71,7 +70,7 @@ function wrapWords(text, maxChars, maxLines) {
   return lines.slice(0, maxLines);
 }
 
-/* ---------- background (shapes only, so a faint logo can sit between it and the text) ---------- */
+/* ---------- background (shapes only) ---------- */
 function bgSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
@@ -141,7 +140,6 @@ function textSvg({ id, member, hasPhoto, hasLogo }) {
   out += label(320, 272, "MEMBER ID") + t(320, 308, code.text, code.size, { bold: true });
   out += label(320, 350, "PLAN") + t(320, 384, plan.text, plan.size, { bold: true });
   out += label(320, 420, "VALID") + t(320, 452, valid.text, valid.size, { bold: true });
-  out += t(W - 56 - 85, 458, "SCAN AT ENTRY", 14, { fill: "#94a3b8", ls: 3, anchor: "middle" });
 
   if (owner) out += label(L, FY + 34, "OWNER", 14) + t(L, FY + 60, owner.text, owner.size, { bold: true, fill: "#e2e8f0" });
   if (phone) out += label(R, FY + 34, "PHONE", 14) + t(R, FY + 60, phone.text, phone.size, { bold: true, fill: "#e2e8f0" });
@@ -162,16 +160,6 @@ async function logoTile(buf, size) {
   return sharp(base).composite([{ input: mark, left: pad, top: pad }]).png().toBuffer();
 }
 
-// Very faint big copy of the logo behind the text.
-async function logoWatermark(buf, size) {
-  return sharp(buf)
-    .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .ensureAlpha()
-    .linear([1, 1, 1, 0.07], [0, 0, 0, 0])
-    .png()
-    .toBuffer();
-}
-
 async function renderCard({ venue, member, photo, identity }) {
   const id = identity || {
     name: venue.hall_name, owner: venue.owner_name || "", phone: venue.phone || "", email: "",
@@ -182,25 +170,20 @@ async function renderCard({ venue, member, photo, identity }) {
     try { round = await roundPhoto(photo, 216); } catch { round = null; }
   }
   let tile = null;
-  let mark = null;
+  let bigTile = null;
   if (id.logo) {
     try {
       tile = await logoTile(id.logo, 96);
-      mark = await logoWatermark(id.logo, 340);
-    } catch { tile = null; mark = null; }
+      bigTile = await logoTile(id.logo, 170);
+    } catch { tile = null; bigTile = null; }
   }
 
   const layers = [];
-  if (mark) layers.push({ input: mark, left: W - 340 - 50, top: 110 });
   layers.push({ input: Buffer.from(textSvg({ id, member, hasPhoto: !!round, hasLogo: !!tile })), left: 0, top: 0 });
   if (round) layers.push({ input: round, left: 56, top: 158 });
   if (tile) layers.push({ input: tile, left: 56, top: 38 });
-
-  // QR sits on a white tile so it scans on any background.
-  const qr = await QRCode.toBuffer(String(member.member_code), { width: 150, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } });
-  const qrTile = await sharp({ create: { width: 170, height: 170, channels: 4, background: "#ffffff" } })
-    .composite([{ input: qr, left: 10, top: 10 }]).png().toBuffer();
-  layers.push({ input: qrTile, left: W - 56 - 170, top: 258 });
+  // Gym logo on the right side (this is where the QR code used to be).
+  if (bigTile) layers.push({ input: bigTile, left: W - 56 - 170, top: 258 });
 
   return sharp(Buffer.from(bgSvg())).composite(layers).png({ compressionLevel: 9 }).toBuffer();
 }

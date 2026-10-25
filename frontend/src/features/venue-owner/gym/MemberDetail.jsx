@@ -252,7 +252,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
           {loading && <Loader />}
           {error && <p className="text-sm text-red-500">{error}</p>}
           {url && <img src={url} alt="Membership card" className="w-full rounded-2xl shadow" />}
-          <p className="text-xs text-gray-500">Card shows the gym name, member details, plan validity and a QR of the member ID. Download it or share it from your phone.</p>
+          <p className="text-xs text-gray-500">Card shows the gym name, member details, plan validity and your gym logo. Download it or share it from your phone.</p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={share} disabled={!blob}>Share</Button>
             <Button onClick={() => downloadBlob(blob, fileName)} disabled={!blob}>Download</Button>

@@ -206,6 +206,13 @@ export function initPwa() {
     /* old browsers */
   }
 
+  // Ask the browser not to wipe this app's saved login (localStorage) when the phone is low on space.
+  try {
+    if (navigator.storage && typeof navigator.storage.persist === "function") navigator.storage.persist();
+  } catch {
+    /* not supported - ignore */
+  }
+
   registerServiceWorker();
   startUpdateWatcher();
   return true;

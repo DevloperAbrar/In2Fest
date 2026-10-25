@@ -1,5 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL } from "./constants";
+import { clearStoredAuth } from "./authStorage";
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -44,8 +45,7 @@ axiosInstance.interceptors.response.use(
         return new Promise(() => {});
       }
       const wasTeamMember = localStorage.getItem("authRole") === "team_member";
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("authRole");
+      clearStoredAuth();
       const message = error.response.data.message;
       window.location.href = `/account-deactivated?msg=${encodeURIComponent(message)}&role=${wasTeamMember ? "team_member" : "owner"}`;
       return new Promise(() => {}); // stop this request chain  - we're navigating away
@@ -79,7 +79,7 @@ axiosInstance.interceptors.response.use(
         const { data } = await axios.post(
           `${API_BASE_URL}/auth/refresh`,
           {},
-          { withCredentials: true }
+          { withCredentials: true, timeout: 15000 }
         );
         const newToken = data.data.accessToken;
         localStorage.setItem("accessToken", newToken);
@@ -92,9 +92,19 @@ axiosInstance.interceptors.response.use(
       } catch (refreshError) {
         refreshQueue.forEach((p) => p.reject(refreshError));
         refreshQueue = [];
+
+        // Only a clear "401 / 403" from the refresh endpoint means the login is
+        // really over. No internet, a timeout, a restarting server (502/503),
+        // rate limiting (429) etc. must NOT sign the person out  - the saved
+        // login is kept and the next request simply tries again.
+        const refreshStatus = refreshError?.response?.status;
+        const sessionIsOver = refreshStatus === 401 || refreshStatus === 403;
+        if (!sessionIsOver) {
+          return Promise.reject(refreshError);
+        }
+
         const wasTeamMember = localStorage.getItem("authRole") === "team_member";
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("authRole");
+        clearStoredAuth();
         // Don't redirect to login on public venue pages (subdomain URLs).
         // A subdomain means this is a public-facing venue site  - no login needed.
         const hostname = window.location.hostname;
