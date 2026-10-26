@@ -119,77 +119,129 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     );
   }
 
-const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "health_notes", "notes"];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const onlyDigits = (v) => String(v || "").replace(/\D/g, "");
-const editBase = (m) => Object.fromEntries(EDIT_KEYS.map((k) => [k, m[k] ?? ""]));
-
-// Edits the member's profile only. Plan, dates and money change through Renew / Record payment,
-// so the membership history and receipts always stay correct.
-function EditModal({ isOpen, onClose, vid, member, onDone }) {
-  const [f, setF] = useState(() => editBase(member));
-  const [photo, setPhoto] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [showErrors, setShowErrors] = useState(false);
-  useEffect(() => { if (isOpen) { setPhoto(null); setShowErrors(false); setF(editBase(member)); } }, [isOpen, member]);
-  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
-
-  const base = editBase(member);
-  const changed = EDIT_KEYS.filter((k) => String(f[k] ?? "").trim() !== String(base[k] ?? "").trim());
-  const dirty = changed.length > 0 || !!photo;
-
-  // Only fields the user actually changed are checked, so old data can never block an unrelated edit.
-  const errors = {};
-  if (changed.includes("name") && f.name.trim().length < 2) errors.name = "Enter the member's name";
-  if (changed.includes("phone") && !/^[6-9]\d{9}$/.test(onlyDigits(f.phone))) errors.phone = "Enter a valid 10-digit mobile number";
-  if (changed.includes("email") && f.email.trim() && !EMAIL_RE.test(f.email.trim())) errors.email = "Enter a valid email address";
-  if (changed.includes("emergency_phone") && f.emergency_phone.trim() && onlyDigits(f.emergency_phone).length < 10) errors.emergency_phone = "Enter a valid phone number";
-  const err = (k) => (showErrors ? errors[k] : undefined);
-
-  const submit = async () => {
-    if (Object.keys(errors).length) { setShowErrors(true); return; }
-    setBusy(true);
-    try {
-      if (changed.length) {
-        const payload = {};
-        changed.forEach((k) => { payload[k] = k === "phone" || k === "emergency_phone" ? onlyDigits(f[k]) : String(f[k]).trim(); });
-        await gymService.updateMember(vid, member.id, payload);
+  const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "health_notes", "notes"];
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const onlyDigits = (v) => String(v || "").replace(/\D/g, "");
+  const editBase = (m) => Object.fromEntries(EDIT_KEYS.map((k) => [k, m[k] ?? ""]));
+  const ymdMs = (ymd) => { const [y, m, d] = String(ymd).split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  const daysBetween = (a, b) => Math.round((ymdMs(b) - ymdMs(a)) / 86400000);
+  const shiftYmd = (ymd, days) => new Date(ymdMs(ymd) + days * 86400000).toISOString().slice(0, 10);
+  // The membership that drives the member's status: the active one with the latest end date.
+  const currentMembership = (list) =>
+    [...(list || [])].filter((x) => x.status === "active")
+      .sort((a, b) => String(b.end_date).localeCompare(String(a.end_date)) || String(b.start_date).localeCompare(String(a.start_date)))[0] || null;
+  
+  // Edits the member's profile and the start / end date of the current membership.
+  // Plan, fee and payments change through Renew / Record payment, so receipts always stay correct.
+  function EditModal({ isOpen, onClose, vid, member, memberships, onDone }) {
+    const current = currentMembership(memberships);
+    const frozen = member.status === "frozen";
+    const [f, setF] = useState(() => editBase(member));
+    const [ms, setMs] = useState(() => ({ start_date: current?.start_date || "", end_date: current?.end_date || "" }));
+    const [photo, setPhoto] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [showErrors, setShowErrors] = useState(false);
+    useEffect(() => {
+      if (isOpen) {
+        setPhoto(null); setShowErrors(false); setF(editBase(member));
+        setMs({ start_date: current?.start_date || "", end_date: current?.end_date || "" });
       }
-      if (photo) {
-        try { await gymService.uploadPhoto(vid, member.id, photo); }
-        catch (e) { showError(errMsg(e, "Details saved, but the photo could not be uploaded")); }
-      }
-      onDone();
-    } catch (e) { showError(errMsg(e, "Could not save the changes")); } finally { setBusy(false); }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} title="Edit member" size="lg">
-      <div className="space-y-3">
-        <p className="text-xs text-gray-500">{member.member_code} · Plan, dates and payments are changed from Renew and Record payment.</p>
-        <PhotoPicker currentUrl={member.photo_url} name={f.name || member.name} file={photo} onChange={setPhoto} disabled={busy} />
-        <div className="grid sm:grid-cols-2 gap-3">
-          <Input label="Name *" value={f.name} onChange={set("name")} error={err("name")} />
-          <Input label="Mobile *" inputMode="numeric" maxLength={10} value={f.phone} onChange={set("phone")} error={err("phone")} />
-          <Input label="Email" type="email" value={f.email} onChange={set("email")} error={err("email")} />
-          <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
-          <Input label="Date of birth" type="date" max={todayISO()} value={f.dob} onChange={set("dob")} />
-          <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
-          <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
-          <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
-          <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} error={err("emergency_phone")} />
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, member, memberships]);
+    const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+    // Moving the start date moves the end date by the same number of days (the owner can still adjust it).
+    const onStart = (e) => {
+      const v = e.target.value;
+      setMs((s) => (v && s.start_date && s.end_date ? { start_date: v, end_date: shiftYmd(s.end_date, daysBetween(s.start_date, v)) } : { ...s, start_date: v }));
+    };
+    const onEnd = (e) => { const v = e.target.value; setMs((s) => ({ ...s, end_date: v })); };
+  
+    const base = editBase(member);
+    const changed = EDIT_KEYS.filter((k) => String(f[k] ?? "").trim() !== String(base[k] ?? "").trim());
+    const msChanged = !!current && !frozen && (ms.start_date !== current.start_date || ms.end_date !== current.end_date);
+    const dirty = changed.length > 0 || msChanged || !!photo;
+  
+    // Only fields the user actually changed are checked, so old data can never block an unrelated edit.
+    const errors = {};
+    if (changed.includes("name") && f.name.trim().length < 2) errors.name = "Enter the member's name";
+    if (changed.includes("phone") && !/^[6-9]\d{9}$/.test(onlyDigits(f.phone))) errors.phone = "Enter a valid 10-digit mobile number";
+    if (changed.includes("email") && f.email.trim() && !EMAIL_RE.test(f.email.trim())) errors.email = "Enter a valid email address";
+    if (changed.includes("emergency_phone") && f.emergency_phone.trim() && onlyDigits(f.emergency_phone).length < 10) errors.emergency_phone = "Enter a valid phone number";
+    if (msChanged) {
+      if (!ms.start_date) errors.start_date = "Choose a start date";
+      if (!ms.end_date) errors.end_date = "Choose an end date";
+      if (ms.start_date && ms.end_date && ms.end_date < ms.start_date) errors.end_date = "End date cannot be before the start date";
+    }
+    const err = (k) => (showErrors ? errors[k] : undefined);
+  
+    const submit = async () => {
+      if (Object.keys(errors).length) { setShowErrors(true); return; }
+      setBusy(true);
+      try {
+        if (changed.length || msChanged) {
+          const payload = {};
+          changed.forEach((k) => { payload[k] = k === "phone" || k === "emergency_phone" ? onlyDigits(f[k]) : String(f[k]).trim(); });
+          if (msChanged) payload.membership = { id: current.id, start_date: ms.start_date, end_date: ms.end_date };
+          await gymService.updateMember(vid, member.id, payload);
+        }
+        if (photo) {
+          try { await gymService.uploadPhoto(vid, member.id, photo); }
+          catch (e) { showError(errMsg(e, "Details saved, but the photo could not be uploaded")); }
+        }
+        onDone();
+      } catch (e) { showError(errMsg(e, "Could not save the changes")); } finally { setBusy(false); }
+    };
+  
+    return (
+      <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} title="Edit member" size="lg">
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">{member.member_code} · Fee and payments are changed from Renew and Record payment.</p>
+          <PhotoPicker currentUrl={member.photo_url} name={f.name || member.name} file={photo} onChange={setPhoto} disabled={busy} />
+          {current && (
+            <div className="pt-3 border-t space-y-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Membership period</p>
+                <p className="text-xs text-gray-500">{current.plan_name} · {inr(current.total_amount)}. The fee and payments stay the same.</p>
+              </div>
+              {frozen ? (
+                <p className="text-xs text-sky-700 bg-sky-50 rounded-lg px-3 py-2">This member is frozen. Unfreeze first to change the membership dates.</p>
+              ) : (
+                <>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <Input label="Start date" type="date" value={ms.start_date} onChange={onStart} error={err("start_date")} />
+                    <Input label="End date" type="date" min={ms.start_date || undefined} value={ms.end_date} onChange={onEnd} error={err("end_date")} />
+                  </div>
+                  {ms.start_date && ms.end_date && ms.end_date >= ms.start_date && (
+                    <p className="text-xs text-gray-500">{daysBetween(ms.start_date, ms.end_date) + 1} days in total. Changing the start date moves the end date by the same number of days.</p>
+                  )}
+                  {msChanged && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">This changes when the membership expires. The member card, reminders and reports will use the new dates.</p>}
+                </>
+              )}
+            </div>
+          )}
+          <p className="text-sm font-medium text-gray-900 pt-3 border-t">Member details</p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Input label="Name *" value={f.name} onChange={set("name")} error={err("name")} />
+            <Input label="Mobile *" inputMode="numeric" maxLength={10} value={f.phone} onChange={set("phone")} error={err("phone")} />
+            <Input label="Email" type="email" value={f.email} onChange={set("email")} error={err("email")} />
+            <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
+            <Input label="Date of birth" type="date" max={todayISO()} value={f.dob} onChange={set("dob")} />
+            <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+            <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
+            <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
+            <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} error={err("emergency_phone")} />
+          </div>
+          {changed.includes("phone") && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">The mobile number is used for WhatsApp messages and payment links. Check it before saving.</p>}
+          <Field label="Health notes"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>
+          <Field label="Internal notes"><TextArea value={f.notes} onChange={set("notes")} /></Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button onClick={submit} loading={busy} disabled={!dirty}>Save changes</Button>
+          </div>
         </div>
-        {changed.includes("phone") && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">The mobile number is used for WhatsApp messages and payment links. Check it before saving.</p>}
-        <Field label="Health notes"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>
-        <Field label="Internal notes"><TextArea value={f.notes} onChange={set("notes")} /></Field>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} loading={busy} disabled={!dirty}>Save changes</Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+      </Modal>
+    );
+  }
 
 // Permanent delete, meant for members added by mistake. Owner only (the server enforces this too).
 // If real payments exist, the owner has to type the member ID before the button unlocks.
@@ -476,7 +528,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         <MemberCardModal isOpen={modal === "card"} onClose={() => setModal(null)} vid={vid} member={m} />
         <PayModal isOpen={modal === "pay"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <LinkModal isOpen={modal === "link"} onClose={() => setModal(null)} vid={vid} member={m} hasDue={hasDue} />
-        <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Member details updated")} />
+        <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} memberships={memberships} onDone={done("Member details updated")} />
         <DeleteMemberModal isOpen={modal === "delete"} onClose={() => setModal(null)} vid={vid} member={m} memberships={memberships} payments={payments} workoutCount={plans.length} onDeleted={() => nav("/dashboard/gym/members")} />
         <PhotoModal isOpen={modal === "photo"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Photo updated")} />
         <AssignWorkoutModal isOpen={modal === "workout"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />

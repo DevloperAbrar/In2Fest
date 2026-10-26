@@ -169,17 +169,67 @@ async function enroll(ctx, b) {
   return { member: core.present(member), membership: ms, payment };
 }
 
-async function updateMember(venueId, id, b) {
-  const member = await core.findMember(venueId, id);
-  const fields = memberFields(b, false);
-  if (fields.phone) await assertPhoneFree(venueId, fields.phone, id);
-  try {
-    await member.update(fields);
-  } catch (e) {
-    if (e.name === "SequelizeUniqueConstraintError") throw new AppError("A member with this phone already exists", 409);
-    throw e;
+// Validates a membership period typed by the owner. Wider than core.checkDate on purpose:
+// the end date of a 12 or 24 month plan can be far in the future, and old members can start in the past.
+function checkMembershipPeriod(start, end) {
+  // U.isYmd alone accepts impossible dates such as 2026-02-31, so the date must also survive a round trip.
+  const realDate = (v) => U.isYmd(v) && U.addDays(v, 0) === v;
+  if (!realDate(start)) throw new AppError("Start date must be a valid date (YYYY-MM-DD)", 400);
+  if (!realDate(end)) throw new AppError("End date must be a valid date (YYYY-MM-DD)", 400);
+  if (end < start) throw new AppError("End date cannot be before the start date", 400);
+  if (U.diffDays(start, end) > 1830) throw new AppError("A membership cannot be longer than 5 years", 400);
+  const today = U.todayIST();
+  if (U.diffDays(today, start) > 400 || U.diffDays(start, today) > 1830) throw new AppError("Start date is out of range", 400);
+}
+
+// Changes the start / end date of the member's CURRENT membership (the one with the latest end date,
+// same one freeze and unfreeze use). Price and payments are not touched. Runs inside the caller's transaction.
+async function applyMembershipPeriod(tx, member, input) {
+  const start = String(input.start_date || "");
+  const end = String(input.end_date || "");
+  checkMembershipPeriod(start, end);
+  if (member.status === "frozen") throw new AppError("Unfreeze this member before changing the membership dates", 409);
+
+  const ms = await GymMembership.findOne({
+    where: { member_id: member.id, venue_id: member.venue_id, status: "active" },
+    order: [["end_date", "DESC"], ["start_date", "DESC"]], transaction: tx, lock: tx.LOCK.UPDATE
+  });
+  if (!ms) throw new AppError("This member has no membership to edit", 404);
+  if (input.id && input.id !== ms.id) throw new AppError("This membership has changed. Refresh the page and try again", 409);
+  if (ms.start_date === start && ms.end_date === end) return;
+
+  if (ms.start_date !== start) {
+    const prev = await GymMembership.findOne({
+      where: { member_id: member.id, status: "active", id: { [Op.ne]: ms.id } },
+      order: [["end_date", "DESC"]], transaction: tx
+    });
+    if (prev && start <= prev.end_date) throw new AppError(`Start date must be after the previous membership ends (${U.fmtDate(prev.end_date)})`, 409);
   }
-  return core.present(member);
+
+  const oldStart = ms.start_date;
+  await ms.update({ start_date: start, end_date: end }, { transaction: tx });
+  const patch = { start_date: start, end_date: end, status: end < U.todayIST() ? "expired" : "active" };
+  if (member.joined_on === oldStart) patch.joined_on = start; // first membership: the joining date follows it
+  await member.update(patch, { transaction: tx });
+}
+
+// Profile fields, plus (optionally) `membership: { id, start_date, end_date }`.
+// Everything is saved in one transaction, so a rejected date change never leaves half the edit saved.
+async function updateMember(venueId, id, b) {
+  const fields = memberFields(b, false);
+  return sequelize.transaction(async (tx) => {
+    const member = await core.findMember(venueId, id, tx);
+    if (b.membership) await member.reload({ transaction: tx, lock: tx.LOCK.UPDATE });
+    if (fields.phone) await assertPhoneFree(venueId, fields.phone, id);
+    if (b.membership) await applyMembershipPeriod(tx, member, b.membership);
+    try {
+      await member.update(fields, { transaction: tx });
+    } catch (e) {
+      if (e.name === "SequelizeUniqueConstraintError") throw new AppError("A member with this phone already exists", 409);
+      throw e;
+    }
+    return core.present(member);
+  });
 }
 
 async function archiveMember(venueId, id) {
