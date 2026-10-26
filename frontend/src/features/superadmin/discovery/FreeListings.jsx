@@ -37,34 +37,50 @@ export default function FreeListings() {
         <option value="rejected">Rejected</option>
       </select>
 
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-left">
             <tr>
-              <th className="px-4 py-3">Business</th><th className="px-4 py-3">City</th>
-              <th className="px-4 py-3">Views</th><th className="px-4 py-3">Inquiries</th>
-              <th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
+              <th className="px-4 py-3">Business</th>
+              <th className="px-4 py-3">Owner</th>
+              <th className="px-4 py-3">Phone</th>
+              <th className="px-4 py-3">City</th>
+              <th className="px-4 py-3">Category</th>
+              <th className="px-4 py-3">Applied</th>
+              <th className="px-4 py-3">Views</th>
+              <th className="px-4 py-3">Inquiries</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {(listings || []).map((l) => (
-              <tr key={l.id} className="border-t border-gray-50 hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium">{l.business_name}</td>
-                <td className="px-4 py-3">{l.cityRef?.name || " -"}</td>
-                <td className="px-4 py-3">{l.profile_views}</td>
-                <td className="px-4 py-3">{l.inquiry_count}</td>
-                <td className="px-4 py-3"><Badge status={l.status} /></td>
-                <td className="px-4 py-3 flex gap-2">
-                  {l.status === "pending" && <>
-                    <button onClick={() => approve(l.id)} className="text-green-600 text-xs font-medium">Approve</button>
-                    <button onClick={() => reject(l.id)} className="text-red-600 text-xs font-medium">Reject</button>
-                  </>}
-                  {l.status === "active" && (
-                    <button onClick={() => sendUpgrade(l.id)} className="text-primary-600 text-xs font-medium">Send Upgrade Link</button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {(listings || []).map((l) => {
+              const appliedOn = l.created_at || l.createdAt;
+              return (
+                <tr key={l.id} className="border-t border-gray-50 hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{l.business_name}</td>
+                  <td className="px-4 py-3">{l.owner_name || " -"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {l.phone ? <a href={`tel:${l.phone}`} className="text-primary-600 hover:underline">{l.phone}</a> : " -"}
+                  </td>
+                  <td className="px-4 py-3">{l.cityRef?.name || " -"}</td>
+                  <td className="px-4 py-3">{l.categoryRef?.name || " -"}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{appliedOn ? new Date(appliedOn).toLocaleDateString() : " -"}</td>
+                  <td className="px-4 py-3">{l.profile_views}</td>
+                  <td className="px-4 py-3">{l.inquiry_count}</td>
+                  <td className="px-4 py-3"><Badge status={l.status} /></td>
+                  <td className="px-4 py-3 flex gap-2">
+                    {l.status === "pending" && <>
+                      <button onClick={() => approve(l.id)} className="text-green-600 text-xs font-medium">Approve</button>
+                      <button onClick={() => reject(l.id)} className="text-red-600 text-xs font-medium">Reject</button>
+                    </>}
+                    {l.status === "active" && (
+                      <button onClick={() => sendUpgrade(l.id)} className="text-primary-600 text-xs font-medium">Send Upgrade Link</button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

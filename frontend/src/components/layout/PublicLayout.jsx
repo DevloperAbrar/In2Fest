@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Moon, Sun, Menu, X, Phone, ChevronDown, MessageCircle } from "lucide-react";
-import { DISCOVERY_URL } from "../../lib/constants";
+import { DISCOVERY_URL, BASE_DOMAIN } from "../../lib/constants";
 import SocialFooterRow from "./SocialFooterRow.jsx";
 import { MAX_INLINE_NAV_LINKS as MAX_INLINE_LINKS } from "../../lib/navItems";
 import { waDigits, onAccent } from "../../lib/verticals";
 import { getSiteBackground, readStoredMode, storeMode } from "../../lib/siteTheme";
+
+
+// "Powered by In2Fest" always opens the In2Fest join page on the main domain
+// (never on the vendor's own subdomain). Local dev uses the discovery dev server.
+function getJoinUrl() {
+  const host = window.location.hostname;
+  const isLocal = host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
+  const base = isLocal ? DISCOVERY_URL : `https://${BASE_DOMAIN}`;
+  return `${base.replace(/\/+$/, "")}/join`;
+}
 
 // Renders the primary call-to-action either as a link or as a button (e.g. opens the free-trial modal).
 function CtaButton({ cta, accent, className = "", onDone }) {
@@ -300,7 +310,7 @@ export default function PublicLayout({
           <p className="mt-1 text-xs">
             Powered by{" "}
             <a
-              href={DISCOVERY_URL}
+              href={getJoinUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 hover:underline transition-colors"

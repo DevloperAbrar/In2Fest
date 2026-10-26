@@ -18,6 +18,7 @@ const CityOrStatePage = lazy(() => import("./pages/CityOrStatePage"));
 const CityCategoryPage = lazy(() => import("./pages/CityCategoryPage"));
 const ThirdSegmentResolver = lazy(() => import("./pages/ThirdSegmentResolver"));
 const RegisterFreePage = lazy(() => import("./pages/RegisterFreePage"));
+const JoinIn2FestPage = lazy(() => import("./pages/JoinIn2FestPage"));
 const ReviewTokenPage = lazy(() => import("./pages/ReviewTokenPage.jsx"));
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
 const ContactPage = lazy(() => import("./pages/static/ContactPage"));
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/for-vendors" element={<ForVendorsPage />} />
               <Route path="/get-website" element={<GetYourWebsite />} />
               <Route path="/register-free" element={<RegisterFreePage />} />
+              <Route path="/join" element={<JoinIn2FestPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
