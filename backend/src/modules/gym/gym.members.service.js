@@ -5,6 +5,10 @@ const U = require("./gym.utils");
 const C = require("./gym.constants");
 const core = require("./gym.core");
 const payments = require("./gym.payments.service");
+const { GymMessageLog } = require("./gym.message.models");
+const { GymSale } = require("./gym.store.models");
+const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { getR2Client } = require("../../config/r2");
  
 
 /* ===================== PLANS ===================== */
@@ -63,7 +67,11 @@ function memberFields(b, creating) {
     o.name = n.slice(0, 100);
   }
   if (creating || b.phone !== undefined) o.phone = U.normalizePhone(b.phone);
-  if (b.email !== undefined) o.email = String(b.email || "").trim().slice(0, 120) || null;
+  if (b.email !== undefined) {
+    const email = String(b.email || "").trim().slice(0, 120);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AppError("Enter a valid email address", 400);
+    o.email = email || null;
+  }
   if (b.gender !== undefined) o.gender = C.GENDERS.includes(b.gender) ? b.gender : null;
   if (b.dob !== undefined) o.dob = b.dob && U.isYmd(b.dob) ? b.dob : null;
   if (b.goal !== undefined) o.goal = C.GOALS.includes(b.goal) ? b.goal : null;
@@ -165,7 +173,12 @@ async function updateMember(venueId, id, b) {
   const member = await core.findMember(venueId, id);
   const fields = memberFields(b, false);
   if (fields.phone) await assertPhoneFree(venueId, fields.phone, id);
-  await member.update(fields);
+  try {
+    await member.update(fields);
+  } catch (e) {
+    if (e.name === "SequelizeUniqueConstraintError") throw new AppError("A member with this phone already exists", 409);
+    throw e;
+  }
   return core.present(member);
 }
 
@@ -174,6 +187,55 @@ async function archiveMember(venueId, id) {
   await member.update({ is_archived: true });
   await GymPayment.update({ status: "cancelled" }, { where: { member_id: id, status: "pending" } });
   return { archived: true };
+}
+
+// Removes the member's photo from storage. Best effort: a failure here never fails the delete.
+async function removeMemberPhoto(venueId, url) {
+  try {
+    const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
+    const client = getR2Client();
+    if (!url || !base || !client || !String(url).startsWith(`${base}/`)) return;
+    const key = String(url).slice(base.length + 1);
+    // Only this venue's own member photos. Never the logo, never another venue's files.
+    if (!key.startsWith(`gym/${venueId}/`) || key.startsWith(`gym/${venueId}/logo/`) || key.includes("..")) return;
+    if (await GymMember.count({ where: { photo_url: url } })) return; // still used by another record
+    await client.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
+  } catch (e) {
+    console.error("[GYM] member photo cleanup failed:", e.message);
+  }
+}
+
+// Permanent delete, for members added by mistake. Owner-only (enforced in the route).
+// `confirm` must equal the member ID (for example M0007) so a stray request can never wipe a member.
+async function deleteMember(venueId, id, confirm) {
+  let photoUrl = null;
+  let removed = null;
+  await sequelize.transaction(async (tx) => {
+    const member = await GymMember.findOne({ where: { id, venue_id: venueId, is_archived: false }, transaction: tx, lock: tx.LOCK.UPDATE });
+    if (!member) throw new AppError("Member not found", 404);
+    if (String(confirm || "").trim().toUpperCase() !== String(member.member_code).toUpperCase()) {
+      throw new AppError("Confirmation does not match the member ID", 400);
+    }
+    const where = { member_id: id, venue_id: venueId };
+    const paidRows = await GymPayment.findAll({ where: { ...where, status: "paid" }, attributes: ["amount"], transaction: tx });
+    const paidTotal = paidRows.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const payments_ = await GymPayment.destroy({ where, transaction: tx });
+    const memberships = await GymMembership.destroy({ where, transaction: tx });
+    const workoutPlans = await GymWorkoutPlan.destroy({ where, transaction: tx });
+    // A lead that was converted into this member becomes a normal open lead again.
+    await GymLead.update({ status: "new", converted_member_id: null }, { where: { converted_member_id: id, venue_id: venueId }, transaction: tx });
+    // Store bills stay (they are the shop's own records); they just stop pointing at this member.
+    await GymSale.update({ member_id: null }, { where: { member_id: id, venue_id: venueId }, transaction: tx });
+    await GymMessageLog.destroy({ where: { recipient_type: "member", recipient_id: id, venue_id: venueId }, transaction: tx });
+
+    photoUrl = member.photo_url;
+    await member.destroy({ transaction: tx });
+    removed = { payments: payments_, memberships, workout_plans: workoutPlans };
+    console.log(`[GYM] Member permanently deleted: ${member.member_code} (venue ${venueId}); removed ${payments_} payment(s) worth Rs ${paidTotal}, ${memberships} membership(s), ${workoutPlans} workout plan(s)`);
+  });
+  await removeMemberPhoto(venueId, photoUrl);
+  return { deleted: true, removed };
 }
 
 const setPhoto = async (venueId, id, url) => {
@@ -291,5 +353,5 @@ async function syncStatuses() {
 
 module.exports = {
     listPlans, createPlan, updatePlan, deletePlan,
-    listMembers, exportMembers, getDetail, enroll, updateMember, archiveMember, setPhoto, renew, freeze, unfreeze, syncStatuses
+    listMembers, exportMembers, getDetail, enroll, updateMember, archiveMember, deleteMember, setPhoto, renew, freeze, unfreeze, syncStatuses
   };

@@ -81,6 +81,7 @@ router.get("/members/:id/card", proOnly, async (req, res, next) => {
 });
 router.patch("/members/:id", h((req) => members.updateMember(req.gymVenue.id, req.params.id, req.body)));
 router.delete("/members/:id", h((req) => members.archiveMember(req.gymVenue.id, req.params.id)));
+router.delete("/members/:id/permanent", ownerOnly, h((req) => members.deleteMember(req.gymVenue.id, req.params.id, req.query.confirm)));
 router.post("/members/:id/photo", upload.single("photo"), h(async (req) => {
   if (!req.file) throw new AppError("Choose a photo to upload", 400);
   const url = await uploadToR2(req.file.buffer, req.file.originalname, `gym/${req.gymVenue.id}`, req.file.mimetype);

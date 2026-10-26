@@ -21,6 +21,7 @@ export const gymService = {
   enroll: (v, body) => api.post(`${b(v)}/members`, body),
   updateMember: (v, id, body) => api.patch(`${b(v)}/members/${id}`, body),
   archiveMember: (v, id) => api.delete(`${b(v)}/members/${id}`),
+  deleteMember: (v, id, confirm) => api.delete(`${b(v)}/members/${id}/permanent`, { params: { confirm } }),
   uploadPhoto: (v, id, file) => {
     const fd = new FormData();
     fd.append("photo", file);

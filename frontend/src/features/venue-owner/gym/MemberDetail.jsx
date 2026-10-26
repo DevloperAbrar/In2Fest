@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Phone, RefreshCw, IndianRupee, Snowflake, Link2, Dumbbell, Camera, Pencil,
-  MessageSquare, FileText, Share2, Copy, CreditCard
+  MessageSquare, FileText, Share2, Copy, CreditCard, Trash2, Archive
 } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
+import { useAuth } from "../../../context/AuthContext";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
 import { API_BASE_URL } from "../../../lib/constants";
@@ -19,7 +20,7 @@ import PhotoPicker from "./PhotoPicker.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import {
   GymPage, StatusPill, Field, TextArea, MessageModal,
-  inr, fmtDate, errMsg, MODES, GOALS, downloadBlob, copyText, shareContent
+  inr, fmtDate, errMsg, todayISO, MODES, GOALS, downloadBlob, copyText, shareContent
 } from "./gymShared.jsx";
 
 function RenewModal({ isOpen, onClose, vid, member, onDone }) {
@@ -118,44 +119,128 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     );
   }
 
-  function EditModal({ isOpen, onClose, vid, member, onDone }) {
-    const [f, setF] = useState({});
-    const [photo, setPhoto] = useState(null);
-    const [busy, setBusy] = useState(false);
-    useEffect(() => { if (isOpen) { setPhoto(null); setF({ name: member.name, phone: member.phone, goal: member.goal || "", health_notes: member.health_notes || "", emergency_name: member.emergency_name || "", emergency_phone: member.emergency_phone || "", trainer_name: member.trainer_name || "", notes: member.notes || "" }); } }, [isOpen, member]);
-    const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
-    const submit = async () => {
-      setBusy(true);
-      try {
-        await gymService.updateMember(vid, member.id, f);
-        if (photo) {
-          try { await gymService.uploadPhoto(vid, member.id, photo); }
-          catch (e) { showError(errMsg(e, "Details saved, but the photo could not be uploaded")); }
-        }
-        showSuccess("Saved");
-        onDone();
-      } catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
-    };
-    return (
-      <Modal isOpen={isOpen} onClose={onClose} title="Edit member" size="lg">
-        <div className="space-y-3">
-          <PhotoPicker currentUrl={member.photo_url} name={f.name || member.name} file={photo} onChange={setPhoto} disabled={busy} />
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Input label="Name" value={f.name || ""} onChange={set("name")} />
-            <Input label="Mobile" maxLength={10} value={f.phone || ""} onChange={set("phone")} />
-            <Select label="Goal" value={f.goal || ""} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
-            <Input label="Trainer" value={f.trainer_name || ""} onChange={set("trainer_name")} />
-            <Input label="Emergency contact" value={f.emergency_name || ""} onChange={set("emergency_name")} />
-            <Input label="Emergency phone" value={f.emergency_phone || ""} onChange={set("emergency_phone")} />
-          </div>
-          <Field label="Health notes"><TextArea value={f.health_notes || ""} onChange={set("health_notes")} /></Field>
-          <Field label="Internal notes"><TextArea value={f.notes || ""} onChange={set("notes")} /></Field>
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={busy}>Save</Button></div>
+const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "health_notes", "notes"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const onlyDigits = (v) => String(v || "").replace(/\D/g, "");
+const editBase = (m) => Object.fromEntries(EDIT_KEYS.map((k) => [k, m[k] ?? ""]));
+
+// Edits the member's profile only. Plan, dates and money change through Renew / Record payment,
+// so the membership history and receipts always stay correct.
+function EditModal({ isOpen, onClose, vid, member, onDone }) {
+  const [f, setF] = useState(() => editBase(member));
+  const [photo, setPhoto] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
+  useEffect(() => { if (isOpen) { setPhoto(null); setShowErrors(false); setF(editBase(member)); } }, [isOpen, member]);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+
+  const base = editBase(member);
+  const changed = EDIT_KEYS.filter((k) => String(f[k] ?? "").trim() !== String(base[k] ?? "").trim());
+  const dirty = changed.length > 0 || !!photo;
+
+  // Only fields the user actually changed are checked, so old data can never block an unrelated edit.
+  const errors = {};
+  if (changed.includes("name") && f.name.trim().length < 2) errors.name = "Enter the member's name";
+  if (changed.includes("phone") && !/^[6-9]\d{9}$/.test(onlyDigits(f.phone))) errors.phone = "Enter a valid 10-digit mobile number";
+  if (changed.includes("email") && f.email.trim() && !EMAIL_RE.test(f.email.trim())) errors.email = "Enter a valid email address";
+  if (changed.includes("emergency_phone") && f.emergency_phone.trim() && onlyDigits(f.emergency_phone).length < 10) errors.emergency_phone = "Enter a valid phone number";
+  const err = (k) => (showErrors ? errors[k] : undefined);
+
+  const submit = async () => {
+    if (Object.keys(errors).length) { setShowErrors(true); return; }
+    setBusy(true);
+    try {
+      if (changed.length) {
+        const payload = {};
+        changed.forEach((k) => { payload[k] = k === "phone" || k === "emergency_phone" ? onlyDigits(f[k]) : String(f[k]).trim(); });
+        await gymService.updateMember(vid, member.id, payload);
+      }
+      if (photo) {
+        try { await gymService.uploadPhoto(vid, member.id, photo); }
+        catch (e) { showError(errMsg(e, "Details saved, but the photo could not be uploaded")); }
+      }
+      onDone();
+    } catch (e) { showError(errMsg(e, "Could not save the changes")); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} title="Edit member" size="lg">
+      <div className="space-y-3">
+        <p className="text-xs text-gray-500">{member.member_code} · Plan, dates and payments are changed from Renew and Record payment.</p>
+        <PhotoPicker currentUrl={member.photo_url} name={f.name || member.name} file={photo} onChange={setPhoto} disabled={busy} />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Input label="Name *" value={f.name} onChange={set("name")} error={err("name")} />
+          <Input label="Mobile *" inputMode="numeric" maxLength={10} value={f.phone} onChange={set("phone")} error={err("phone")} />
+          <Input label="Email" type="email" value={f.email} onChange={set("email")} error={err("email")} />
+          <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
+          <Input label="Date of birth" type="date" max={todayISO()} value={f.dob} onChange={set("dob")} />
+          <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+          <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
+          <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
+          <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} error={err("emergency_phone")} />
         </div>
-      </Modal>
-    );
-  }
-  
+        {changed.includes("phone") && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">The mobile number is used for WhatsApp messages and payment links. Check it before saving.</p>}
+        <Field label="Health notes"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>
+        <Field label="Internal notes"><TextArea value={f.notes} onChange={set("notes")} /></Field>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={submit} loading={busy} disabled={!dirty}>Save changes</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Permanent delete, meant for members added by mistake. Owner only (the server enforces this too).
+// If real payments exist, the owner has to type the member ID before the button unlocks.
+function DeleteMemberModal({ isOpen, onClose, vid, member, memberships, payments, workoutCount, onDeleted }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (isOpen) { setTyped(""); setBusy(false); } }, [isOpen]);
+
+  const paid = payments.filter((p) => p.status === "paid");
+  const paidTotal = paid.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const needsTyping = paid.length > 0;
+  const unlocked = !needsTyping || typed.trim().toUpperCase() === String(member.member_code).toUpperCase();
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await gymService.deleteMember(vid, member.id, member.member_code);
+      showSuccess("Member deleted");
+      onDeleted();
+    } catch (e) { showError(errMsg(e, "Could not delete the member")); setBusy(false); }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} title="Delete member permanently?" size="sm">
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600">Use this only if <b>{member.name}</b> ({member.member_code}) was added by mistake. This cannot be undone.</p>
+        <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-700 space-y-1">
+          <p className="font-medium text-gray-900">This will permanently remove:</p>
+          <p>· Member profile and photo</p>
+          <p>· {memberships.length} membership record(s)</p>
+          <p>· {payments.length}{payments.length >= 100 ? "+" : ""} payment record(s){paid.length ? ` (${inr(paidTotal)} received)` : ""}</p>
+          {workoutCount > 0 && <p>· {workoutCount} assigned workout plan(s)</p>}
+        </div>
+        {needsTyping && (
+          <>
+            <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+              {paid.length} paid receipt(s) worth {inr(paidTotal)} will also be removed from your revenue reports, and receipts already shared with this member will no longer match your records.
+            </p>
+            <Input label={`Type ${member.member_code} to confirm`} placeholder={member.member_code} autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />
+          </>
+        )}
+        <p className="text-xs text-gray-500">Only want to hide this member and keep all records? Use <b>Archive</b> instead.</p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="danger" onClick={submit} loading={busy} disabled={!unlocked}><Trash2 size={14} /> Delete permanently</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
   // Opened from the small camera button on the member's photo.
   function PhotoModal({ isOpen, onClose, vid, member, onDone }) {
     const [file, setFile] = useState(null);
@@ -267,6 +352,8 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     const nav = useNavigate();
     const { venue } = useVenue();
     const vid = venue?.id;
+    const { user } = useAuth();
+    const canDelete = user?.role !== "team_member"; // team members can archive, only the owner can delete
     const { data, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/members/${id}` : null, { skip: !vid });
     const [modal, setModal] = useState(null);
     const [msg, setMsg] = useState(null);
@@ -328,7 +415,9 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
           <Button variant="outline" onClick={() => setMsg({ title: "Message", types: msgTypes })}><MessageSquare size={14} /> Message</Button>
           <Button variant="outline" onClick={() => setModal("workout")}><Dumbbell size={14} /> Workout</Button>
           <Button variant="outline" onClick={() => setModal("card")}><CreditCard size={14} /> Card</Button>
-          <Button variant="outline" className="col-span-2 sm:col-span-2 text-red-600" onClick={() => setModal("archive")}>Archive member</Button>
+          <Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit details</Button>
+          <Button variant="outline" className="sm:col-span-2 text-red-600" onClick={() => setModal("archive")}><Archive size={14} /> Archive member</Button>
+          {canDelete && <Button variant="outline" className="sm:col-span-2 text-red-600" onClick={() => setModal("delete")}><Trash2 size={14} /> Delete member</Button>}
         </div>
         {!pr.razorpay && !pr.upi && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">Add your UPI ID (Settings &gt; Payment) or connect Razorpay in Gym Settings to create payment links.</p>}
   
@@ -387,7 +476,8 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         <MemberCardModal isOpen={modal === "card"} onClose={() => setModal(null)} vid={vid} member={m} />
         <PayModal isOpen={modal === "pay"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <LinkModal isOpen={modal === "link"} onClose={() => setModal(null)} vid={vid} member={m} hasDue={hasDue} />
-        <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
+        <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Member details updated")} />
+        <DeleteMemberModal isOpen={modal === "delete"} onClose={() => setModal(null)} vid={vid} member={m} memberships={memberships} payments={payments} workoutCount={plans.length} onDeleted={() => nav("/dashboard/gym/members")} />
         <PhotoModal isOpen={modal === "photo"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Photo updated")} />
         <AssignWorkoutModal isOpen={modal === "workout"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <Modal isOpen={modal === "freeze"} onClose={() => setModal(null)} title="Freeze membership" size="sm">
