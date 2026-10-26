@@ -1,9 +1,11 @@
+const os = require("os");
 const { QueryTypes } = require("sequelize");
 const { sequelize } = require("../../database/models");
 const { PLAN_FEATURES } = require("../../config/planFeatures");
 const { getRedisClient } = require("../../config/redis");
 const { AppError } = require("../../middleware/error.middleware");
-
+const metrics = require("../../utils/metrics");
+const backup = require("../../jobs/dbBackup");
 // All "today / this month" boundaries follow Indian time, not server time.
 const TZ = "Asia/Kolkata";
 
@@ -625,6 +627,60 @@ async function countTable(table, hasCreatedAt) {
   }
 }
 
+function getPoolStats() {
+  try {
+    const pool = sequelize.connectionManager.pool;
+    return { size: pool.size, in_use: pool.using, idle: pool.available, waiting: pool.waiting, max: pool.maxSize };
+  } catch (_) {
+    return null;
+  }
+}
+
+// Plain-language warnings shown at the top of the system page.
+function buildAlerts({ backups, requests, server, host, database }) {
+  const alerts = [];
+  const add = (level, text) => alerts.push({ level, text });
+
+  const last = backups.last_success;
+  if (!last) {
+    add("critical", "No successful database backup exists yet. Use \"Back up now\" and check the result.");
+  } else {
+    const ageHours = (Date.now() - new Date(last.at).getTime()) / 3600000;
+    if (ageHours > 36) add("critical", `The last successful backup is ${Math.round(ageHours)} hours old. Automatic backup may be failing.`);
+  }
+  if (backups.last_attempt && !backups.last_attempt.ok) {
+    add("critical", `The latest backup attempt failed: ${backups.last_attempt.error || "unknown error"}`);
+  }
+  if (last && !last.uploaded) {
+    add("warning", "The newest backup is only on this server. Set R2_BACKUP_BUCKET_NAME so a copy is kept outside the server too.");
+  }
+  if (backups.disk && backups.disk.used_percent >= 85) {
+    add("warning", `Server disk is ${backups.disk.used_percent}% full.`);
+  }
+  if (database.connections && database.connections.max && database.connections.used / database.connections.max >= 0.8) {
+    add("warning", `Database connections are almost full (${database.connections.used} of ${database.connections.max}).`);
+  }
+  if (server.memory_rss_mb >= 400) {
+    add("warning", `The app is using ${server.memory_rss_mb} MB of memory. PM2 restarts it at 500 MB.`);
+  }
+  if (host.memory_used_percent >= 90) {
+    add("warning", `Server memory is ${host.memory_used_percent}% used.`);
+  }
+  if (requests.last_5m.errors_5xx >= 5) {
+    add("critical", `${requests.last_5m.errors_5xx} server errors in the last 5 minutes. See the error list below.`);
+  }
+  if (requests.last_5m.rate_limited > 0) {
+    add("warning", `${requests.last_5m.rate_limited} requests were blocked by the rate limit in the last 5 minutes.`);
+  }
+  if (requests.event_loop.p99_ms >= 200) {
+    add("warning", `The server is responding slowly (delay up to ${requests.event_loop.p99_ms} ms).`);
+  }
+  if (requests.process_errors.uncaught_exceptions > 0) {
+    add("critical", "The app restarted after an uncaught error. Check the PM2 error log.");
+  }
+  return alerts;
+}
+
 async function getSystem() {
   const started = Date.now();
   const [dbInfo, meta, redis] = await Promise.all([
@@ -645,25 +701,57 @@ async function getSystem() {
     TABLES.map((t) => (present.has(t.name) ? countTable(t, present.get(t.name)) : { ...t, exists: false, total: 0, last_7d: null, size_bytes: 0 }))
   );
 
+  // Extra health numbers. Each one is optional: if a query is not allowed it is simply left out.
+  const [conn, cache] = await Promise.all([
+    one(`SELECT (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) AS used,
+                current_setting('max_connections')::int AS max`).catch(() => null),
+    one(`SELECT round(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 1) AS ratio
+         FROM pg_stat_database WHERE datname = current_database()`).catch(() => null)
+  ]);
+
   const mem = process.memoryUsage();
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const requests = metrics.snapshot();
+  const backups = await backup.getBackupStatus();
+
+  const database = {
+    name: dbInfo.name,
+    version: String(dbInfo.version || "").split(" on ")[0],
+    size_bytes: num(dbInfo.size_bytes),
+    latency_ms: dbLatencyMs,
+    total_rows: tables.reduce((sum, t) => sum + t.total, 0),
+    connections: conn ? { used: num(conn.used), max: num(conn.max) } : null,
+    pool: getPoolStats(),
+    cache_hit_percent: cache && cache.ratio !== null && cache.ratio !== undefined ? Number(cache.ratio) : null
+  };
+
+  const server = {
+    node_version: process.version,
+    environment: process.env.NODE_ENV || "development",
+    uptime_seconds: Math.round(process.uptime()),
+    memory_rss_mb: Math.round(mem.rss / 1048576),
+    memory_heap_mb: Math.round(mem.heapUsed / 1048576)
+  };
+
+  const host = {
+    cpu_count: os.cpus().length,
+    load_average: os.loadavg().map((n) => +n.toFixed(2)),
+    memory_total_mb: Math.round(totalMem / 1048576),
+    memory_free_mb: Math.round(freeMem / 1048576),
+    memory_used_percent: Math.round(((totalMem - freeMem) / totalMem) * 100),
+    uptime_seconds: Math.round(os.uptime())
+  };
 
   return {
-    database: {
-      name: dbInfo.name,
-      version: String(dbInfo.version || "").split(" on ")[0],
-      size_bytes: num(dbInfo.size_bytes),
-      latency_ms: dbLatencyMs,
-      total_rows: tables.reduce((sum, t) => sum + t.total, 0)
-    },
+    database,
     tables,
     redis,
-    server: {
-      node_version: process.version,
-      environment: process.env.NODE_ENV || "development",
-      uptime_seconds: Math.round(process.uptime()),
-      memory_rss_mb: Math.round(mem.rss / 1048576),
-      memory_heap_mb: Math.round(mem.heapUsed / 1048576)
-    }
+    server,
+    host,
+    requests,
+    backups,
+    alerts: buildAlerts({ backups, requests, server, host, database })
   };
 }
 

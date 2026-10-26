@@ -15,4 +15,8 @@ router.get("/plans", controller.getPlans);
 router.get("/marketplace", controller.getMarketplace);
 router.get("/system", controller.getSystem);
 
+// Database backups
+router.post("/backups/run", controller.runBackupNow);
+router.get("/backups/download", controller.downloadBackup);
+
 module.exports = router;

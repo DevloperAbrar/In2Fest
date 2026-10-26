@@ -6,6 +6,7 @@ const { startJobs } = require("./jobs");
 const { getRedisClient } = require("./config/redis");
 const { syncSuperAdminFromEnv } = require("./database/superAdminSync");
 const { ensureSchema } = require("./database/startupMigrations");
+const { recordProcessError } = require("./utils/metrics");
 
 async function startServer() {
   await connectDatabase();
@@ -33,6 +34,11 @@ async function startServer() {
   const server = app.listen(env.port, () => {
     console.log(`[SERVER] In2Fest backend running on port ${env.port} [${env.nodeEnv}]`);
   });
+
+  // Longer than nginx's default keep-alive (60s), so nginx never reuses a connection
+  // that Node has just closed (that shows up as random 502 errors).
+  server.keepAliveTimeout = 65 * 1000;
+  server.headersTimeout = 66 * 1000;
 
   startJobs();
 
@@ -66,13 +72,17 @@ async function startServer() {
     }, 10000).unref();
   }
 
+  // A forgotten await or a failed background task must NOT take every client offline.
+  // Log it (it also shows on the Super Admin system page) and keep serving.
   process.on("unhandledRejection", (err) => {
     console.error("[UNHANDLED REJECTION]", err);
-    shutdown("UNHANDLED_REJECTION");
+    recordProcessError("unhandledRejection", err);
   });
 
+  // After an uncaught exception the process state is unknown, so restart cleanly (PM2 brings it back).
   process.on("uncaughtException", (err) => {
     console.error("[UNCAUGHT EXCEPTION]", err);
+    recordProcessError("uncaughtException", err);
     shutdown("UNCAUGHT_EXCEPTION");
   });
 

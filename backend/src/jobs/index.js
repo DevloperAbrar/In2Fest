@@ -7,6 +7,7 @@ const { startWeeklyStats } = require("./weeklyStats");
 const { startSitemapRebuilder } = require("./sitemapRebuilder");
 const { startReferralCron } = require("./referralCron");
 const { startGymJobs } = require("./gymJobs");
+const { startDbBackup } = require("./dbBackup");
 
 function startJobs() {
   startTrialExpiryChecker();
@@ -18,6 +19,7 @@ function startJobs() {
   startSitemapRebuilder();
   startReferralCron();
   startGymJobs();
+  startDbBackup();
   console.log("[JOBS] All background jobs started.");
 }
 

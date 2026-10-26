@@ -8,15 +8,24 @@ const session = require("express-session");
 const path = require("path");
 
 const env = require("./config/env");
+const { sequelize } = require("./config/database");
 const passport = require("./modules/auth/google.strategy");
 const { apiLimiter } = require("./middleware/rateLimiter.middleware");
 const { errorHandler, notFoundHandler } = require("./middleware/error.middleware");
 const { resolveSubdomain } = require("./subdomain/subdomain.middleware");
+const { metricsMiddleware } = require("./utils/metrics");
 const routes = require("./routes/index");
 const sitemapRoutes = require("./modules/seo/sitemap.routes");
 
 const app = express();
-app.set("trust proxy", 1);
+
+// Number of reverse proxies in front of the app (nginx = 1, Cloudflare + nginx = 2).
+// Wrong value makes every visitor look like one IP. Set TRUST_PROXY_HOPS in .env if needed.
+app.set("trust proxy", parseInt(process.env.TRUST_PROXY_HOPS, 10) || 1);
+
+// Request metrics for the Super Admin "Database & System" page (memory only, no DB).
+app.use(metricsMiddleware);
+
 // Security & performance
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/auth/google")) {
@@ -68,12 +77,27 @@ app.use("/uploads", express.static(path.join(process.cwd(), env.upload.dir)));
 // Subdomain resolution (attaches req.venue for public site routes)
 app.use(resolveSubdomain);
 
-// Rate limiting for all API routes
+// Rate limiting for all API routes (per logged-in account, or per IP for visitors)
 app.use("/api", apiLimiter);
 
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ success: true, status: "ok", timestamp: new Date().toISOString() });
+// Health check: also proves the database answers, so uptime monitors see real problems.
+app.get("/health", async (req, res) => {
+  const timestamp = new Date().toISOString();
+  let timer;
+  try {
+    await Promise.race([
+      sequelize.query("SELECT 1"),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Database did not answer in time")), 3000);
+      })
+    ]);
+    res.json({ success: true, status: "ok", db: "up", timestamp });
+  } catch (error) {
+    console.error("[HEALTH] Database check failed:", error.message);
+    res.status(503).json({ success: false, status: "degraded", db: "down", timestamp });
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 // Main API routes

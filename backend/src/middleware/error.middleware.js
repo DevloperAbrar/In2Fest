@@ -1,6 +1,7 @@
 const { ValidationError, UniqueConstraintError, DatabaseError } = require("sequelize");
 
 function errorHandler(err, req, res, next) {
+  res.locals.errorMessage = err.message;
   console.error(`[ERROR] ${req.method} ${req.originalUrl} -`, err.message);
   if (process.env.NODE_ENV === "development") {
     console.error(err.stack);
