@@ -11,12 +11,11 @@ function wordCount(text) {
 }
 
 async function registerFreeListing(payload) {
-  if (wordCount(payload.about) < 50) {
-    throw new AppError("About section must be at least 50 words", 400);
-  }
   if ((payload.photos || []).length > 5) {
     throw new AppError("You can upload up to 5 photos", 400);
   }
+
+  const about = (payload.about || "").trim();
 
   const listing = await VendorListing.create({
     business_name: payload.business_name,
@@ -27,7 +26,7 @@ async function registerFreeListing(payload) {
     locality: payload.locality,
     category_id: payload.category_id,
     starting_price: payload.starting_price || null,
-    about: payload.about,
+    about: about || null,
     photos: payload.photos || [],
     status: "pending"
   });

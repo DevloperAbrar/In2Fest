@@ -53,7 +53,6 @@ export default function JoinIn2FestPage() {
     axios.get(`${API_BASE_URL}/meta/categories`).then(({ data }) => setCategories(data.data || [])).catch(() => {});
   }, []);
 
-  const wordCount = form.about.trim().split(/\s+/).filter(Boolean).length;
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
   const scrollToForm = () => {
@@ -68,10 +67,6 @@ export default function JoinIn2FestPage() {
     }
     if (form.phone.replace(/\D/g, "").length < 10) {
       setError("Please enter a valid 10 digit phone number");
-      return;
-    }
-    if (wordCount < 50) {
-      setError("About section must be at least 50 words");
       return;
     }
 
@@ -251,16 +246,13 @@ export default function JoinIn2FestPage() {
 
                 <input className={inputCls} type="number" min="0" placeholder="Starting price (optional)" value={form.starting_price} onChange={set("starting_price")} />
 
-                <div>
-                  <textarea
-                    rows={5}
-                    className={inputCls}
-                    placeholder="About your business (minimum 50 words) *"
-                    value={form.about}
-                    onChange={set("about")}
-                  />
-                  <p className={`text-xs mt-1 ${wordCount >= 50 ? "text-green-600" : "text-gray-400"}`}>{wordCount} / 50 words</p>
-                </div>
+                <textarea
+                  rows={4}
+                  className={inputCls}
+                  placeholder="About your business (optional)"
+                  value={form.about}
+                  onChange={set("about")}
+                />
 
                 <p className="text-xs text-gray-400">You can add photos after your listing is approved.</p>
 
