@@ -36,9 +36,9 @@ const DEFAULT_MESSAGES = {
   feedback: "Hi {{name}}, {{gym}} mein aapka experience kaisa raha? Aapka feedback hamare liye bahut zaroori hai. Reply karke bataiye 🙏",
   referral: "Hi {{name}}, apne dost ko {{gym}} laayein aur dono ko special benefit paayein 💪\nDetails ke liye reply karein.",
   new_stock: "Hi {{name}}, {{gym}} mein supplements ka naya stock aa gaya hai 💪\nProtein, creatine aur bahut kuch. Aakar dekhein ya yahan check karein: {{website}}",
-  trial_invite: "Hi {{name}}, {{gym}} mein aapka free trial ke liye swagat hai 💪\nAap kis din aur kis time aana chahenge? Reply karein, hum slot book kar denge.",
-  trial_followup: "Hi {{name}}, {{gym}} se baat kar rahe hain. Aapne free trial mein interest dikhaya tha. Kya hum aapka trial schedule kar dein?",
-  trial_reminder: "Hi {{name}}, yaad dilane ke liye: {{gym}} mein aapka free trial {{trial_date}} ko hai. Milte hain! 💪"
+  trial_invite: "Hi {{name}}, {{gym}} mein aapka swagat hai 💪\nAap kis din aur kis time gym visit karna chahenge? Reply karein, hum aapke liye time fix kar denge.",
+  trial_followup: "Hi {{name}}, {{gym}} se baat kar rahe hain. Aapne membership mein interest dikhaya tha. Kya hum aapki gym visit schedule kar dein?",
+  trial_reminder: "Hi {{name}}, yaad dilane ke liye: {{gym}} mein aapki visit {{trial_date}} ko hai. Milte hain! 💪"
 };
 
 // bulk:false = needs one specific payment / plan, so it is only used from the member page
@@ -50,9 +50,9 @@ const SYSTEM_TEMPLATES = [
   { key: "birthday", title: "Birthday wish", category: "engage", for: "member", bulk: true },
   { key: "feedback", title: "Feedback request", category: "engage", for: "member", bulk: true },
   { key: "referral", title: "Refer a friend", category: "engage", for: "member", bulk: true },
-  { key: "trial_invite", title: "Free trial invite", category: "leads", for: "lead", bulk: true },
-  { key: "trial_followup", title: "Trial follow-up", category: "leads", for: "lead", bulk: true },
-  { key: "trial_reminder", title: "Trial reminder", category: "leads", for: "lead", bulk: true },
+  { key: "trial_invite", title: "Visit invite", category: "leads", for: "lead", bulk: true },
+  { key: "trial_followup", title: "Visit follow-up", category: "leads", for: "lead", bulk: true },
+  { key: "trial_reminder", title: "Visit reminder", category: "leads", for: "lead", bulk: true },
   { key: "offer", title: "Offer / promotion", category: "promo", for: "both", bulk: true },
   { key: "new_stock", title: "New supplement stock", category: "promo", for: "both", bulk: true },
   { key: "festival", title: "Festival wishes", category: "notice", for: "both", bulk: true },

@@ -60,7 +60,7 @@ function GymHero({ venue, stats, actions }) {
             className="px-9 py-4 rounded-full font-extrabold uppercase tracking-wider shadow-2xl hover:scale-105 active:scale-95 transition-transform"
             style={{ backgroundColor: theme, color: onAccent(theme), boxShadow: `0 10px 40px ${theme}77` }}
           >
-            {venue.hero_button_text || "Start Free Trial"}
+            {venue.hero_button_text || "Join Now"}
           </button>
           <a
             href="#section-packages"

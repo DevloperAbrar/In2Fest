@@ -133,7 +133,7 @@ export default function VenueHomePage() {
   const actions = { openTrial: () => setTrialOpen(true) };
   let primaryCta = { label: "Enquire Now", href: "#inquiry" };
   if (vertical.key === "gym") {
-    primaryCta = { label: "Free Trial", onClick: actions.openTrial };
+    primaryCta = { label: "Join Now", onClick: actions.openTrial };
   } else if (vertical.key === "shop" && vertical.food) {
     primaryCta = { label: "Order for Pickup", href: "#section-product_catalog" };
   } else if (vertical.key === "shop") {

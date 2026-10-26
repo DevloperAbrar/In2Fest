@@ -3,9 +3,9 @@
 
 const COPY = {
   gym: {
-    dateLabel: "Preferred trial date",
+    dateLabel: "Preferred visit date",
     typeLabel: "I am interested in",
-    types: ["Free trial session", "Membership enquiry", "Personal training", "Group classes"],
+    types: ["Visit the gym", "Membership enquiry", "Personal training", "Group classes"],
     countLabel: "People joining"
   },
   food: {

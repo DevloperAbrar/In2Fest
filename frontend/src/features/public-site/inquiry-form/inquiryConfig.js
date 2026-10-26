@@ -18,10 +18,10 @@ const EVENT_CFG = {
 
 const GYM = {
   isEvent: false,
-  dateLabel: "Preferred trial date",
+  dateLabel: "Preferred visit date",
   dateRequired: false,
   typeLabel: "I am interested in",
-  types: ["Free trial session", "Membership enquiry", "Personal training", "Group classes"],
+  types: ["Visit the gym", "Membership enquiry", "Personal training", "Group classes"],
   countLabel: "People joining",
   countRequired: false,
   allowSlots: true

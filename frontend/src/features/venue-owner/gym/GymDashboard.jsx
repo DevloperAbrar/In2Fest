@@ -48,7 +48,7 @@ export default function GymDashboard() {
           <p className="text-2xl font-bold text-gray-900 flex items-center gap-2"><TrendingUp size={20} className="text-green-600" />{d.renewal_rate == null ? "-" : `${d.renewal_rate}%`}</p>
           <p className="text-xs text-gray-500 mt-1">{d.renewals_due_30d} memberships ended in the last 30 days</p>
         </Card>
-        <Card title="Free-trial leads">
+        <Card title="New enquiries">
           <p className="text-2xl font-bold text-gray-900">{d.new_leads}</p>
           <Link to="/dashboard/gym/leads" className="text-xs text-primary-600 font-medium">View leads →</Link>
         </Card>

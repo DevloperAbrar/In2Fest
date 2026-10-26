@@ -27,9 +27,9 @@ export default function GymLeads() {
   };
 
   return (
-    <GymPage title="Free-trial leads" subtitle="People who tapped “Book free trial” on your website">
+    <GymPage title="Enquiry leads" subtitle="People who tapped “Join Now” on your website">
       {loading ? <Loader /> : !leads?.length ? (
-        <EmptyState title="No leads yet" description="Leads from your website's free-trial button appear here. Check this tab regularly and call them." />
+        <EmptyState title="No leads yet" description="Leads from your website's Join Now button appear here. Check this tab regularly and call them." />
       ) : (
         <div className="bg-white rounded-2xl border border-navy-100/60 divide-y">
           {leads.map((l) => (

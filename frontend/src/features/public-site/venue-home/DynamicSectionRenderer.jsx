@@ -546,7 +546,7 @@ function CtaBanner({ config, theme, venue }) {
                 className="px-7 py-3 rounded-full bg-white font-bold text-sm shadow-lg hover:-translate-y-0.5 transition-transform"
                 style={{ color: theme }}
               >
-                Book Free Trial
+                Join Now
               </button>
             )}
             {rawPhone && (

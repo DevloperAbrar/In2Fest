@@ -48,7 +48,7 @@ function BmiCard({ theme, onTrial }) {
           <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">{label}</p>
           {onTrial && (
             <button type="button" onClick={onTrial} className="px-5 py-2.5 rounded-full text-sm font-bold text-white" style={{ backgroundColor: theme }}>
-              Book free fitness assessment
+              Get my personalised plan
             </button>
           )}
         </div>
@@ -136,7 +136,7 @@ export function GymPlans({ config, theme, toneIdx, venue, actions }) {
                   className="mt-7 w-full py-3 rounded-xl font-bold text-white transition-transform hover:scale-[1.02]"
                   style={{ backgroundColor: theme }}
                 >
-                  Start with a free trial
+                  Join this plan
                 </button>
               )}
             </div>

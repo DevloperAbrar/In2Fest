@@ -16,8 +16,8 @@ const VERTICALS = {
     gym: {
       key: "gym",
       label: "Gym & Fitness",
-      cta_label: "Book Free Trial",
-      whatsapp_message: "Hi, I found you on In2Fest. I want to know the membership fees and book a free trial.",
+      cta_label: "Get Membership Details",
+      whatsapp_message: "Hi, I found you on In2Fest. I want to know the membership fees and plans.",
       group_order: ["Gym details", "Trainers & classes", "Payments"],
       priceUnits: ["per month", "per quarter", "per year", "per session"],
       stats: ["starting_price", "attr:gym_type", "year_established", "attr:trainers_count"],
@@ -34,7 +34,7 @@ const VERTICALS = {
         priceMax: "Highest plan price",
         policy: "Membership, freeze & refund policy",
         policyHint: "Explain joining fee, plan freeze rules and refunds.",
-        inquiry: "Book Free Trial",
+        inquiry: "Get Membership Details",
         team: "Trainers"
       }
     },
