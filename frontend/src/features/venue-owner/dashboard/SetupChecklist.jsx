@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Circle, X, Sparkles } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, ChevronDown, ChevronRight, Sparkles, X } from "lucide-react";
 import { useVenueStore } from "../../../store/venueStore";
 import { SECTION_TYPES } from "../../../lib/sectionLibrary";
 import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
+import { ProgressRing, Surface } from "./dashboardUi.jsx";
 
 function buildSteps(pageSections, { isShop, isFood, hasSlots, hasBilling }) {
   const sections = pageSections || [];
@@ -74,6 +76,7 @@ function buildSteps(pageSections, { isShop, isFood, hasSlots, hasBilling }) {
 export default function SetupChecklist({ completedSteps = [], planFeatures = [], pageSections = [] }) {
   const { setupChecklistOpen, closeSetupChecklist } = useVenueStore();
   const { profile, loading: profileLoading } = useBusinessProfile();
+  const [expanded, setExpanded] = useState(false);
 
   if (!setupChecklistOpen) return null;
   // Wait for the business type so the list never flashes steps that don't apply.
@@ -90,25 +93,29 @@ export default function SetupChecklist({ completedSteps = [], planFeatures = [],
 
   if (availableSteps.length === 0) {
     return (
-      <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl p-5 mb-6 relative text-white overflow-hidden">
-        <button onClick={closeSetupChecklist} className="absolute top-4 right-4 text-white/70 hover:text-white">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 to-primary-800 p-5 text-white shadow-card">
+        <button
+          onClick={closeSetupChecklist}
+          aria-label="Dismiss"
+          className="tap-scale absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10"
+        >
           <X size={16} />
         </button>
-        <div className="flex items-start gap-4">
-          <div className="bg-white/15 rounded-lg p-2.5 flex-shrink-0">
-            <Sparkles size={20} />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold mb-1">Build your own branded website</h3>
-            <p className="text-sm text-white/85 mb-3 max-w-md">
-              Your current plan covers your Marketplace Profile. Upgrade to unlock a custom website with your own
-              hero image, gallery, services, and booking slots.
+        <div className="flex items-start gap-3.5 pr-6">
+          <span className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+            <Sparkles size={19} />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-display font-semibold text-white">Build your own branded website</h3>
+            <p className="text-[13px] text-white/80 mt-1 leading-relaxed">
+              Your plan covers your Marketplace Profile. Upgrade to unlock a custom website with hero image,
+              gallery, services and booking slots.
             </p>
             <Link
               to="/dashboard/settings/subscription"
-              className="inline-block bg-white text-primary-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-white/90 transition"
+              className="tap-scale mt-3 inline-flex items-center gap-1 bg-white text-primary-700 text-[13px] font-semibold px-4 py-2 rounded-xl"
             >
-              View Plans
+              View plans <ChevronRight size={14} />
             </Link>
           </div>
         </div>
@@ -120,30 +127,82 @@ export default function SetupChecklist({ completedSteps = [], planFeatures = [],
   const completionRate = Math.round((doneCount / availableSteps.length) * 100);
   if (completionRate === 100) return null;
 
+  const nextStep = availableSteps.find((s) => !completedSteps.includes(s.key));
+  const remaining = availableSteps.length - doneCount;
+
   return (
-    <div className="bg-white rounded-xl border border-primary-100 p-5 mb-6 relative">
-      <button onClick={closeSetupChecklist} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-        <X size={16} />
+    <Surface className="overflow-hidden">
+      <div className="flex items-center gap-3.5 p-4">
+        <ProgressRing percent={completionRate} />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display font-semibold text-[14.5px] text-navy-900">Finish setting up</h3>
+          <p className="text-xs text-navy-400 mt-0.5">
+            {remaining} {remaining === 1 ? "step" : "steps"} left
+          </p>
+        </div>
+        <button
+          onClick={closeSetupChecklist}
+          aria-label="Dismiss"
+          className="tap-scale w-8 h-8 -mr-1 flex items-center justify-center rounded-full text-navy-300 hover:text-navy-600 hover:bg-navy-50"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      {nextStep && (
+        <Link
+          to={nextStep.path}
+          className="tap-scale mx-4 mb-4 flex items-center justify-between gap-3 rounded-xl bg-primary-50 px-3.5 py-3 hover:bg-primary-100/70 transition-colors"
+        >
+          <span className="min-w-0">
+            <span className="block text-[10.5px] font-semibold uppercase tracking-wider text-primary-600">Up next</span>
+            <span className="block text-[13.5px] font-medium text-navy-900 truncate">{nextStep.label}</span>
+          </span>
+          <ChevronRight size={18} className="text-primary-600 shrink-0" />
+        </Link>
+      )}
+
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="w-full flex items-center justify-center gap-1 py-2.5 border-t border-navy-100/70 text-xs font-medium text-navy-500 hover:bg-navy-50/60"
+      >
+        {expanded ? "Hide checklist" : "View full checklist"}
+        <ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
-      <h3 className="font-semibold mb-1">Finish setting up your venue ({completionRate}%)</h3>
-      <div className="w-full bg-gray-100 rounded-full h-2 mb-4">
-        <div className="bg-primary-600 h-2 rounded-full transition-all" style={{ width: `${completionRate}%` }} />
-      </div>
-      <div className="space-y-2">
-        {availableSteps.map((step) => {
-          const done = completedSteps.includes(step.key);
-          return (
-            <Link
-              key={step.key}
-              to={step.path}
-              className="flex items-center gap-3 text-sm hover:bg-gray-50 p-2 rounded-lg"
-            >
-              {done ? <Check size={16} className="text-green-600" /> : <Circle size={16} className="text-gray-300" />}
-              <span className={done ? "text-gray-400 line-through" : "text-gray-700"}>{step.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.ul
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden border-t border-navy-100/70"
+          >
+            {availableSteps.map((step) => {
+              const done = completedSteps.includes(step.key);
+              return (
+                <li key={step.key}>
+                  <Link
+                    to={step.path}
+                    className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-navy-50/60"
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                        done ? "bg-emerald-500 text-white" : "border-2 border-navy-200"
+                      }`}
+                    >
+                      {done && <Check size={12} strokeWidth={3} />}
+                    </span>
+                    <span className={done ? "text-navy-300" : "text-navy-700 font-medium"}>{step.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </Surface>
   );
 }

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings } from "lucide-react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useAuth } from "../../../context/AuthContext";
@@ -72,11 +74,11 @@ export async function shareContent({ title, text }) {
 }
 
 const STATUS = {
-  active: { label: "Active", cls: "bg-green-100 text-green-700" },
-  expiring: { label: "Expiring", cls: "bg-amber-100 text-amber-700" },
-  expired: { label: "Expired", cls: "bg-red-100 text-red-700" },
-  frozen: { label: "Frozen", cls: "bg-sky-100 text-sky-700" },
-  new: { label: "No plan", cls: "bg-gray-100 text-gray-600" }
+  active: { label: "Active", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200/70", dot: "bg-emerald-500" },
+  expiring: { label: "Expiring", cls: "bg-amber-50 text-amber-700 ring-amber-200/70", dot: "bg-amber-500" },
+  expired: { label: "Expired", cls: "bg-red-50 text-red-700 ring-red-200/70", dot: "bg-red-500" },
+  frozen: { label: "Frozen", cls: "bg-sky-50 text-sky-700 ring-sky-200/70", dot: "bg-sky-500" },
+  new: { label: "No plan", cls: "bg-navy-50 text-navy-600 ring-navy-200/70", dot: "bg-navy-300" }
 };
 
 export function StatusPill({ status, daysLeft }) {
@@ -84,20 +86,25 @@ export function StatusPill({ status, daysLeft }) {
   let extra = "";
   if (status === "expiring") extra = daysLeft === 0 ? " · today" : ` · ${daysLeft}d`;
   if (status === "expired" && daysLeft != null) extra = ` · ${Math.abs(daysLeft)}d ago`;
-  return <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${s.cls}`}>{s.label}{extra}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-medium whitespace-nowrap ring-1 ring-inset ${s.cls}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+      {s.label}{extra}
+    </span>
+  );
 }
 
 export function Field({ label, children }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium text-gray-700 mb-1">{label}</span>
+      <span className="block text-[13px] font-medium text-navy-700 mb-1.5">{label}</span>
       {children}
     </label>
   );
 }
 
 export const TextArea = ({ className = "", ...p }) => (
-  <textarea rows={3} {...p} className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className}`} />
+  <textarea rows={3} {...p} className={`w-full px-3.5 py-2.5 border border-navy-200 rounded-xl text-sm text-navy-900 placeholder:text-navy-300 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 ${className}`} />
 );
 
 /*
@@ -136,15 +143,15 @@ export function MessageModal({ onClose, vid, memberId, title = "Message", types,
           <div className="flex flex-wrap gap-1.5">
             {types.map((t) => (
               <button key={t.key} onClick={() => setType(t.key)}
-                className={`px-3 py-1 rounded-full text-xs border ${type === t.key ? "bg-primary-600 text-white border-primary-600" : "text-gray-600"}`}>{t.label}</button>
+                className={`tap-scale px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${type === t.key ? "bg-navy-900 text-white border-navy-900" : "text-navy-600 border-navy-200 hover:bg-navy-50"}`}>{t.label}</button>
             ))}
           </div>
         )}
-        {loading ? <Loader /> : error ? <p className="text-sm text-red-500">{error}</p> : (
+        {loading ? <Loader /> : error ? <p className="text-sm text-red-600">{error}</p> : (
           <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            className="w-full px-3.5 py-2.5 border border-navy-200 rounded-xl text-sm text-navy-900 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400" />
         )}
-        <p className="text-xs text-gray-500">You can edit the text. Tap WhatsApp to open this member's chat, then press send from your own phone.</p>
+        <p className="text-xs text-navy-400">You can edit the text. Tap WhatsApp to open this member's chat, then press send from your own phone.</p>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={copy} disabled={!text}>Copy</Button>
           <Button onClick={whatsapp} disabled={!text || !phone}>WhatsApp</Button>
@@ -154,38 +161,87 @@ export function MessageModal({ onClose, vid, memberId, title = "Message", types,
   );
 }
 
+const TAB_DEFS = [
+  { to: "/dashboard/gym", label: "Overview", icon: LayoutGrid, end: true },
+  { to: "/dashboard/gym/members", label: "Members", icon: Users },
+  { to: "/dashboard/gym/plans", label: "Plans", icon: Ticket },
+  { to: "/dashboard/gym/workouts", label: "Workouts", icon: Dumbbell },
+  { to: "/dashboard/gym/leads", label: "Leads", icon: UserPlus },
+  { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle },
+  { to: "/dashboard/gym/store", label: "Store", icon: ShoppingBag }
+];
+const SETTINGS_TAB = { to: "/dashboard/gym/settings", label: "Settings", icon: Settings };
+
 export function GymTabs() {
   const { user } = useAuth();
-  const tabs = [
-    ["/dashboard/gym", "Overview", true], ["/dashboard/gym/members", "Members"], ["/dashboard/gym/plans", "Plans"],
-    ["/dashboard/gym/workouts", "Workouts"], ["/dashboard/gym/leads", "Leads"], ["/dashboard/gym/messages", "Messages"],
-    ["/dashboard/gym/store", "Store"]
-  ];
-  if (user?.role !== "team_member") tabs.push(["/dashboard/gym/settings", "Settings"]);
+  const { pathname } = useLocation();
+  const reduce = useReducedMotion();
+  const rowRef = useRef(null);
+  const tabs = user?.role !== "team_member" ? [...TAB_DEFS, SETTINGS_TAB] : TAB_DEFS;
+
+  // Keep the active tab in view on small screens.
+  useEffect(() => {
+    const el = rowRef.current?.querySelector('[aria-current="page"]');
+    if (el?.scrollIntoView) el.scrollIntoView({ inline: "center", block: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }, [pathname, reduce]);
+
   return (
-    <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl overflow-x-auto">
-      {tabs.map(([to, label, end]) => (
-        <NavLink key={to} to={to} end={!!end}
-          className={({ isActive }) => `px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${isActive ? "bg-white shadow text-gray-900" : "text-gray-500"}`}>
-          {label}
-        </NavLink>
-      ))}
-    </div>
+    <nav aria-label="Gym sections" className="mb-5 bg-white border border-navy-100/70 shadow-card rounded-2xl p-1">
+      <div
+        ref={rowRef}
+        className="flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {tabs.map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={!!end}
+            className={({ isActive }) =>
+              `tap-scale relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium whitespace-nowrap transition-colors ${
+                isActive ? "text-white" : "text-navy-500 hover:text-navy-800 hover:bg-navy-50"
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.span
+                    layoutId="gym-tab-pill"
+                    className="absolute inset-0 rounded-xl bg-navy-900 shadow-sm"
+                    transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <Icon size={15} strokeWidth={2.1} className="relative" />
+                <span className="relative">{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </div>
+    </nav>
   );
 }
 
 export function GymPage({ title, subtitle, actions, children }) {
+  const reduce = useReducedMotion();
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Gym">
       <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
-          {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
+        <div className="min-w-0">
+          <h1 className="font-display text-xl font-bold text-navy-900 truncate">{title}</h1>
+          {subtitle && <p className="text-[13px] text-navy-400 mt-0.5">{subtitle}</p>}
         </div>
         <div className="flex gap-2 flex-shrink-0">{actions}</div>
       </div>
       <GymTabs />
-      {children}
+      <motion.div
+        initial={reduce ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {children}
+      </motion.div>
     </DashboardLayout>
   );
 }
