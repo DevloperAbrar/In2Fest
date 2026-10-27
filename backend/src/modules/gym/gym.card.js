@@ -207,4 +207,11 @@ async function memberCardPng({ venue }, memberId, res) {
   res.send(png);
 }
 
-module.exports = { memberCardPng, renderCard };
+// Same card as memberCardPng, but returns the PNG buffer (used by the public card link).
+async function memberCardBuffer(venue, member) {
+  const photo = await loadPhoto(member.photo_url);
+  const identity = await gymIdentity(venue);
+  return renderCard({ venue, member, photo, identity });
+}
+
+module.exports = { memberCardPng, memberCardBuffer, renderCard };

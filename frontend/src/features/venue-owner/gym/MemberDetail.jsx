@@ -20,7 +20,7 @@ import PhotoPicker from "./PhotoPicker.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import {
   GymPage, StatusPill, Field, TextArea, MessageModal,
-  inr, fmtDate, errMsg, todayISO, MODES, GOALS, downloadBlob, copyText, shareContent
+  inr, fmtDate, errMsg, todayISO, MODES, GOALS, downloadBlob, copyText, shareContent, waUrl
 } from "./gymShared.jsx";
 
 function RenewModal({ isOpen, onClose, vid, member, onDone }) {
@@ -343,7 +343,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     );
   }
 
-  function MemberCardModal({ isOpen, onClose, vid, member }) {
+  function MemberCardModal({ isOpen, onClose, vid, member, cardLink }) {
     const [url, setUrl] = useState("");
     const [blob, setBlob] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -373,6 +373,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
       };
     }, [isOpen, vid, member.id, member.plan_name, member.end_date, member.photo_url]);
   
+    // Option 1: phone share sheet with the card image (the vendor picks the contact).
     const share = async () => {
       const file = new File([blob], fileName, { type: "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -382,6 +383,25 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         downloadBlob(blob, fileName);
       }
     };
+
+    // Option 2: opens this member's own WhatsApp chat directly, with the card link ready.
+    // No await before window.open, so the browser treats it as a normal tap and does not block it.
+    const sendLink = () => {
+      const digits = String(member.phone || "").replace(/\D/g, "");
+      const number = digits.length === 10 ? `91${digits}` : digits;
+      if (number.length < 11 || number.length > 15) {
+        showError("This member does not have a valid mobile number");
+        return;
+      }
+      if (!cardLink) {
+        showError("Card link is not ready. Please refresh the page and try again.");
+        return;
+      }
+      const planText = member.plan_name ? ` Plan: ${member.plan_name}.` : "";
+      const validTill = member.end_date ? ` Valid till ${fmtDate(member.end_date)}.` : "";
+      const text = `Hi ${member.name || ""}, here is your membership card (${member.member_code || "member"}).${planText}${validTill}\n${cardLink}`;
+      window.open(waUrl(number, text), "_blank", "noopener,noreferrer");
+    };
   
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Membership card" size="md">
@@ -389,8 +409,10 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
           {loading && <Loader />}
           {error && <p className="text-sm text-red-500">{error}</p>}
           {url && <img src={url} alt="Membership card" className="w-full rounded-2xl shadow" />}
-          <p className="text-xs text-gray-500">Card shows the gym name, member details, plan validity and your gym logo. Download it or share it from your phone.</p>
-          <div className="flex justify-end gap-2">
+          <p className="text-xs text-gray-500">Card shows the gym name, member details, plan validity and your gym logo.</p>
+          <p className="text-xs text-gray-500"><b>Share</b> sends the card image (you choose the contact). <b>Send link</b> opens this member's WhatsApp chat directly with a card link; the member can view and download the card from it.</p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={sendLink} disabled={!cardLink}><MessageSquare size={14} /> Send link</Button>
             <Button variant="outline" onClick={share} disabled={!blob}>Share</Button>
             <Button onClick={() => downloadBlob(blob, fileName)} disabled={!blob}>Download</Button>
           </div>
@@ -413,7 +435,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
 
   
     if (loading || !data) return <GymPage title="Member"><Loader /></GymPage>;
-    const { member: m, memberships, payments, workout_plans: plans, renewal_quote: rq, pay_ready: pr, plan } = data;
+    const { member: m, memberships, payments, workout_plans: plans, renewal_quote: rq, pay_ready: pr, plan, card_link: cardLink } = data;
     const done = (text) => () => { setModal(null); if (text) showSuccess(text); refetch(); };
     const act = async (fn, ok) => { try { await fn(); showSuccess(ok); refetch(); } catch (e) { showError(errMsg(e)); } };
  
@@ -525,7 +547,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
   
         {msg && <MessageModal key={msg.title} onClose={() => setMsg(null)} vid={vid} memberId={m.id} title={msg.title} types={msg.types} params={msg.params} />}
         <RenewModal isOpen={modal === "renew"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Renewed")} />
-        <MemberCardModal isOpen={modal === "card"} onClose={() => setModal(null)} vid={vid} member={m} />
+        <MemberCardModal isOpen={modal === "card"} onClose={() => setModal(null)} vid={vid} member={m} cardLink={cardLink} />
         <PayModal isOpen={modal === "pay"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <LinkModal isOpen={modal === "link"} onClose={() => setModal(null)} vid={vid} member={m} hasDue={hasDue} />
         <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} memberships={memberships} onDone={done("Member details updated")} />

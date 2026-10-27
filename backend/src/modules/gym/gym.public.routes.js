@@ -9,6 +9,8 @@ router.use(rateLimit({
   message: { success: false, message: "Too many requests. Please try again later." }
 }));
 
+router.get("/card/:token/image", c.cardImage);
+router.get("/card/:token", c.cardPage);
 router.get("/:venueId/plans", c.plans);
 router.get("/:venueId/store", c.storeData);
 router.get("/invoice/:token/pdf", c.invoice);

@@ -11,6 +11,7 @@ const workout = require("./gym.workout.service");
 const store = require("./gym.store.service");
 const invoicePdf = require("./gym.store.invoice");
 const { getSettings } = require("./gym.insights.service");
+const memberCard = require("./gym.card");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -171,4 +172,50 @@ async function payClaimed(req, res, next) {
     } catch (e) { next(e); }
   }
   
-  module.exports = { plans, trial, workoutPdf, renewPage, renewStart, payPage, payClaimed, storeData, invoice };
+  /* ---------------- public membership card (shared on WhatsApp) ---------------- */
+async function cardImage(req, res, next) {
+  try {
+    const ctx = await loadByMemberToken(req.params.token);
+    if (!ctx) return notFoundPage(res);
+    const png = await memberCard.memberCardBuffer(ctx.venue, ctx.member);
+    res.set({
+      "Content-Type": "image/png",
+      "Content-Disposition": 'inline; filename="membership-card.png"',
+      "Cache-Control": "public, max-age=300",
+      "X-Robots-Tag": "noindex"
+    });
+    res.send(png);
+  } catch (e) { next(e); }
+}
+
+async function cardPage(req, res, next) {
+  try {
+    const ctx = await loadByMemberToken(req.params.token);
+    if (!ctx) return notFoundPage(res);
+    const { member, venue } = ctx;
+    const v = member.end_date ? `?v=${encodeURIComponent(String(member.end_date))}` : "";
+    const tokenPart = encodeURIComponent(req.params.token);
+    // Absolute URL only for the WhatsApp preview (og:image). The page itself uses a relative URL,
+    // so the image always loads from the same address the page was opened on.
+    const absImg = `${U.publicApiBase()}/public/gym/card/${tokenPart}/image${v}`;
+    const relImg = `${tokenPart}/image${v}`;
+    const title = `${venue.hall_name} - Membership card`;
+    const desc = `${member.name} · ${member.member_code}${member.end_date ? ` · Valid till ${U.fmtDate(member.end_date)}` : ""}`;
+    const meta = `<meta property="og:type" content="website">
+<meta property="og:title" content="${U.esc(title)}">
+<meta property="og:description" content="${U.esc(desc)}">
+<meta property="og:image" content="${U.esc(absImg)}">
+<meta property="og:image:width" content="1012">
+<meta property="og:image:height" content="638">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${U.esc(absImg)}">`;
+    const html = page(title, `<h1>${U.esc(venue.hall_name)}</h1>
+      <p class="muted">${U.esc(desc)}</p>
+      <img src="${U.esc(relImg)}" alt="Membership card" style="width:100%;height:auto;border-radius:14px">
+      <a class="btn alt" href="${U.esc(relImg)}" download="${U.esc(member.member_code || "membership")}-card.png">Download card</a>`)
+      .replace("</head>", `${meta}</head>`);
+    send(res, 200, html);
+  } catch (e) { next(e); }
+}
+
+  module.exports = { plans, trial, workoutPdf, renewPage, renewStart, payPage, payClaimed, storeData, invoice, cardPage, cardImage };

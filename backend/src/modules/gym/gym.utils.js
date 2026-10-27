@@ -66,6 +66,7 @@ const render = (tpl, vars = {}) => String(tpl).replace(/{{\s*(\w+)\s*}}/g, (_, k
 const msg = (settings, key, vars) =>
   render((settings && settings.message_templates && settings.message_templates[key]) || DEFAULT_MESSAGES[key], vars);
 const renewLink = (member) => `${publicApiBase()}/public/gym/renew/${member.portal_token}`;
+const cardLink = (member) => `${publicApiBase()}/public/gym/card/${member.portal_token}`;
 
 /* AES-256-GCM for vendor-supplied secrets (Razorpay key secret) */
 const secretKey = () => crypto.createHash("sha256").update(`${env.jwt.secret}:gym-secrets`).digest();
@@ -84,5 +85,5 @@ function decrypt(payload) {
 
 module.exports = {
   todayIST, isYmd, addDays, addMonths, diffDays, membershipEnd, normalizePhone, waFromAny, waNumber,
-  num, money, inr, fmtDate, firstName, token, esc, likeEscape, publicApiBase, renewLink, msg, encrypt, decrypt
+  num, money, inr, fmtDate, firstName, token, esc, likeEscape, publicApiBase, renewLink, cardLink, msg, encrypt, decrypt
 };

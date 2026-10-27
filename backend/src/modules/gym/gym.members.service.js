@@ -137,6 +137,7 @@ async function getDetail(ctx, id) {
     member: core.present(member), memberships, payments: payments_, workout_plans: workouts,
     renewal_quote: plan && plan.is_active ? core.quote(plan, { includePt: member.has_pt, firstTime: false }) : null,
     renew_link: U.renewLink(member),
+    card_link: U.cardLink(member),
     pay_ready: { razorpay: !!payments.rzpClient(settings), upi: !!venue.upi_id },
     plan: plan ? { id: plan.id, freeze_allowed: plan.freeze_allowed, max_freeze_days: plan.max_freeze_days } : null
   };
