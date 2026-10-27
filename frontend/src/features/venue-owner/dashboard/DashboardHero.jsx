@@ -14,6 +14,21 @@ function greeting() {
   return "Good evening";
 }
 
+const FORMATS = {
+  currency: (v) => formatCurrency(Math.round(v)),
+  percent: (v) => `${Math.round(v)}%`,
+  number: undefined
+};
+
+// Used only when the backend is still on the old /analytics response.
+function legacyStats(a) {
+  return [
+    { key: "bookings", label: "Bookings", value: Number(a?.monthlyBookings) || 0, kind: "number" },
+    { key: "conversion", label: "Inquiry conversion", value: Number(a?.conversionRate) || 0, kind: "percent" },
+    { key: "pending", label: "Pending payments", value: Number(a?.totalPendingPayments) || 0, kind: "currency" }
+  ];
+}
+
 function MiniStat({ label, children }) {
   return (
     <div className="flex-1 min-w-0 px-3 first:pl-0 last:pr-0">
@@ -29,6 +44,8 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
   const firstName = (userName || "").trim().split(/\s+/)[0] || "there";
   const trend = (analytics?.revenueTrend || []).map((t) => Number(t.revenue) || 0);
   const current = Number(analytics?.monthlyRevenue) || 0;
+  const labels = analytics?.labels || {};
+  const stats = analytics?.heroStats?.length ? analytics.heroStats : legacyStats(analytics);
 
   const prev = trend.length >= 2 ? trend[trend.length - 2] : 0;
   const delta = prev > 0 ? Math.round(((current - prev) / prev) * 100) : null;
@@ -39,7 +56,6 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
       variants={fadeUp}
       className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 md:p-7 shadow-card"
     >
-      {/* decorative layer: arcs + glow (pure SVG, no images) */}
       <svg
         className="absolute -right-10 -top-16 w-72 h-72 text-white pointer-events-none"
         viewBox="0 0 200 200"
@@ -73,7 +89,7 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
 
         <div className="mt-5 flex items-end justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[12px] text-white/60">This month's revenue</p>
+            <p className="text-[12px] text-white/60">{labels.revenue || "This month's revenue"}</p>
             <p className="font-display font-bold text-[34px] md:text-[40px] leading-none mt-1.5 tabular-nums truncate">
               <AnimatedNumber value={current} format={(v) => formatCurrency(Math.round(v))} />
             </p>
@@ -89,7 +105,7 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
                   {delta}% vs last month
                 </span>
               ) : (
-                <span className="text-white/50">Your first booking will show up here</span>
+                <span className="text-white/50">{labels.empty || "Your first booking will show up here"}</span>
               )}
             </div>
           </div>
@@ -98,18 +114,15 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
         </div>
 
         <div className="mt-6 pt-4 border-t border-white/10 flex divide-x divide-white/10">
-          <MiniStat label="Bookings">
-            <AnimatedNumber value={Number(analytics?.monthlyBookings) || 0} />
-          </MiniStat>
-          <MiniStat label="Inquiry conversion">
-            <AnimatedNumber value={Number(analytics?.conversionRate) || 0} format={(v) => `${Math.round(v)}%`} />
-          </MiniStat>
-          <MiniStat label="Pending payments">
-            <AnimatedNumber
-              value={Number(analytics?.totalPendingPayments) || 0}
-              format={(v) => formatCurrency(Math.round(v))}
-            />
-          </MiniStat>
+          {stats.slice(0, 3).map((s) => (
+            <MiniStat key={s.key || s.label} label={s.label}>
+              {s.value === null || s.value === undefined ? (
+                "–"
+              ) : (
+                <AnimatedNumber value={Number(s.value) || 0} format={FORMATS[s.kind]} />
+              )}
+            </MiniStat>
+          ))}
         </div>
       </div>
     </motion.section>

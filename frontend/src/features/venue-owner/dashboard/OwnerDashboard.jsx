@@ -1,7 +1,7 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Repeat, Star, Users, Wallet } from "lucide-react";
+import { Clock, Repeat, Star, Users, Wallet } from "lucide-react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useVenue } from "../../../context/VenueContext.jsx";
@@ -20,8 +20,29 @@ import RecentInquiries from "./RecentInquiries.jsx";
 import DashboardHero from "./DashboardHero.jsx";
 import RevenueCard from "./RevenueCard.jsx";
 import GrowCard from "./GrowCard.jsx";
+import SegmentPulse from "./SegmentPulse.jsx";
 import { DashboardSkeleton, StatTile } from "./dashboardUi.jsx";
 import { fadeUp, stagger } from "./dashboardTheme.js";
+
+const TILE_ICONS = { wallet: Wallet, users: Users, repeat: Repeat, star: Star, clock: Clock };
+
+// Used only when the backend is still on the old /analytics response.
+function legacyTiles(a) {
+  return [
+    { key: "lifetime", icon: "wallet", tone: "violet", label: "Lifetime revenue", kind: "currency", value: Number(a?.totalRevenueAllTime) || 0 },
+    { key: "clients", icon: "users", tone: "sky", label: "Total clients", kind: "number", value: Number(a?.totalClients) || 0 },
+    { key: "avg", icon: "repeat", tone: "emerald", label: "Avg booking value", kind: "currency", value: Number(a?.avgBookingValue) || 0 },
+    {
+      key: "rating",
+      icon: "star",
+      tone: "amber",
+      label: "Average rating",
+      kind: "rating",
+      value: a?.avgRating ? `${a.avgRating} ★` : "–",
+      sublabel: `${a?.totalReviews ?? 0} reviews`
+    }
+  ];
+}
 
 export default function OwnerDashboard() {
   const { venue, loading: venueLoading } = useVenue();
@@ -34,11 +55,30 @@ export default function OwnerDashboard() {
 
 function DashboardContent({ venue }) {
   const { user } = useAuth();
-  const { data: analytics, loading, refetch: refetchAnalytics } = useFetch(`/analytics/owner/${venue.id}`);
+
+  // Segment-aware numbers (gym, restaurant, shop, bookings). If the new endpoint is not
+  // available yet, fall back to the original analytics endpoint so nothing breaks.
+  const {
+    data: overview,
+    loading: overviewLoading,
+    error: overviewError,
+    refetch: refetchOverview
+  } = useFetch(`/dashboard/owner/${venue.id}/overview`);
+  const useLegacy = !!overviewError && !overview;
+  const {
+    data: legacy,
+    loading: legacyLoading,
+    refetch: refetchLegacy
+  } = useFetch(`/analytics/owner/${venue.id}`, { skip: !useLegacy });
+
   const { data: summary, loading: summaryLoading, refetch: refetchSummary } = useFetch(
     `/dashboard/owner/${venue.id}/summary`
   );
   const { data: marketplace } = useFetch(`/venues/${venue.id}/marketplace-profile/completion`);
+
+  const analytics = overview || legacy;
+  const segment = analytics?.segment || "bookings";
+  const loading = overviewLoading || (useLegacy && legacyLoading);
 
   const isDev = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
   const publicUrl = isDev
@@ -52,9 +92,13 @@ function DashboardContent({ venue }) {
   const firstLoad = loading && !analytics;
   const refreshing = (loading && !!analytics) || (summaryLoading && !!summary);
   const refresh = () => {
-    refetchAnalytics();
+    refetchOverview();
+    if (useLegacy) refetchLegacy();
     refetchSummary();
   };
+
+  const tiles = analytics?.tiles?.length ? analytics.tiles : legacyTiles(analytics);
+  const showBookingCards = segment === "bookings";
 
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={venue.hall_name}>
@@ -100,28 +144,21 @@ function DashboardContent({ venue }) {
           </motion.div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            <StatTile
-              icon={Wallet}
-              tone="violet"
-              label="Lifetime revenue"
-              value={Number(analytics?.totalRevenueAllTime) || 0}
-              format={(v) => formatCurrency(Math.round(v))}
-            />
-            <StatTile icon={Users} tone="sky" label="Total clients" value={Number(analytics?.totalClients) || 0} />
-            <StatTile
-              icon={Repeat}
-              tone="emerald"
-              label="Avg booking value"
-              value={Number(analytics?.avgBookingValue) || 0}
-              format={(v) => formatCurrency(Math.round(v))}
-            />
-            <StatTile
-              icon={Star}
-              tone="amber"
-              label="Average rating"
-              value={analytics?.avgRating ? `${analytics.avgRating} ★` : "–"}
-              sublabel={`${analytics?.totalReviews ?? 0} reviews`}
-            />
+            {tiles.slice(0, 4).map((t) => {
+              const isCurrency = t.kind === "currency";
+              const isNumber = t.kind === "number" || isCurrency;
+              return (
+                <StatTile
+                  key={t.key}
+                  icon={TILE_ICONS[t.icon] || Wallet}
+                  tone={t.tone}
+                  label={t.label}
+                  value={isNumber ? Number(t.value) || 0 : t.value}
+                  format={isCurrency ? (v) => formatCurrency(Math.round(v)) : undefined}
+                  sublabel={t.sublabel}
+                />
+              );
+            })}
           </div>
 
           <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
@@ -131,7 +168,11 @@ function DashboardContent({ venue }) {
 
           {!summaryLoading && (
             <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
-              <UpcomingBookings bookings={summary?.upcomingBookings || []} />
+              {showBookingCards ? (
+                <UpcomingBookings bookings={summary?.upcomingBookings || []} />
+              ) : (
+                <SegmentPulse title={analytics?.labels?.pulseTitle} items={analytics?.pulse || []} />
+              )}
               <RecentInquiries inquiries={summary?.recentInquiries || []} />
             </motion.div>
           )}
