@@ -22,7 +22,7 @@ export default function GymPlans() {
   const { venue } = useVenue();
   const { user } = useAuth();
   const vid = venue?.id;
-  const isOwner = user?.role !== "team_member";
+  const isOwner = user?.role !== "team_member" || !!user?.isDemo;
   const { data: plans, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/plans?all=true` : null, { skip: !vid });
   const [editing, setEditing] = useState(null); // null | "new" | plan
   const [f, setF] = useState(BLANK);

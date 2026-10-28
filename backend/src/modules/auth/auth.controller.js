@@ -171,7 +171,9 @@ async function getCurrentUser(req, res, next) {
     if (req.user.role === "team_member") {
       // req.user was already fully resolved from TeamMember in the
       // authenticate middleware  - just echo it back, no password hash.
-      return res.json({ success: true, data: req.user });
+      const demo = await require("../demo/demo.registry").get(req.user.venueId);
+      const data = demo ? { ...req.user, isDemo: true, demoExpiresAt: demo.expires_at } : req.user;
+      return res.json({ success: true, data });
     }
 
     const user = await User.findByPk(req.user.id, {

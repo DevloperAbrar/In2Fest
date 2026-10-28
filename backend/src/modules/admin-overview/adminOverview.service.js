@@ -10,7 +10,7 @@ const backup = require("../../jobs/dbBackup");
 const TZ = "Asia/Kolkata";
 
 // One subscription row per venue (the newest), so a stray duplicate row can never double-count a venue.
-const LATEST_SUBS = `SELECT DISTINCT ON (venue_id) * FROM subscriptions ORDER BY venue_id, created_at DESC`;
+const LATEST_SUBS = `SELECT DISTINCT ON (venue_id) * FROM subscriptions WHERE venue_id NOT IN (SELECT venue_id FROM demo_accounts) ORDER BY venue_id, created_at DESC`;
 
 // Monthly-equivalent revenue of one subscription row (yearly plans are divided by 12).
 const MONTHLY_VALUE = `CASE WHEN s.billing_cycle = 'yearly' THEN s.locked_price / 12.0 ELSE s.locked_price END`;
@@ -48,13 +48,13 @@ async function getSummary() {
         (SELECT COUNT(*) FROM users WHERE role = 'venue_owner') AS owners_total,
         (SELECT COUNT(*) FROM users u WHERE u.role = 'venue_owner'
            AND NOT EXISTS (SELECT 1 FROM venues v WHERE v.owner_id = u.id)) AS owners_without_venue,
-        (SELECT COUNT(*) FROM venues) AS venues_total,
-        (SELECT COUNT(*) FROM venues WHERE is_active = true) AS venues_active,
-        (SELECT COUNT(*) FROM venues WHERE is_active = false) AS venues_suspended,
-        (SELECT COUNT(*) FROM team_members) AS team_members,
+        (SELECT COUNT(*) FROM venues WHERE id NOT IN (SELECT venue_id FROM demo_accounts)) AS venues_total,
+        (SELECT COUNT(*) FROM venues WHERE is_active = true AND id NOT IN (SELECT venue_id FROM demo_accounts)) AS venues_active,
+        (SELECT COUNT(*) FROM venues WHERE is_active = false AND id NOT IN (SELECT venue_id FROM demo_accounts)) AS venues_suspended,
+        (SELECT COUNT(*) FROM team_members WHERE venue_id NOT IN (SELECT venue_id FROM demo_accounts)) AS team_members,
         (SELECT COUNT(*) FROM public_users) AS visitors_total,
-        (SELECT COUNT(*) FROM venues WHERE created_at >= now() - interval '7 days') AS venues_7d,
-        (SELECT COUNT(*) FROM venues WHERE created_at >= now() - interval '30 days') AS venues_30d,
+        (SELECT COUNT(*) FROM venues WHERE created_at >= now() - interval '7 days' AND id NOT IN (SELECT venue_id FROM demo_accounts)) AS venues_7d,
+        (SELECT COUNT(*) FROM venues WHERE created_at >= now() - interval '30 days' AND id NOT IN (SELECT venue_id FROM demo_accounts)) AS venues_30d,
         (SELECT COUNT(*) FROM public_users WHERE created_at >= now() - interval '7 days') AS visitors_7d,
         (SELECT COUNT(*) FROM public_users WHERE created_at >= now() - interval '30 days') AS visitors_30d
     `),

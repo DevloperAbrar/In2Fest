@@ -4,6 +4,7 @@ const { requireRole } = require("../../middleware/role.middleware");
 const { requireVenueOwnership } = require("../../middleware/venueOwnership.middleware");
 const { requirePlanFeature } = require("../../middleware/planFeature.middleware");
 const { requireTeamPermission } = require("../../middleware/teamPermission.middleware");
+const { demoContext, blockInDemo } = require("../../middleware/demo.middleware");
 const { upload, uploadToR2 } = require("../../middleware/upload.middleware");
 const { AppError } = require("../../middleware/error.middleware");
 const { Venue } = require("../../database/models");
@@ -37,6 +38,7 @@ router.use(
   authenticate,
   requireVenueOwnership,
   requireRole("venue_owner", "team_member"),
+  demoContext,
   requirePlanFeature("gym"),
   requireTeamPermission("gym"),
   loadGym
@@ -46,16 +48,24 @@ const ctx = (req) => ({ venue: req.gymVenue, settings: req.gymSettings, user: re
 const h = (fn, status = 200) => async (req, res, next) => {
   try { res.status(status).json({ success: true, data: await fn(req) }); } catch (e) { next(e); }
 };
-const ownerOnly = requireRole("venue_owner");
+const ownerRole = requireRole("venue_owner");
+const ownerOnly = (req, res, next) => (req.user && req.user.isDemo ? next() : ownerRole(req, res, next));
 const proOnly = requirePlanFeature("gym_pro");
 
 // overview + settings
 router.get("/dashboard", h((req) => insights.dashboard(req.gymVenue.id)));
 router.get("/settings", h((req) => insights.publicSettings(req.gymSettings)));
-router.put("/settings", ownerOnly, h((req) => insights.updateSettings(req.gymVenue.id, req.body)));
+router.put("/settings", ownerOnly, h((req) => {
+  let body = req.body;
+  if (req.user.isDemo) {
+    const { razorpay_key_id, razorpay_key_secret, razorpay_disconnect, ...safeBody } = body || {};
+    body = safeBody; // demo accounts can never connect a payment gateway
+  }
+  return insights.updateSettings(req.gymVenue.id, body);
+}));
 
 // gym logo (printed on member cards, receipts and workout PDFs)
-router.post("/logo", ownerOnly, upload.single("logo"), h((req) => logo.setLogo(req.gymVenue, req.file)));
+router.post("/logo", ownerOnly, blockInDemo("Logo upload"), upload.single("logo"), h((req) => logo.setLogo(req.gymVenue, req.file)));
 router.delete("/logo", ownerOnly, h((req) => logo.removeLogo(req.gymVenue)));
 
 // membership plans
@@ -82,7 +92,7 @@ router.get("/members/:id/card", proOnly, async (req, res, next) => {
 router.patch("/members/:id", h((req) => members.updateMember(req.gymVenue.id, req.params.id, req.body)));
 router.delete("/members/:id", h((req) => members.archiveMember(req.gymVenue.id, req.params.id)));
 router.delete("/members/:id/permanent", ownerOnly, h((req) => members.deleteMember(req.gymVenue.id, req.params.id, req.query.confirm)));
-router.post("/members/:id/photo", upload.single("photo"), h(async (req) => {
+router.post("/members/:id/photo", blockInDemo("Photo upload"), upload.single("photo"), h(async (req) => {
   if (!req.file) throw new AppError("Choose a photo to upload", 400);
   const url = await uploadToR2(req.file.buffer, req.file.originalname, `gym/${req.gymVenue.id}`, req.file.mimetype);
   if (!url) throw new AppError("Image storage is not configured", 503);
@@ -141,7 +151,7 @@ router.post("/store/categories", h((req) => store.createCategory(req.gymVenue.id
 router.patch("/store/categories/:id", h((req) => store.updateCategory(req.gymVenue.id, req.params.id, req.body)));
 router.delete("/store/categories/:id", ownerOnly, h((req) => store.deleteCategory(req.gymVenue.id, req.params.id)));
 
-router.post("/store/upload", upload.single("image"), h(async (req) => {
+router.post("/store/upload", blockInDemo("Image upload"), upload.single("image"), h(async (req) => {
   if (!req.file) throw new AppError("Choose an image to upload", 400);
   const url = await uploadToR2(req.file.buffer, req.file.originalname, `gym-store/${req.gymVenue.id}`, req.file.mimetype);
   if (!url) throw new AppError("Image storage is not configured", 503);

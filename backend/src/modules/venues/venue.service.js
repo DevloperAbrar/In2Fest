@@ -587,6 +587,7 @@ async function listAllVenues(query = {}) {
   const offset = (page - 1) * limit;
 
   const where = {};
+  where.id = { [Op.notIn]: require("sequelize").literal("(SELECT venue_id FROM demo_accounts)") }; // demo venues live on their own admin page
 
   if (query.search) {
     where[Op.or] = [

@@ -52,6 +52,11 @@ async function sendWhatsApp({ venueId = null, recipientPhone, triggerType = "man
   // to crash the server or break the request that triggered it. Every path below is
   // wrapped so the worst outcome is a null return + a console error.
   try {
+    // Demo accounts must never send real messages (cron jobs included).
+    if (venueId && (await require("../demo/demo.registry").get(venueId))) {
+      return null;
+    }
+
     if (!recipientPhone) {
       console.warn("[WHATSAPP] No recipient phone provided, skipping send.");
       return null;

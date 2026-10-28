@@ -127,7 +127,30 @@ const SCHEMA_STATEMENTS = [
 
   // ---- Restaurant: link website orders to the visitor who placed them ----
   `ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS public_user_id UUID`,
-  `CREATE INDEX IF NOT EXISTS food_orders_public_user_idx ON food_orders (venue_id, public_user_id)`
+  `CREATE INDEX IF NOT EXISTS food_orders_public_user_idx ON food_orders (venue_id, public_user_id)`,
+
+  // ---- Demo accounts: a NEW table only. Nothing existing is touched. ----
+  `CREATE TABLE IF NOT EXISTS demo_accounts (
+     id UUID PRIMARY KEY,
+     venue_id UUID NOT NULL,
+     team_member_id UUID NOT NULL,
+     login_email VARCHAR(255) NOT NULL,
+     prospect_name VARCHAR(120),
+     prospect_phone VARCHAR(20),
+     gym_name VARCHAR(150),
+     notes TEXT,
+     status VARCHAR(12) NOT NULL DEFAULT 'active',
+     expires_at TIMESTAMPTZ NOT NULL,
+     created_by UUID,
+     last_login_at TIMESTAMPTZ,
+     login_count INTEGER NOT NULL DEFAULT 0,
+     last_active_at TIMESTAMPTZ,
+     reset_count INTEGER NOT NULL DEFAULT 0,
+     last_reset_at TIMESTAMPTZ,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS demo_accounts_venue_uq ON demo_accounts (venue_id)`
 ];
 
 const ENUM_STATEMENTS = [

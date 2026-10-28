@@ -427,7 +427,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     const { venue } = useVenue();
     const vid = venue?.id;
     const { user } = useAuth();
-    const canDelete = user?.role !== "team_member"; // team members can archive, only the owner can delete
+    const canDelete = user?.role !== "team_member" || !!user?.isDemo; // team members can archive, only the owner can delete
     const { data, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/members/${id}` : null, { skip: !vid });
     const [modal, setModal] = useState(null);
     const [msg, setMsg] = useState(null);

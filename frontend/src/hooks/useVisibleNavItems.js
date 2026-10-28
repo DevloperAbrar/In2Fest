@@ -34,6 +34,7 @@ export function useVisibleNavItems(items = []) {
 
   return items
     .filter((item) => {
+      if (user?.isDemo) return item.navKey === "gym"; // demo accounts: Gym tools only
       if (isTeamMember && OWNER_ONLY_PATHS.includes(item.path)) return false;
 
       // Vendor segment: a gym does not see Slots, a shop does not see Bookings, and so on.

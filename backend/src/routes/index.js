@@ -29,6 +29,7 @@ const reviewRoutes = require("../modules/reviews/review.routes");
 
 const adminDiscoveryRoutes = require("../modules/admin-discovery/adminDiscovery.routes");
 const adminOverviewRoutes = require("../modules/admin-overview/adminOverview.routes");
+const demoRoutes = require("../modules/demo/demo.routes");
 
 const announcementRoutes = require("../modules/announcements/announcement.routes");
 
@@ -73,6 +74,7 @@ router.use("/public/food", foodPublicRoutes);
 router.use("/public/invoices", publicInvoiceVerifyRoutes);
 
 router.use("/whatsapp", whatsappRoutes);
+router.use("/admin/demo", demoRoutes);
 router.use("/analytics", analyticsRoutes);
 router.use("/dashboard", dashboardRoutes);
 

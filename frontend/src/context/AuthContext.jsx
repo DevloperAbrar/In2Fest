@@ -107,7 +107,9 @@ export function AuthProvider({ children }) {
       role: "team_member",
       name: u.name,
       venueId: u.venueId,
-      permissions: u.permissions
+      permissions: u.permissions,
+      isDemo: !!u.isDemo,
+      demoExpiresAt: u.demoExpiresAt || null
     });
     setUser(u);
     return u;

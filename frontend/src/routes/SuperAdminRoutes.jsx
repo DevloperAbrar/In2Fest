@@ -6,6 +6,7 @@ import VenueList from "../features/superadmin/venues/VenueList.jsx";
 import AddVendor from "../features/superadmin/venues/AddVendor.jsx";
 import VenueDetail from "../features/superadmin/venues/VenueDetail.jsx";
 import PlanList from "../features/superadmin/plans/PlanList.jsx";
+import DemoAccounts from "../features/superadmin/demo/DemoAccounts.jsx";
 import PaymentList from "../features/superadmin/payments/PaymentList.jsx";
 import MessageComposer from "../features/superadmin/whatsapp-center/MessageComposer.jsx";
 import AdminAnalytics from "../features/superadmin/analytics/AdminAnalytics.jsx";
@@ -41,6 +42,7 @@ export default function SuperAdminRoutes() {
       <Route path="venues/new" element={<AddVendor />} />
       <Route path="venues/:id" element={<VenueDetail />} />
       <Route path="plans" element={<PlanList />} />
+      <Route path="demo-accounts" element={<DemoAccounts />} />
       <Route path="payments" element={<PaymentList />} />
       <Route path="whatsapp" element={<MessageComposer />} />
       <Route path="analytics" element={<AdminAnalytics />} />

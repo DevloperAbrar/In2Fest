@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, CreditCard, MessageCircle, BarChart3, Settings, ListTree, Star,
   Store, ShieldCheck, MapPin, LineChart, Layers, BellRing, Megaphone, Users, LogIn, Layers3,
-  Funnel, Database
+  Funnel, Database, PlayCircle
 } from "lucide-react";
 
 // Items with a `section` key render as a group heading in the Sidebar (no link).
@@ -14,6 +14,7 @@ export const adminSidebarItems = [
 
   { section: "Vendors & Revenue" },
   { path: "/admin/venues", label: "Venues", icon: Building2 },
+  { path: "/admin/demo-accounts", label: "Demo Accounts", icon: PlayCircle },
   { path: "/admin/plan-vendors", label: "Plan-wise Vendors", icon: Layers3 },
   { path: "/admin/plans", label: "Plans", icon: ListTree },
   { path: "/admin/payments", label: "Payments", icon: CreditCard },

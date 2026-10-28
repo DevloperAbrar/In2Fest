@@ -4,6 +4,7 @@ const env = require("../../config/env");
 const { TeamMember, Venue } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { PLAN_FEATURES } = require("../../config/planFeatures");
+const demoRegistry = require("../demo/demo.registry");
 
 const DEFAULT_PERMISSIONS = PLAN_FEATURES.reduce((acc, f) => {
   acc[f.key] = false;
@@ -101,12 +102,24 @@ async function loginTeamMember(email, password) {
     throw new AppError("This venue has been deactivated. Please contact support.", 403);
   }
 
+  // Demo accounts: blocked once expired/revoked. Normal venues -> demo is null, nothing changes.
+  const demo = await demoRegistry.get(venue.id);
+  if (demo && !demoRegistry.isLive(demo)) {
+    throw new AppError("This demo has ended. Please contact In2Fest to continue.", 403);
+  }
+  if (demo) demoRegistry.recordLogin(venue.id);
+
   const accessToken = generateTeamMemberToken(teamMember);
   const { password_hash: _omit, ...safe } = teamMember.toJSON();
 
   return {
     accessToken,
-    user: { ...safe, role: "team_member", venueId: teamMember.venue_id },
+    user: {
+      ...safe,
+      role: "team_member",
+      venueId: teamMember.venue_id,
+      ...(demo ? { isDemo: true, demoExpiresAt: demo.expires_at } : {})
+    },
     venue: { id: venue.id, hall_name: venue.hall_name }
   };
 }

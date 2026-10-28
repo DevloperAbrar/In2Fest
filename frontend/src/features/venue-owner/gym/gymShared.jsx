@@ -10,6 +10,7 @@ import Modal from "../../../components/common/Modal";
 import Button from "../../../components/common/Button";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
+import { isDemoMode } from "../../../lib/demoMode";
 
 export const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 export const todayISO = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
@@ -32,7 +33,7 @@ export const BODY_PART_GROUPS = [
 ];
 // "arms" and "legs" are old values kept only so old data still opens. New plans use the specific muscle.
 export const BODY_PARTS = BODY_PART_GROUPS.flatMap((g) => g.parts).filter((p) => p !== "arms" && p !== "legs");
-export const waUrl = (phone, text) => `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+export const waUrl = (phone, text) => `https://wa.me/${isDemoMode() ? "" : phone}?text=${encodeURIComponent(text)}`;
 /* ---------- download / copy / share (all from the vendor's own device) ---------- */
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -177,7 +178,7 @@ export function GymTabs() {
   const { pathname } = useLocation();
   const reduce = useReducedMotion();
   const rowRef = useRef(null);
-  const tabs = user?.role !== "team_member" ? [...TAB_DEFS, SETTINGS_TAB] : TAB_DEFS;
+  const tabs = user?.role !== "team_member" || user?.isDemo ? [...TAB_DEFS, SETTINGS_TAB] : TAB_DEFS;
 
   // Keep the active tab in view on small screens.
   useEffect(() => {

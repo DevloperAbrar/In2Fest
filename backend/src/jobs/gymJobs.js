@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const members = require("../modules/gym/gym.members.service");
 const payments = require("../modules/gym/gym.payments.service");
+const { startDemoCleanup } = require("./demoCleanup");
 
 const IST = { timezone: "Asia/Kolkata" };
 const safe = (name, fn) => async () => {
@@ -11,6 +12,8 @@ function startGymJobs() {
   cron.schedule("10 0 * * *", safe("status-sync", members.syncStatuses), IST);      // expire / auto-unfreeze
   cron.schedule("*/10 * * * *", safe("payment-links", payments.pollPendingLinks));  // Razorpay link status
   console.log("[JOBS] Gym jobs scheduled (status sync 00:10 IST, payment-link poll */10).");
+
+  startDemoCleanup(); // demo accounts: switch off expired logins, delete old demos
 }
 
 module.exports = { startGymJobs };

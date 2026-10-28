@@ -19,9 +19,9 @@ export default function TeamLoginForm() {
 
   const onSubmit = async (values) => {
     try {
-      await loginTeamMember(values.email, values.password);
+      const u = await loginTeamMember(values.email, values.password);
       showSuccess("Welcome back!");
-      navigate("/dashboard");
+      navigate(u?.isDemo ? "/dashboard/gym" : "/dashboard");
     } catch (err) {
       showError(err.response?.data?.message || "Invalid credentials");
     }
