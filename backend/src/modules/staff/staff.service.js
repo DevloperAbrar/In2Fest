@@ -211,11 +211,9 @@ async function markAttendance({ venue, user }, b = {}) {
 /* ---------------- payroll ---------------- */
 async function figures(venueId, staffIds, month, tx) {
   const opt = tx ? { transaction: tx } : {};
-  const [att, adjs, pays] = await Promise.all([
-    GymStaffAttendance.findAll({ where: { venue_id: venueId, staff_id: staffIds, date: { [Op.between]: [K.monthStart(month), K.monthEnd(month)] } }, attributes: ["staff_id", "date", "status"], ...opt }),
-    GymStaffPayroll.findAll({ where: { venue_id: venueId, staff_id: staffIds, month }, ...opt }),
-    GymStaffPayment.findAll({ where: { venue_id: venueId, staff_id: staffIds, month, status: "paid" }, attributes: ["staff_id", "amount"], ...opt })
-  ]);
+  const att = await GymStaffAttendance.findAll({ where: { venue_id: venueId, staff_id: staffIds, date: { [Op.between]: [K.monthStart(month), K.monthEnd(month)] } }, attributes: ["staff_id", "date", "status"], ...opt });
+  const adjs = await GymStaffPayroll.findAll({ where: { venue_id: venueId, staff_id: staffIds, month }, ...opt });
+  const pays = await GymStaffPayment.findAll({ where: { venue_id: venueId, staff_id: staffIds, month, status: "paid" }, attributes: ["staff_id", "amount"], ...opt });
   const records = new Map();
   att.forEach((r) => { if (!records.has(r.staff_id)) records.set(r.staff_id, []); records.get(r.staff_id).push(r); });
   const paid = new Map();
