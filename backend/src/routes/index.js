@@ -39,6 +39,7 @@ const packageRoutes = require("../modules/packages/package.routes");
 
 const gymRoutes = require("../modules/gym/gym.routes");
 const gymPublicRoutes = require("../modules/gym/gym.public.routes");
+const staffRoutes = require("../modules/staff/staff.routes");
 const inventoryRoutes = require("../modules/inventory/inventory.routes");
 const ordersRoutes = require("../modules/orders/orders.routes");
 const ordersPublicRoutes = require("../modules/orders/orders.public.routes");
@@ -65,6 +66,7 @@ router.use("/venues/:venueId/packages", packageRoutes);
 router.use("/venues/:venueId/inventory", inventoryRoutes);
 router.use("/venues/:venueId/gym", gymRoutes);
 router.use("/public/gym", gymPublicRoutes);
+router.use("/venues/:venueId/staff", staffRoutes);
 router.use("/venues/:venueId/orders", ordersRoutes);
 router.use("/public/orders", ordersPublicRoutes);
 router.use("/venues/:venueId/food", foodRoutes);

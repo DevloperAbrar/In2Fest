@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { VenueContext } from "../context/VenueContext.jsx";
 import { useBusinessProfile } from "./useBusinessProfile";
 
-const OWNER_ONLY_PATHS = ["/dashboard/settings", "/dashboard/analytics"];
+const OWNER_ONLY_PATHS = ["/dashboard/settings", "/dashboard/analytics", "/dashboard/staff"];
 
 // Shown even while the business profile is still loading, so nothing flashes in and out.
 const ALWAYS_NAV = ["dashboard", "settings"];

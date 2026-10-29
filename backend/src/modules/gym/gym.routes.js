@@ -15,6 +15,7 @@ const insights = require("./gym.insights.service");
 const messages = require("./gym.messages.service");
 const receipt = require("./gym.receipt");
 const card = require("./gym.card");
+const cardSettings = require("./gym.card.settings");
 const logo = require("./gym.logo");
 const workout = require("./gym.workout.service");
 const store = require("./gym.store.service");
@@ -88,6 +89,12 @@ router.get("/members/:id", h((req) => members.getDetail(ctx(req), req.params.id)
 router.get("/members/:id/message", h((req) => messages.compose(ctx(req), req.params.id, req.query)));
 router.get("/members/:id/card", proOnly, async (req, res, next) => {
   try { await card.memberCardPng(ctx(req), req.params.id, res); } catch (e) { next(e); }
+});
+router.get("/card-settings", h(async (req) => cardSettings.publicConfig(await cardSettings.getConfig(req.gymVenue.id))));
+router.put("/card-settings", ownerOnly, h(async (req) => cardSettings.publicConfig(await cardSettings.saveConfig(req.gymVenue.id, req.body))));
+router.delete("/card-settings", ownerOnly, h(async (req) => cardSettings.publicConfig(await cardSettings.resetConfig(req.gymVenue.id))));
+router.post("/card-preview", ownerOnly, proOnly, async (req, res, next) => {
+  try { await card.previewCardPng(ctx(req), req.body, res); } catch (e) { next(e); }
 });
 router.patch("/members/:id", h((req) => members.updateMember(req.gymVenue.id, req.params.id, req.body)));
 router.delete("/members/:id", h((req) => members.archiveMember(req.gymVenue.id, req.params.id)));

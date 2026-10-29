@@ -12,6 +12,9 @@ export const gymService = {
     return api.post(`${b(v)}/logo`, fd, { headers: { "Content-Type": "multipart/form-data" } });
   },
   removeLogo: (v) => api.delete(`${b(v)}/logo`),
+  getCardSettings: (v) => api.get(`${b(v)}/card-settings`),
+  saveCardSettings: (v, body) => api.put(`${b(v)}/card-settings`, body),
+  cardPreview: (v, body, signal) => api.post(`${b(v)}/card-preview`, body, { responseType: "blob", signal }),
 
   listPlans: (v, all = false) => api.get(`${b(v)}/plans`, { params: { all } }),
   createPlan: (v, body) => api.post(`${b(v)}/plans`, body),

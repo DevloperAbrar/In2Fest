@@ -2,8 +2,6 @@
 // exercise library up to date. Called from startupMigrations.js, so no manual migration is needed.
 const { EXERCISE_SEED } = require("./gym.constants");
 
-// Adds any built-in exercise that is missing and fixes the body part / equipment of existing ones
-// (for example "Barbell Curl" moves from "arms" to "biceps"). Gym-owned exercises are never touched.
 async function syncBuiltInExercises(models) {
   const { sequelize, GymExercise } = models;
   await sequelize.transaction(async (t) => {
@@ -28,6 +26,8 @@ async function ensureGymSchema() {
   await syncBuiltInExercises(models);
   await require("./gym.message.models").ensure();
   await require("./gym.store.models").ensure();
+  await require("./gym.card.models").ensure();
+  await require("../staff/staff.models").ensure();
 }
 
 module.exports = { ensureGymSchema };

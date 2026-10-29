@@ -59,6 +59,10 @@ import GymLeads from "../features/venue-owner/gym/GymLeads.jsx";
 import GymSettings from "../features/venue-owner/gym/GymSettings.jsx";
 import GymMessages from "../features/venue-owner/gym/GymMessages.jsx";
 import GymStore from "../features/venue-owner/gym/GymStore.jsx";
+import StaffAttendance from "../features/venue-owner/staff/StaffAttendance.jsx";
+import StaffList from "../features/venue-owner/staff/StaffList.jsx";
+import StaffPayroll from "../features/venue-owner/staff/StaffPayroll.jsx";
+import StaffDetail from "../features/venue-owner/staff/StaffDetail.jsx";  
 import FoodDashboard from "../features/venue-owner/food/FoodDashboard.jsx";
 import FoodOrders from "../features/venue-owner/food/FoodOrders.jsx";
 import FoodPOS from "../features/venue-owner/food/FoodPOS.jsx";
@@ -130,6 +134,10 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/messages" element={<RequireFeature feature="gym"><GymMessages /></RequireFeature>} />
         <Route path="gym/store" element={<RequireFeature feature="gym"><GymStore /></RequireFeature>} /> 
         <Route path="gym/settings" element={<RequireOwner><RequireFeature feature="gym"><GymSettings /></RequireFeature></RequireOwner>} />
+        <Route path="staff" element={<RequireFeature feature="gym"><StaffAttendance /></RequireFeature>} />
+        <Route path="staff/members" element={<RequireFeature feature="gym"><StaffList /></RequireFeature>} />
+        <Route path="staff/members/:id" element={<RequireFeature feature="gym"><StaffDetail /></RequireFeature>} />
+        <Route path="staff/payroll" element={<RequireFeature feature="gym"><StaffPayroll /></RequireFeature>} />
         <Route path="food" element={<RequireFeature feature="food"><FoodDashboard /></RequireFeature>} />
         <Route path="food/orders" element={<RequireFeature feature="food"><FoodOrders /></RequireFeature>} />
         <Route path="food/pos" element={<RequireFeature feature="food"><FoodPOS /></RequireFeature>} />
