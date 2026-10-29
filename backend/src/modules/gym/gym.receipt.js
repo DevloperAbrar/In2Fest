@@ -44,8 +44,8 @@ async function receiptPdf({ venue }, paymentId, res) {
       titleX = P;
     }
   }
-  put(doc, "RECEIPT", titleX, 22, { font: "Helvetica-Bold", size: 26, color: C.white, spacing: 1 });
-  putFit(doc, id.name, titleX, 54, 190, { font: "Helvetica", size: 10, minSize: 7, color: "#c7d8f7" });
+  putFit(doc, id.name, titleX, 22, 190, { font: "Helvetica-Bold", size: 26, minSize: 14, color: C.white });
+  put(doc, "RECEIPT", titleX, 54, { font: "Helvetica", size: 10, color: "#c7d8f7", spacing: 1 });
   putFit(doc, `NO: ${pay.receipt_no || "-"}`, W - P - 150, 26, 150, { font: "Helvetica-Bold", size: 11, minSize: 7, color: C.white, align: "right" });
 
   let y = HEAD_H + 16;
