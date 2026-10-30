@@ -130,7 +130,7 @@ function ProductModal({ vid, product, cats, onClose, onDone }) {
     name: "", brand: "", category_id: "", description: "", highlights: "", image_url: "", gallery: [], offer_label: "", offer_ends_on: "",
     tax_rate: 18, hsn: "", is_featured: false, is_active: true, show_on_website: true
   });
-  const [vars, setVars] = useState(() => product ? product.variants.map((v) => ({ ...v, mrp: v.mrp ?? "", expiry_date: v.expiry_date || "", low_stock_threshold: v.low_stock_threshold ?? "" })) : [blankVariant()]);
+  const [vars, setVars] = useState(() => product ? product.variants.map((v) => ({ ...v, mrp: v.mrp ?? "", expiry_date: v.expiry_date || "", low_stock_threshold: v.low_stock_threshold ?? "", stock_orig: v.stock_qty })) : [blankVariant()]);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const setV = (i, k, val) => setVars((l) => l.map((v, x) => (x === i ? { ...v, [k]: val } : v)));
@@ -138,7 +138,12 @@ function ProductModal({ vid, product, cats, onClose, onDone }) {
   const save = async () => {
     setBusy(true);
     try {
-      const body = { ...f, highlights: f.highlights.split("\n").map((s) => s.trim()).filter(Boolean), category_id: f.category_id || null, variants: vars };
+      // For existing options, send the stock only when the owner changed it, so nothing sold meanwhile is overwritten.
+      const variants = vars.map(({ stock_orig, ...v }) => {
+        if (v.id && String(v.stock_qty) === String(stock_orig)) { const { stock_qty, ...rest } = v; return rest; }
+        return v;
+      });
+      const body = { ...f, highlights: f.highlights.split("\n").map((s) => s.trim()).filter(Boolean), category_id: f.category_id || null, variants };
       if (product) await gymService.storePatch(vid, `/products/${product.id}`, body);
       else await gymService.storePost(vid, "/products", body);
       showSuccess("Product saved");
@@ -179,9 +184,7 @@ function ProductModal({ vid, product, cats, onClose, onDone }) {
                 <Input label="MRP" inputMode="decimal" value={v.mrp} onChange={(e) => setV(i, "mrp", e.target.value)} />
                 <Input label="Selling price *" inputMode="decimal" value={v.price} onChange={(e) => setV(i, "price", e.target.value)} />
                 <Input label="Your cost" inputMode="decimal" value={v.cost_price} onChange={(e) => setV(i, "cost_price", e.target.value)} />
-                {v.id
-                  ? <div className="text-sm"><span className="block text-gray-500 text-xs">In stock</span><b>{v.stock_qty}</b></div>
-                  : <Input label="Opening stock" inputMode="numeric" value={v.stock_qty} onChange={(e) => setV(i, "stock_qty", e.target.value)} />}
+                <Input label={v.id ? "In stock" : "Opening stock"} inputMode="numeric" value={v.stock_qty} onChange={(e) => setV(i, "stock_qty", e.target.value.replace(/\D/g, ""))} />
                 <Input label="SKU / barcode" value={v.sku || ""} onChange={(e) => setV(i, "sku", e.target.value)} />
                 <Input label="Low stock alert" inputMode="numeric" placeholder="3" value={v.low_stock_threshold} onChange={(e) => setV(i, "low_stock_threshold", e.target.value)} />
                 <Input label="Expiry date" type="date" value={v.expiry_date} onChange={(e) => setV(i, "expiry_date", e.target.value)} />
@@ -194,7 +197,7 @@ function ProductModal({ vid, product, cats, onClose, onDone }) {
             ))}
           </div>
           <Button variant="outline" className="mt-2" onClick={() => setVars((l) => [...l, blankVariant()])}><Plus size={14} /> Add option</Button>
-          {product && <p className="text-xs text-gray-400 mt-1">To change stock use the Stock button on the product list, so every change is recorded.</p>}
+          {product && <p className="text-xs text-gray-400 mt-1">You can correct the In stock number here. Every change is recorded in the stock history. For new purchases or returns, use the Stock button on the product list.</p>}
         </div>
 
         <div className="grid sm:grid-cols-3 gap-3">
@@ -209,7 +212,7 @@ function ProductModal({ vid, product, cats, onClose, onDone }) {
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} loading={busy} disabled={!f.name.trim() || vars.some((v) => !v.label.trim() || v.price === "")}>Save product</Button>
+          <Button onClick={save} loading={busy} disabled={!f.name.trim() || vars.some((v) => !v.label.trim() || v.price === "" || (v.id && v.stock_qty === ""))}>Save product</Button>
         </div>
       </div>
     </Modal>

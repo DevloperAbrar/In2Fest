@@ -313,9 +313,24 @@ async function updateProduct(ctx, id, b) {
       if (!v || !v.id) { await addVariant(t, ctx, p.id, v || {}, 100 + i); continue; }
       const row = await GymProductVariant.findOne({ where: { id: v.id, product_id: p.id, venue_id: venue.id }, transaction: t, lock: t.LOCK.UPDATE });
       if (!row) throw new AppError("Option not found", 404);
-      const f = variantFields(v, false); // stock is never edited here, use Add / remove stock
+      const f = variantFields(v, false);
       checkMrp(f.price !== undefined ? f.price : row.price, f.mrp !== undefined ? f.mrp : row.mrp, f.label || row.label);
       if (Object.keys(f).length) await row.update(f, { transaction: t });
+
+      // Stock correction from the edit form. The screen only sends stock_qty when the owner actually changed it,
+      // so a stale form can never overwrite sales made in the meantime. Every change is written to the stock history.
+      if (!blank(v.stock_qty)) {
+        const after = U.num(v.stock_qty, "Stock", { max: 1000000, int: true });
+        const before = Number(row.stock_qty);
+        if (after !== before) {
+          await row.update({ stock_qty: after }, { transaction: t });
+          await GymStockMovement.create({
+            venue_id: venue.id, product_id: p.id, variant_id: row.id, type: "adjustment",
+            qty_change: after - before, balance_after: after, unit_cost: null,
+            note: "Corrected while editing product", created_by_name: ctx.user && ctx.user.name
+          }, { transaction: t });
+        }
+      }
     }
     if (vars.length && !(await GymProductVariant.count({ where: { product_id: p.id, is_active: true }, transaction: t }))) {
       throw new AppError("Keep at least one active option", 400);
