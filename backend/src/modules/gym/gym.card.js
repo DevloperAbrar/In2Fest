@@ -1,6 +1,7 @@
 const sharp = require("sharp");
 const axios = require("axios");
 const { GymMember } = require("../../database/models");
+const { sequelize } = require("../../config/database");
 const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
 const { gymIdentity } = require("./gym.brand");
@@ -39,6 +40,30 @@ async function loadPhoto(url) {
 async function roundPhoto(buf, d) {
   const mask = Buffer.from(`<svg width="${d}" height="${d}" xmlns="http://www.w3.org/2000/svg"><circle cx="${d / 2}" cy="${d / 2}" r="${d / 2}" fill="#fff"/></svg>`);
   return sharp(buf).rotate().resize(d, d, { fit: "cover" }).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+}
+
+const t12 = (t) => {
+  const m = /^(\d{2}):(\d{2})$/.exec(String(t || ""));
+  if (!m) return "";
+  const h = Number(m[1]);
+  return `${h % 12 || 12}${m[2] === "00" ? "" : `:${m[2]}`} ${h < 12 ? "AM" : "PM"}`;
+};
+
+// Optional shift line for the card. Returns null when the member has no shift or shifts are not
+// set up for this gym, so the card is never affected for gyms that do not use shifts.
+async function shiftLabelFor(venueId, memberId) {
+  try {
+    const [rows] = await sequelize.query(
+      `SELECT s.name, s.start_time, s.end_time
+         FROM gym_member_shifts ms JOIN gym_shifts s ON s.id = ms.shift_id
+        WHERE ms.venue_id = :v AND ms.member_id = :m LIMIT 1`,
+      { replacements: { v: venueId, m: memberId } }
+    );
+    if (!rows.length) return null;
+    return `${rows[0].name} · ${t12(rows[0].start_time)} - ${t12(rows[0].end_time)}`;
+  } catch {
+    return null;
+  }
 }
 
 const estW = (text, size, bold) => String(text).length * size * (bold ? 0.64 : 0.58);
@@ -98,9 +123,9 @@ function bgSvg(T, footerOn) {
 </svg>`;
 }
 
-const ROW_SLOTS = { 3: [[272, 308], [350, 384], [420, 452]], 2: [[286, 322], [386, 420]], 1: [[330, 366]] };
+const ROW_SLOTS = { 4: [[246, 278], [304, 336], [362, 394], [420, 452]], 3: [[272, 308], [350, 384], [420, 452]], 2: [[286, 322], [386, 420]], 1: [[330, 366]] };
 
-function textSvg({ id, member, hasPhoto, hasLogo, cfg, T }) {
+function textSvg({ id, member, hasPhoto, hasLogo, cfg, T, shiftLabel }) {
   const S = cfg.show;
   const t = (x, y, str, size, { bold = false, fill = T.ink, ls = 0, anchor = "start" } = {}) =>
     `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}"${bold ? ' font-weight="700"' : ""}${ls ? ` letter-spacing="${ls}"` : ""}${anchor !== "start" ? ` text-anchor="${anchor}"` : ""} fill="${fill}">${U.esc(str)}</text>`;
@@ -147,6 +172,7 @@ function textSvg({ id, member, hasPhoto, hasLogo, cfg, T }) {
   if (S.member_id) rows.push(["MEMBER ID", fit(member.member_code, vw, 32, 18)]);
   if (S.plan) rows.push(["PLAN", fit(member.plan_name || "No active plan", vw, 28, 16)]);
   if (S.valid) rows.push(["VALID", fit(validity, vw, 26, 16)]);
+  if (S.shift && shiftLabel) rows.push(["SHIFT", fit(shiftLabel, vw, 26, 14)]);
   (ROW_SLOTS[rows.length] || []).forEach(([ly, vy], i) => {
     out += label(x0, ly, rows[i][0]) + t(x0, vy, rows[i][1].text, rows[i][1].size, { bold: true });
   });
@@ -201,7 +227,7 @@ async function logoTile(buf, size, stroke) {
   return sharp(base).composite([{ input: mark, left: pad, top: pad }]).png().toBuffer();
 }
 
-async function renderCard({ venue, member, photo, identity, config }) {
+async function renderCard({ venue, member, photo, identity, config, shiftLabel }) {
   const cfg = normalize(config);
   const T = themeFor(cfg);
   const id = identity || {
@@ -221,7 +247,7 @@ async function renderCard({ venue, member, photo, identity, config }) {
     } catch { tile = null; bigTile = null; }
   }
 
-  const text = textSvg({ id, member, hasPhoto: !!round, hasLogo: !!tile, cfg, T });
+  const text = textSvg({ id, member, hasPhoto: !!round, hasLogo: !!tile, cfg, T, shiftLabel });
   const layers = [{ input: Buffer.from(text.svg), left: 0, top: 0 }];
   if (round) layers.push({ input: round, left: 56, top: 158 });
   if (tile) layers.push({ input: tile, left: 56, top: 38 });
@@ -237,7 +263,8 @@ async function memberCardPng({ venue }, memberId, res) {
   if (!member) throw new AppError("Member not found", 404);
 
   const [photo, identity, config] = await Promise.all([loadPhoto(member.photo_url), gymIdentity(venue), getConfig(venue.id)]);
-  const png = await renderCard({ venue, member, photo, identity, config });
+  const shiftLabel = config.show.shift ? await shiftLabelFor(venue.id, member.id) : null;
+  const png = await renderCard({ venue, member, photo, identity, config, shiftLabel });
   const file = `${String(member.member_code).replace(/[^\w-]+/g, "_")}-membership-card.png`;
   res.set({
     "Content-Type": "image/png",
@@ -249,7 +276,8 @@ async function memberCardPng({ venue }, memberId, res) {
 
 async function memberCardBuffer(venue, member) {
   const [photo, identity, config] = await Promise.all([loadPhoto(member.photo_url), gymIdentity(venue), getConfig(venue.id)]);
-  return renderCard({ venue, member, photo, identity, config });
+  const shiftLabel = config.show.shift ? await shiftLabelFor(venue.id, member.id) : null;
+  return renderCard({ venue, member, photo, identity, config, shiftLabel });
 }
 
 // Live preview for the card designer (unsaved design + real or sample member).
@@ -259,14 +287,18 @@ async function previewCardPng({ venue }, body, res) {
     ? await GymMember.findOne({ where: { id: b.member_id, venue_id: venue.id, is_archived: false } })
     : null;
   let photo = null;
+  let shiftLabel = null;
+  const wantShift = !!(b.config && b.config.show && b.config.show.shift);
   if (member) {
     photo = await loadPhoto(member.photo_url);
+    if (wantShift) shiftLabel = await shiftLabelFor(venue.id, member.id);
   } else {
+    if (wantShift) shiftLabel = "Morning Batch · 7 AM - 8 AM";
     const today = U.todayIST();
     member = { name: "Rahul Sharma", member_code: "M0001", plan_name: "6 Months Gold", start_date: today, end_date: U.addDays(today, 179) };
   }
   const identity = await gymIdentity(venue);
-  const png = await renderCard({ venue, member, photo, identity, config: b.config });
+  const png = await renderCard({ venue, member, photo, identity, config: b.config, shiftLabel });
   res.set({ "Content-Type": "image/png", "Cache-Control": "no-store" });
   res.send(png);
 }

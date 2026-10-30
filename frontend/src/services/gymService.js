@@ -21,6 +21,12 @@ export const gymService = {
   updatePlan: (v, id, body) => api.patch(`${b(v)}/plans/${id}`, body),
   deletePlan: (v, id) => api.delete(`${b(v)}/plans/${id}`),
 
+  listShifts: (v, all = false) => api.get(`${b(v)}/shifts`, { params: { all } }),
+  getShift: (v, id) => api.get(`${b(v)}/shifts/${id}`),
+  createShift: (v, body) => api.post(`${b(v)}/shifts`, body),
+  updateShift: (v, id, body) => api.patch(`${b(v)}/shifts/${id}`, body),
+  deleteShift: (v, id) => api.delete(`${b(v)}/shifts/${id}`),
+
   enroll: (v, body) => api.post(`${b(v)}/members`, body),
   updateMember: (v, id, body) => api.patch(`${b(v)}/members/${id}`, body),
   archiveMember: (v, id) => api.delete(`${b(v)}/members/${id}`),

@@ -17,6 +17,7 @@ import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import PhotoPicker from "./PhotoPicker.jsx";
+import { shiftRange } from "./GymShifts.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import {
   GymPage, StatusPill, Field, TextArea, MessageModal,
@@ -141,9 +142,12 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     const [photo, setPhoto] = useState(null);
     const [busy, setBusy] = useState(false);
     const [showErrors, setShowErrors] = useState(false);
+    const { data: shiftData } = useFetch(isOpen ? `/venues/${vid}/gym/shifts?all=true` : null, { skip: !isOpen });
+    const shiftList = shiftData?.items || [];
+    const [shiftId, setShiftId] = useState(member.shift_id || "");
     useEffect(() => {
       if (isOpen) {
-        setPhoto(null); setShowErrors(false); setF(editBase(member));
+        setPhoto(null); setShowErrors(false); setF(editBase(member)); setShiftId(member.shift_id || "");
         setMs({ start_date: current?.start_date || "", end_date: current?.end_date || "" });
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +163,8 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     const base = editBase(member);
     const changed = EDIT_KEYS.filter((k) => String(f[k] ?? "").trim() !== String(base[k] ?? "").trim());
     const msChanged = !!current && !frozen && (ms.start_date !== current.start_date || ms.end_date !== current.end_date);
-    const dirty = changed.length > 0 || msChanged || !!photo;
+    const shiftChanged = shiftId !== (member.shift_id || "");
+    const dirty = changed.length > 0 || msChanged || !!photo || shiftChanged;
   
     // Only fields the user actually changed are checked, so old data can never block an unrelated edit.
     const errors = {};
@@ -178,8 +183,9 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
       if (Object.keys(errors).length) { setShowErrors(true); return; }
       setBusy(true);
       try {
-        if (changed.length || msChanged) {
+        if (changed.length || msChanged || shiftChanged) {
           const payload = {};
+          if (shiftChanged) payload.shift_id = shiftId || null;
           changed.forEach((k) => { payload[k] = k === "phone" || k === "emergency_phone" ? onlyDigits(f[k]) : String(f[k]).trim(); });
           if (msChanged) payload.membership = { id: current.id, start_date: ms.start_date, end_date: ms.end_date };
           await gymService.updateMember(vid, member.id, payload);
@@ -217,6 +223,12 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
                   {msChanged && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">This changes when the membership expires. The member card, reminders and reports will use the new dates.</p>}
                 </>
               )}
+            </div>
+          )}
+          {(shiftList.length > 0 || member.shift_id) && (
+            <div className="pt-3 border-t">
+              <Select label="Shift (optional)" value={shiftId} onChange={(e) => setShiftId(e.target.value)}
+                options={[{ value: "", label: "No shift" }, ...shiftList.filter((s) => s.is_active || s.id === member.shift_id).map((s) => ({ value: s.id, label: `${s.name} (${shiftRange(s)})${s.is_active ? "" : " - inactive"}` }))]} />
             </div>
           )}
           <p className="text-sm font-medium text-gray-900 pt-3 border-t">Member details</p>
@@ -464,6 +476,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap"><StatusPill status={m.display_status} daysLeft={m.days_left} />{m.has_pt && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">PT</span>}</div>
               <p className="text-sm text-gray-700 mt-2">{m.plan_name || "No plan"}{m.end_date ? ` · ${fmtDate(m.start_date)} → ${fmtDate(m.end_date)}` : ""}</p>
+              {m.shift_name && <p className="text-xs text-gray-500 mt-1">Shift: {m.shift_name} ({shiftRange(m)})</p>}
               {m.status === "frozen" && <p className="text-xs text-sky-700 mt-1">Frozen since {fmtDate(m.frozen_on)} until {fmtDate(m.freeze_until)}</p>}
               {hasDue && <p className="text-sm font-semibold text-red-600 mt-1">Due: {inr(m.balance_due)}</p>}
               <div className="flex gap-3 mt-2 text-sm">

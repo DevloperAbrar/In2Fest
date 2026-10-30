@@ -23,6 +23,9 @@ export default function CardDesigner() {
   const vid = venue?.id;
   const isPro = (venue?.subscription?.plan?.features || []).includes("gym_pro");
   const { data, loading } = useFetch(vid ? `/venues/${vid}/gym/card-settings` : null, { skip: !vid });
+  // The Shift option is offered only to gyms that have created at least one shift.
+  const { data: shiftData } = useFetch(vid ? `/venues/${vid}/gym/shifts?all=true` : null, { skip: !vid });
+  const hasShifts = (shiftData?.items || []).length > 0;
   const [cfg, setCfg] = useState(null);
   const [img, setImg] = useState("");
   const [err, setErr] = useState("");
@@ -108,6 +111,11 @@ export default function CardDesigner() {
               <input type="checkbox" checked={!!cfg.show[k]} onChange={() => toggle(k)} /> {l}
             </label>
           ))}
+          {hasShifts && (
+            <label className="flex items-center gap-2 text-sm text-navy-700">
+              <input type="checkbox" checked={!!cfg.show.shift} onChange={() => toggle("shift")} /> Shift
+            </label>
+          )}
         </div>
       </div>
 
@@ -130,7 +138,7 @@ export default function CardDesigner() {
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => setCfg({ theme: "classic", accent: null, title: data.default_title, show: { ...data.show, ...Object.fromEntries(SHOW_LABELS.map(([k]) => [k, k !== "achievements"])) }, achievements: [] })}>Reset design</Button>
+        <Button variant="outline" onClick={() => setCfg({ theme: "classic", accent: null, title: data.default_title, show: { ...data.show, ...Object.fromEntries(SHOW_LABELS.map(([k]) => [k, k !== "achievements"])), shift: false }, achievements: [] })}>Reset design</Button>
         <Button onClick={save} loading={busy}>Save design</Button>
       </div>
     </div>

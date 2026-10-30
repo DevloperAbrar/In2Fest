@@ -13,6 +13,7 @@ import EmptyState from "../../../components/common/EmptyState";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, Field, TextArea, GOALS, MODES, inr, fmtDate, errMsg, todayISO, downloadBlob } from "./gymShared.jsx";
 import PhotoPicker from "./PhotoPicker.jsx";
+import { shiftRange } from "./GymShifts.jsx";
 
 const TABS = [["all", "All"], ["active", "Active"], ["expiring", "Expiring"], ["expired", "Expired"], ["frozen", "Frozen"], ["dues", "Dues"]];
  
@@ -27,7 +28,9 @@ const previewTotal = (plan, f) => {
 
 function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   const { data: plans } = useFetch(isOpen && vid ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen || !vid });
-  const blank = { name: "", phone: "", gender: "", goal: "", health_notes: "", emergency_name: "", emergency_phone: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
+  const { data: shiftData } = useFetch(isOpen && vid ? `/venues/${vid}/gym/shifts` : null, { skip: !isOpen || !vid });
+  const shifts = shiftData?.items || [];
+  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", health_notes: "", emergency_name: "", emergency_phone: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
   const [f, setF] = useState(blank);
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -50,6 +53,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
       const res = await gymService.enroll(vid, {
         name: f.name, phone: f.phone, gender: f.gender, goal: f.goal, health_notes: f.health_notes, emergency_name: f.emergency_name,
         emergency_phone: f.emergency_phone, trainer_name: f.trainer_name, plan_id: f.plan_id, start_date: f.start_date,
+        ...(f.shift_id ? { shift_id: f.shift_id } : {}),
         include_pt: f.include_pt, extra_discount: f.extra_discount || 0, waive_joining: f.waive_joining, lead_id: lead?.id,
         source: lead ? "website_trial" : "walk_in",
         payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, reference: f.reference } : undefined
@@ -85,6 +89,10 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
           <Input label="Start date" type="date" value={f.start_date} onChange={set("start_date")} />
           <Input label="Extra discount (₹)" inputMode="decimal" value={f.extra_discount} onChange={set("extra_discount")} />
           <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
+          {shifts.length > 0 && (
+            <Select label="Shift (optional)" value={f.shift_id} onChange={set("shift_id")}
+              options={[{ value: "", label: "No shift" }, ...shifts.map((s) => ({ value: s.id, label: `${s.name} (${shiftRange(s)})` }))]} />
+          )}
         </div>
         {plan && (
           <div className="flex flex-wrap gap-4 text-sm">
@@ -166,7 +174,7 @@ export default function GymMembers() {
                     : <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">{m.name[0]}</div>}
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{m.name} <span className="text-xs text-gray-400">{m.member_code}</span></p>
-                    <p className="text-xs text-gray-500 truncate">{m.phone} · {m.plan_name || "No plan"}{m.end_date ? ` · till ${fmtDate(m.end_date)}` : ""}</p>
+                    <p className="text-xs text-gray-500 truncate">{m.phone} · {m.plan_name || "No plan"}{m.end_date ? ` · till ${fmtDate(m.end_date)}` : ""}{m.shift_name ? ` · ${m.shift_name}` : ""}</p>
                   </div>
                 </Link>
                 <div className="text-right flex flex-col items-end gap-1">

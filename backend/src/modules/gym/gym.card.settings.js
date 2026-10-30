@@ -2,7 +2,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { GymCardSettings } = require("./gym.card.models");
 
 const THEMES = { classic: "Classic Dark", light: "Clean Light", gold: "Royal Gold", ocean: "Ocean Blue" };
-const SHOW_KEYS = ["logo", "gym_name", "status", "photo", "member_id", "plan", "valid", "owner", "phone", "email", "address", "achievements"];
+const SHOW_KEYS = ["logo", "gym_name", "status", "photo", "member_id", "plan", "valid", "owner", "phone", "email", "address", "achievements", "shift"];
 const DEFAULT_TITLE = "MEMBERSHIP CARD";
 const MAX_ACHIEVEMENTS = 4;
 
@@ -10,7 +10,7 @@ const defaults = () => ({
   theme: "classic",
   accent: null,
   title: DEFAULT_TITLE,
-  show: SHOW_KEYS.reduce((o, k) => ({ ...o, [k]: k !== "achievements" }), {}),
+  show: SHOW_KEYS.reduce((o, k) => ({ ...o, [k]: k !== "achievements" && k !== "shift" }), {}),
   achievements: []
 });
 

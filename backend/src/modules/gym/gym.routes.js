@@ -19,6 +19,7 @@ const cardSettings = require("./gym.card.settings");
 const logo = require("./gym.logo");
 const workout = require("./gym.workout.service");
 const store = require("./gym.store.service");
+const shifts = require("./gym.shift.service");
 const invoicePdf = require("./gym.store.invoice");
 const router = express.Router({ mergeParams: true });
 
@@ -83,9 +84,26 @@ router.get("/members/export", async (req, res, next) => {
     res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="gym-members-${tag}.csv"` }).send(csv);
   } catch (e) { next(e); }
 });
-router.get("/members", h((req) => members.listMembers(req.gymVenue.id, req.query)));
-router.post("/members", h((req) => members.enroll(ctx(req), req.body), 201));
-router.get("/members/:id", h((req) => members.getDetail(ctx(req), req.params.id)));
+router.get("/members", h(async (req) => {
+  const out = await members.listMembers(req.gymVenue.id, req.query);
+  await shifts.decorate(req.gymVenue.id, out.items);
+  return out;
+}));
+router.post("/members", h(async (req) => {
+  const venueId = req.gymVenue.id;
+  const shiftId = await shifts.checkShift(venueId, req.body && req.body.shift_id); // optional; rejects a bad shift BEFORE the member is created
+  const out = await members.enroll(ctx(req), req.body);
+  if (shiftId) {
+    try { await shifts.assign(venueId, out.member.id, shiftId); out.member.shift_id = shiftId; }
+    catch (e) { console.error("[GYM] shift assign after enroll failed:", e.message); }
+  }
+  return out;
+}, 201));
+router.get("/members/:id", h(async (req) => {
+  const out = await members.getDetail(ctx(req), req.params.id);
+  await shifts.decorate(req.gymVenue.id, out.member);
+  return out;
+}));
 router.get("/members/:id/message", h((req) => messages.compose(ctx(req), req.params.id, req.query)));
 router.get("/members/:id/card", proOnly, async (req, res, next) => {
   try { await card.memberCardPng(ctx(req), req.params.id, res); } catch (e) { next(e); }
@@ -96,9 +114,21 @@ router.delete("/card-settings", ownerOnly, h(async (req) => cardSettings.publicC
 router.post("/card-preview", ownerOnly, proOnly, async (req, res, next) => {
   try { await card.previewCardPng(ctx(req), req.body, res); } catch (e) { next(e); }
 });
-router.patch("/members/:id", h((req) => members.updateMember(req.gymVenue.id, req.params.id, req.body)));
+router.patch("/members/:id", h(async (req) => {
+  const venueId = req.gymVenue.id;
+  const body = req.body || {};
+  const hasShift = Object.prototype.hasOwnProperty.call(body, "shift_id"); // only touched when the screen sends it
+  const shiftId = hasShift ? await shifts.checkShift(venueId, body.shift_id) : undefined;
+  const out = await members.updateMember(venueId, req.params.id, body);
+  if (hasShift) await shifts.assign(venueId, req.params.id, shiftId);
+  return out;
+}));
+router.delete("/members/:id/permanent", ownerOnly, h(async (req) => {
+  const out = await members.deleteMember(req.gymVenue.id, req.params.id, req.query.confirm);
+  await shifts.unassign(req.gymVenue.id, req.params.id).catch(() => {});
+  return out;
+}));
 router.delete("/members/:id", h((req) => members.archiveMember(req.gymVenue.id, req.params.id)));
-router.delete("/members/:id/permanent", ownerOnly, h((req) => members.deleteMember(req.gymVenue.id, req.params.id, req.query.confirm)));
 router.post("/members/:id/photo", blockInDemo("Photo upload"), upload.single("photo"), h(async (req) => {
   if (!req.file) throw new AppError("Choose a photo to upload", 400);
   const url = await uploadToR2(req.file.buffer, req.file.originalname, `gym/${req.gymVenue.id}`, req.file.mimetype);
@@ -110,6 +140,13 @@ router.post("/members/:id/freeze", h((req) => members.freeze(req.gymVenue.id, re
 router.post("/members/:id/unfreeze", h((req) => members.unfreeze(req.gymVenue.id, req.params.id)));
 router.post("/members/:id/payments", h((req) => payments.recordManual(ctx(req), req.params.id, req.body), 201));
 router.post("/members/:id/payment-link", proOnly, h((req) => payments.linkForMember(ctx(req), req.params.id, req.body)));
+
+// optional shifts (time slots) and who attends them
+router.get("/shifts", h((req) => shifts.list(req.gymVenue.id, req.query.all === "true")));
+router.post("/shifts", ownerOnly, h((req) => shifts.create(req.gymVenue.id, req.body), 201));
+router.get("/shifts/:id", h((req) => shifts.detail(req.gymVenue.id, req.params.id)));
+router.patch("/shifts/:id", ownerOnly, h((req) => shifts.update(req.gymVenue.id, req.params.id, req.body)));
+router.delete("/shifts/:id", ownerOnly, h((req) => shifts.remove(req.gymVenue.id, req.params.id)));
 
 // payments
 router.get("/payments", h((req) => payments.listPayments(req.gymVenue.id, req.query)));

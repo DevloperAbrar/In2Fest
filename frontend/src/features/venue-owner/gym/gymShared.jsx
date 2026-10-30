@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings } from "lucide-react";
+import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings, Clock } from "lucide-react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useAuth } from "../../../context/AuthContext";
@@ -166,6 +166,7 @@ const TAB_DEFS = [
   { to: "/dashboard/gym", label: "Overview", icon: LayoutGrid, end: true },
   { to: "/dashboard/gym/members", label: "Members", icon: Users },
   { to: "/dashboard/gym/plans", label: "Plans", icon: Ticket },
+  { to: "/dashboard/gym/shifts", label: "Shifts", icon: Clock },
   { to: "/dashboard/gym/workouts", label: "Workouts", icon: Dumbbell },
   { to: "/dashboard/gym/leads", label: "Leads", icon: UserPlus },
   { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle },

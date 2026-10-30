@@ -10,6 +10,7 @@ import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
 import Button from "../../../components/common/Button";
+import { ShiftOverviewCard } from "./GymShifts.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, inr, fmtDate, errMsg, downloadBlob } from "./gymShared.jsx";
 import {
@@ -243,6 +244,10 @@ export default function GymDashboard() {
             </Surface>
           </motion.div>
         )}
+
+        <motion.div variants={fadeUp}>
+          <ShiftOverviewCard />
+        </motion.div>
 
         <motion.div variants={fadeUp}>
           <Surface className="p-4 md:p-5">
