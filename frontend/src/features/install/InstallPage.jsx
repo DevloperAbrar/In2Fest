@@ -10,6 +10,7 @@ import {
   Copy,
   Check,
   Info,
+  X,
   CalendarCheck2,
   IndianRupee,
   MessageCircle,
@@ -20,10 +21,14 @@ import { subscribe, getSnapshot, isAppHost, promptInstall } from "../../pwa/pwa"
 import logo from "../../assets/logo.png";
 
 const INSTALL_URL = "https://app.in2fest.com/install";
+// Android only: forces the link to open in Chrome (works from WhatsApp / Instagram / Facebook browsers)
+const CHROME_INTENT = `intent://app.in2fest.com/install#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
+  INSTALL_URL
+)};end`;
 const EASE = [0.22, 1, 0.36, 1];
 
 const PRIMARY_BTN =
-  "w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3.5 text-[15px] shadow-[0_10px_28px_-10px_rgba(232,25,44,0.65)] transition-colors";
+  "w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-500 hover:bg-primary-600 text-white font-semibold py-4 text-base shadow-[0_10px_28px_-10px_rgba(232,25,44,0.65)] transition-colors";
 
 const BENEFITS = [
   { icon: Zap, title: "Instant access", text: "Open from your home screen or desktop" },
@@ -40,8 +45,8 @@ const TABS = [
 const STEPS = {
   android: [
     <>Open this page in <b>Chrome</b> and tap the <b>⋮</b> menu (top right).</>,
-    <>Tap <b>Install app</b> (or <b>Add to Home screen</b>).</>,
-    <>Tap <b>Install</b>. In2Fest will appear on your home screen.</>,
+    <>Tap <b>Install app</b>. If you only see <b>Add to Home screen</b>, tap that and then tap <b>Install</b>.</>,
+    <>Tap <b>Install</b> to confirm. In2Fest will appear on your home screen.</>,
   ],
   iphone: [
     <>Open this page in <b>Safari</b> and tap the <b>Share</b> button (square with an up arrow).</>,
@@ -147,7 +152,7 @@ function Steps({ items }) {
   );
 }
 
-function ManualGuide({ tab, setTab, showTips }) {
+function ManualGuide({ tab, setTab }) {
   return (
     <div>
       <div className="flex w-full rounded-xl bg-navy-100/50 p-1 gap-1">
@@ -168,17 +173,65 @@ function ManualGuide({ tab, setTab, showTips }) {
 
       <Steps items={STEPS[tab]} />
 
-      {showTips && (
-        <details className="mt-5 rounded-2xl bg-paper border border-navy-100 px-4 py-3">
-          <summary className="cursor-pointer text-sm font-semibold text-navy-900">Install option not showing?</summary>
-          <ul className="mt-3 space-y-2 text-sm text-navy-500 leading-relaxed list-disc pl-5">
-            <li>Do not use an Incognito / Private window. Browsers do not allow installing from those.</li>
-            <li>Open the link in Chrome, Edge or Safari, not inside WhatsApp, Instagram or Facebook.</li>
-            <li>Already installed? Look for In2Fest in your app drawer, or the "Open in app" icon in the address bar.</li>
-            <li>If you closed the install popup earlier, refresh this page and try again.</li>
-          </ul>
-        </details>
-      )}
+      <details className="mt-5 rounded-2xl bg-paper border border-navy-100 px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-navy-900">Still not working?</summary>
+        <ul className="mt-3 space-y-2 text-sm text-navy-500 leading-relaxed list-disc pl-5">
+          <li>Do not use an Incognito / Private tab. Browsers do not allow installing from those.</li>
+          <li>Open the link in Chrome, Edge or Safari, not inside WhatsApp, Instagram or Facebook.</li>
+          <li>Already installed? Look for In2Fest in your app drawer or home screen.</li>
+          <li>Turn off "Desktop site" in the browser menu, then refresh this page.</li>
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+/* Bottom sheet on phones, centered dialog on larger screens */
+function GuideSheet({ onClose, tab, setTab }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="How to install In2Fest"
+      onClick={onClose}
+      className="fixed inset-0 z-[10001] bg-black/50 flex items-end sm:items-center justify-center sm:p-4"
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.3, ease: EASE }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_20px_50px_rgba(0,0,0,0.3)] max-h-[90vh] overflow-y-auto"
+      >
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h2 className="font-display text-xl font-bold text-navy-900">Install In2Fest</h2>
+            <p className="mt-0.5 text-sm text-navy-400">Just 3 quick steps. No app store needed.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-9 h-9 rounded-full bg-paper border border-navy-100 flex items-center justify-center shrink-0 text-navy-500"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <ManualGuide tab={tab} setTab={setTab} />
+
+        <button type="button" onClick={onClose} className={`${PRIMARY_BTN} mt-5 !py-3.5 !text-[15px]`}>
+          Got it
+        </button>
+      </motion.div>
     </div>
   );
 }
@@ -189,7 +242,7 @@ export default function InstallPage() {
   const env = useMemo(detectEnv, []);
   const [outcome, setOutcome] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [tab, setTab] = useState(() => (pwa.ios ? "iphone" : env.android ? "android" : "computer"));
   const onAppHost = isAppHost();
 
@@ -201,9 +254,15 @@ export default function InstallPage() {
     };
   }, []);
 
+  // One button for every device:
+  // browser gave us the install popup -> show it, otherwise open the step-by-step sheet.
   const handleInstall = async () => {
-    const result = await promptInstall();
-    setOutcome(result);
+    if (pwa.canInstall) {
+      const result = await promptInstall();
+      setOutcome(result);
+      return;
+    }
+    setSheetOpen(true);
   };
 
   const copyLink = async () => {
@@ -216,7 +275,11 @@ export default function InstallPage() {
     }
   };
 
-  const manualVisible = (!pwa.canInstall && outcome !== "accepted") || manualOpen;
+  const hint = pwa.canInstall
+    ? "Free · takes about 5 seconds · no app store needed"
+    : pwa.ios
+    ? "On iPhone, install from the Safari Share menu. Tap the button to see how."
+    : "Tap the button and follow 3 quick steps.";
 
   const renderAction = () => {
     if (!onAppHost) {
@@ -252,21 +315,32 @@ export default function InstallPage() {
     }
 
     return (
-      <div className="space-y-5">
+      <div className="space-y-4">
         {env.inApp && (
           <div className="rounded-2xl bg-primary-50 p-4">
-            <p className="text-sm font-semibold text-primary-700">You are inside another app's browser</p>
+            <p className="text-sm font-semibold text-primary-700">Open this page in your browser to install</p>
             <p className="mt-1 text-sm text-navy-500 leading-relaxed">
-              Installing does not work here. Copy the link and open it in Chrome (Android) or Safari (iPhone).
+              Installing does not work inside WhatsApp, Instagram or Facebook.
+              {env.android ? " Tap below to open it in Chrome." : " Copy the link and open it in Safari."}
             </p>
-            <button
-              type="button"
-              onClick={copyLink}
-              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-navy-900 text-white text-sm font-semibold px-4 py-2.5"
-            >
-              {copied ? <Check size={15} /> : <Copy size={15} />}
-              {copied ? "Link copied" : "Copy link"}
-            </button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {env.android && (
+                <a
+                  href={CHROME_INTENT}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary-500 text-white text-sm font-semibold px-4 py-2.5"
+                >
+                  Open in Chrome
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={copyLink}
+                className="inline-flex items-center gap-2 rounded-xl bg-navy-900 text-white text-sm font-semibold px-4 py-2.5"
+              >
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+                {copied ? "Link copied" : "Copy link"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -274,36 +348,34 @@ export default function InstallPage() {
           <div className="rounded-2xl bg-paper border border-navy-100 p-4 flex gap-2.5 items-start">
             <Info size={16} className="text-navy-400 shrink-0 mt-0.5" />
             <p className="text-sm text-navy-500 leading-relaxed">
-              You closed the install popup. Refresh this page to try again, or use the steps below.
+              You closed the install popup. Tap the button again to see the manual steps.
             </p>
           </div>
         )}
 
-        {outcome === "accepted" && (
+        {outcome === "accepted" ? (
           <div className="rounded-2xl bg-gold-100 p-4">
             <p className="text-sm font-semibold text-navy-900">Installing In2Fest...</p>
             <p className="mt-1 text-sm text-navy-500">It will appear on your home screen or desktop in a moment.</p>
           </div>
-        )}
-
-        {pwa.canInstall && (
+        ) : (
           <div>
             <button type="button" onClick={handleInstall} className={PRIMARY_BTN}>
-              <Download size={18} />
+              <Download size={20} />
               Install In2Fest app
             </button>
-            <p className="mt-2.5 text-center text-xs text-navy-400">Free · takes about 5 seconds · no app store needed</p>
-            <button
-              type="button"
-              onClick={() => setManualOpen((v) => !v)}
-              className="mt-3 mx-auto block text-[13px] font-semibold text-navy-400 hover:text-navy-700 transition-colors"
-            >
-              {manualOpen ? "Hide manual steps" : "Prefer manual steps?"}
-            </button>
+            <p className="mt-2.5 text-center text-xs text-navy-400">{hint}</p>
+            {pwa.canInstall && (
+              <button
+                type="button"
+                onClick={() => setSheetOpen(true)}
+                className="mt-3 mx-auto block text-[13px] font-semibold text-navy-400 hover:text-navy-700 transition-colors"
+              >
+                Prefer manual steps?
+              </button>
+            )}
           </div>
         )}
-
-        {manualVisible && <ManualGuide tab={tab} setTab={setTab} showTips={!pwa.canInstall} />}
       </div>
     );
   };
@@ -341,6 +413,11 @@ export default function InstallPage() {
               inquiries.
             </p>
 
+            {/* Install button first, so it is visible without scrolling on phones */}
+            <div className="mt-6 rounded-3xl bg-white border border-navy-100 shadow-card p-5 sm:p-6">
+              {renderAction()}
+            </div>
+
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               {BENEFITS.map(({ icon: Icon, title, text }) => (
                 <div key={title} className="rounded-2xl bg-white border border-navy-100 p-3.5">
@@ -351,10 +428,6 @@ export default function InstallPage() {
                   <p className="mt-0.5 text-xs text-navy-400 leading-snug">{text}</p>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-6 rounded-3xl bg-white border border-navy-100 shadow-card p-5 sm:p-6">
-              {renderAction()}
             </div>
           </motion.div>
         </main>
@@ -416,6 +489,8 @@ export default function InstallPage() {
           </FloatCard>
         </div>
       </div>
+
+      {sheetOpen && <GuideSheet onClose={() => setSheetOpen(false)} tab={tab} setTab={setTab} />}
     </div>
   );
 }
