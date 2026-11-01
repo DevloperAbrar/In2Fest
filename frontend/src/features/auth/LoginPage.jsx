@@ -18,6 +18,7 @@ import {
 import GoogleLoginButton from "./GoogleLoginButton.jsx";
 import { showError } from "../../components/common/Toast";
 import logo from "../../assets/logo.png";
+import InstallLink from "../install/InstallLink.jsx";
 
 /*
   Photos are picked up automatically from  src/assets/login/
@@ -265,6 +266,8 @@ export default function LoginPage() {
               <ShieldCheck size={15} className="text-navy-300 shrink-0 mt-px" />
               Secure sign-in with your Google account. We never post anything.
             </div>
+
+            <InstallLink className="mt-4" />
 
             {/* Social proof */}
             <div className="mt-10 pt-8 border-t border-navy-100 flex items-center gap-4">

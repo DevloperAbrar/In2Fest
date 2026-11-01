@@ -9,6 +9,7 @@ import SuperAdminLoginPage from "../features/auth/SuperAdminLoginPage.jsx";
 import AuthCallback from "../features/auth/AuthCallback.jsx";
 import AccountDeactivatedPage from "../features/auth/AccountDeactivatedPage.jsx";
 import VisitorLoginPage from "../features/public-site/VisitorLoginPage.jsx";
+import InstallPage from "../features/install/InstallPage.jsx";
 import SuperAdminRoutes from "./SuperAdminRoutes.jsx";
 import VenueOwnerRoutes from "./VenueOwnerRoutes.jsx";
 import PublicRoutes from "./PublicRoutes.jsx";
@@ -22,6 +23,7 @@ export default function AppRoutes() {
       <Route path="/account-deactivated" element={<AccountDeactivatedPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/visitor-login" element={<VisitorLoginPage />} />
+      <Route path="/install" element={<InstallPage />} />
 
       <Route element={<ProtectedRoute allowedRoles={["super_admin"]} />}>
         <Route path="/admin/*" element={<SuperAdminRoutes />} />
