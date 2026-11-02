@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Plus, Search, Download } from "lucide-react";
+import { Plus, Search, Download, Upload } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
@@ -13,10 +13,10 @@ import EmptyState from "../../../components/common/EmptyState";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, Field, TextArea, GOALS, MODES, inr, fmtDate, errMsg, todayISO, downloadBlob } from "./gymShared.jsx";
 import PhotoPicker from "./PhotoPicker.jsx";
-import { shiftRange } from "./GymShifts.jsx";
+import ImportMembersModal from "./ImportMembersModal.jsx";
 
 const TABS = [["all", "All"], ["active", "Active"], ["expiring", "Expiring"], ["expired", "Expired"], ["frozen", "Frozen"], ["dues", "Dues"]];
- 
+
 
 const previewTotal = (plan, f) => {
   if (!plan) return 0;
@@ -119,82 +119,85 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
 }
 
 export default function GymMembers() {
-    const { venue } = useVenue();
-    const vid = venue?.id;
-    const nav = useNavigate();
-    const { state } = useLocation();
-    const [tab, setTab] = useState("all");
-    const [q, setQ] = useState("");
-    const [dq, setDq] = useState("");
-    const [page, setPage] = useState(1);
-    const [open, setOpen] = useState(!!state?.lead);
-  
-    useEffect(() => {
-      const t = setTimeout(() => { setDq(q.trim()); setPage(1); }, 350);
-      return () => clearTimeout(t);
-    }, [q]);
-  
-    const url = vid ? `/venues/${vid}/gym/members?status=${tab}&q=${encodeURIComponent(dq)}&page=${page}&limit=25` : null;
-    const { data, loading } = useFetch(url, { skip: !vid });
-    const items = data?.items || [];
-  
-    const exportCsv = async () => {
-      try {
-        const r = await gymService.exportMembers(vid, { status: tab, q: dq });
-        downloadBlob(r.data, `gym-members-${tab}.csv`);
-      } catch { showError("Could not download the list"); }
-    };
-  
-    return (
-      <GymPage title="Members"
-        actions={<>
-          <Button variant="outline" onClick={exportCsv}><Download size={15} /> Download</Button>
-          <Button onClick={() => setOpen(true)}><Plus size={15} /> Add member</Button>
-        </>}>
-        <div className="flex gap-1 mb-3 overflow-x-auto">
-          {TABS.map(([k, label]) => (
-            <button key={k} onClick={() => { setTab(k); setPage(1); }}
-              className={`px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap ${tab === k ? "bg-primary-600 text-white border-primary-600" : "bg-white text-gray-600 border-gray-200"}`}>{label}</button>
+  const { venue } = useVenue();
+  const vid = venue?.id;
+  const nav = useNavigate();
+  const { state } = useLocation();
+  const [tab, setTab] = useState("all");
+  const [q, setQ] = useState("");
+  const [dq, setDq] = useState("");
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState(!!state?.lead);
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDq(q.trim()); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const url = vid ? `/venues/${vid}/gym/members?status=${tab}&q=${encodeURIComponent(dq)}&page=${page}&limit=25` : null;
+  const { data, loading, refetch } = useFetch(url, { skip: !vid });
+  const items = data?.items || [];
+
+  const exportCsv = async () => {
+    try {
+      const r = await gymService.exportMembers(vid, { status: tab, q: dq });
+      downloadBlob(r.data, `gym-members-${tab}.csv`);
+    } catch { showError("Could not download the list"); }
+  };
+
+  return (
+    <GymPage title="Members"
+      actions={<>
+        <Button variant="outline" onClick={() => setImporting(true)}><Upload size={15} /> Import</Button>
+        <Button variant="outline" onClick={exportCsv}><Download size={15} /> Download</Button>
+        <Button onClick={() => setOpen(true)}><Plus size={15} /> Add member</Button>
+      </>}>
+      <div className="flex gap-1 mb-3 overflow-x-auto">
+        {TABS.map(([k, label]) => (
+          <button key={k} onClick={() => { setTab(k); setPage(1); }}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium border whitespace-nowrap ${tab === k ? "bg-primary-600 text-white border-primary-600" : "bg-white text-gray-600 border-gray-200"}`}>{label}</button>
+        ))}
+      </div>
+      <div className="relative mb-3">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Input className="pl-9" placeholder="Search name, mobile or member ID" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+
+      {loading ? <Loader /> : items.length === 0 ? (
+        <EmptyState title="No members found" description="Add your first member or change the filter." />
+      ) : (
+        <div className="bg-white rounded-2xl border border-navy-100/60 divide-y">
+          {items.map((m) => (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+              <Link to={`/dashboard/gym/members/${m.id}`} className="flex-1 min-w-0 flex items-center gap-3">
+                {m.photo_url
+                  ? <img src={m.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  : <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">{m.name[0]}</div>}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{m.name} <span className="text-xs text-gray-400">{m.member_code}</span></p>
+                  <p className="text-xs text-gray-500 truncate">{m.phone} · {m.plan_name || "No plan"}{m.end_date ? ` · till ${fmtDate(m.end_date)}` : ""}{m.shift_name ? ` · ${m.shift_name}` : ""}</p>
+                </div>
+              </Link>
+              <div className="text-right flex flex-col items-end gap-1">
+                <StatusPill status={m.display_status} daysLeft={m.days_left} />
+                {+m.balance_due > 0 && <span className="text-xs font-semibold text-red-600">Due {inr(m.balance_due)}</span>}
+              </div>
+            </div>
           ))}
         </div>
-        <div className="relative mb-3">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input className="pl-9" placeholder="Search name, mobile or member ID" value={q} onChange={(e) => setQ(e.target.value)} />
+      )}
+
+      {data && data.pages > 1 && (
+        <div className="flex items-center justify-between mt-4 text-sm">
+          <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+          <span className="text-gray-500">Page {data.page} of {data.pages} · {data.total} members</span>
+          <Button variant="outline" disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</Button>
         </div>
-  
-        {loading ? <Loader /> : items.length === 0 ? (
-          <EmptyState title="No members found" description="Add your first member or change the filter." />
-        ) : (
-          <div className="bg-white rounded-2xl border border-navy-100/60 divide-y">
-            {items.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <Link to={`/dashboard/gym/members/${m.id}`} className="flex-1 min-w-0 flex items-center gap-3">
-                  {m.photo_url
-                    ? <img src={m.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                    : <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">{m.name[0]}</div>}
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{m.name} <span className="text-xs text-gray-400">{m.member_code}</span></p>
-                    <p className="text-xs text-gray-500 truncate">{m.phone} · {m.plan_name || "No plan"}{m.end_date ? ` · till ${fmtDate(m.end_date)}` : ""}{m.shift_name ? ` · ${m.shift_name}` : ""}</p>
-                  </div>
-                </Link>
-                <div className="text-right flex flex-col items-end gap-1">
-                  <StatusPill status={m.display_status} daysLeft={m.days_left} />
-                  {+m.balance_due > 0 && <span className="text-xs font-semibold text-red-600">Due {inr(m.balance_due)}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-  
-        {data && data.pages > 1 && (
-          <div className="flex items-center justify-between mt-4 text-sm">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-            <span className="text-gray-500">Page {data.page} of {data.pages} · {data.total} members</span>
-            <Button variant="outline" disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
-        )}
-  
-        <EnrollModal isOpen={open} onClose={() => setOpen(false)} vid={vid} lead={state?.lead} onDone={(id) => nav(`/dashboard/gym/members/${id}`)} />
-      </GymPage>
-    );
-  }
+      )}
+
+      <EnrollModal isOpen={open} onClose={() => setOpen(false)} vid={vid} lead={state?.lead} onDone={(id) => nav(`/dashboard/gym/members/${id}`)} />
+      {importing && <ImportMembersModal vid={vid} onClose={() => setImporting(false)} onDone={() => { setPage(1); refetch(); }} />}
+   </GymPage>
+  );
+}

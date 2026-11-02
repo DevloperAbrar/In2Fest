@@ -43,7 +43,9 @@ export const gymService = {
   paymentLink: (v, id, body) => api.post(`${b(v)}/members/${id}/payment-link`, body),
   message: (v, id, params) => api.get(`${b(v)}/members/${id}/message`, { params }),
   exportMembers: (v, params) => api.get(`${b(v)}/members/export`, { params, responseType: "blob" }),
-
+  importTemplate: (v) => api.get(`${b(v)}/members/import/template`, { responseType: "blob" }),
+  importValidate: (v, body) => api.post(`${b(v)}/members/import/validate`, body),
+  importRun: (v, body) => api.post(`${b(v)}/members/import`, body),
   confirmPayment: (v, id, body = {}) => api.post(`${b(v)}/payments/${id}/confirm`, body),
   cancelPayment: (v, id) => api.post(`${b(v)}/payments/${id}/cancel`),
   refreshPayment: (v, id) => api.post(`${b(v)}/payments/${id}/refresh`),

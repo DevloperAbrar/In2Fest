@@ -10,6 +10,7 @@ const { AppError } = require("../../middleware/error.middleware");
 const { Venue } = require("../../database/models");
 const C = require("./gym.constants");
 const members = require("./gym.members.service");
+const importer = require("./gym.import.service");
 const payments = require("./gym.payments.service");
 const insights = require("./gym.insights.service");
 const messages = require("./gym.messages.service");
@@ -21,7 +22,9 @@ const workout = require("./gym.workout.service");
 const store = require("./gym.store.service");
 const shifts = require("./gym.shift.service");
 const invoicePdf = require("./gym.store.invoice");
+
 const router = express.Router({ mergeParams: true });
+
 
 // Loads the venue + settings once per request and blocks non-gym businesses.
 async function loadGym(req, res, next) {
@@ -84,6 +87,12 @@ router.get("/members/export", async (req, res, next) => {
     res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="gym-members-${tag}.csv"` }).send(csv);
   } catch (e) { next(e); }
 });
+// bulk import from another software (owner only). Must stay ABOVE /members/:id
+router.get("/members/import/template", (req, res) => {
+  res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="member-import-sample.csv"' }).send(importer.templateCsv());
+});
+router.post("/members/import/validate", ownerOnly, blockInDemo("Member import"), h((req) => importer.validate(ctx(req), req.body)));
+router.post("/members/import", ownerOnly, blockInDemo("Member import"), h((req) => importer.run(ctx(req), req.body)));
 router.get("/members", h(async (req) => {
   const out = await members.listMembers(req.gymVenue.id, req.query);
   await shifts.decorate(req.gymVenue.id, out.items);
