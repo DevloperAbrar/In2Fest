@@ -89,8 +89,9 @@ function prepare(raw, plans, today, withPayments) {
 
   const name = clean(r.name, 100);
   if (name.length < 2) errors.push("Name is missing");
-  const phone = pickPhone(r.phone);
-  if (!phone) errors.push(clean(r.phone, 30) ? `Mobile '${clean(r.phone, 30)}' is not a valid 10-digit number` : "Mobile number is missing");
+  const phone = bad.phone ? null : pickPhone(r.phone);
+  if (bad.phone) errors.push(`Mobile '${clean(bad.phone, 20)}' was damaged by Excel (scientific format). Set the Mobile column to Text in Excel and export the CSV again`);
+  else if (!phone) errors.push(clean(r.phone, 30) ? `Mobile '${clean(r.phone, 30)}' is not a valid 10-digit number` : "Mobile number is missing");
   out.name = name;
   out.phone = phone;
 

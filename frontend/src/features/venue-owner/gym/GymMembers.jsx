@@ -13,7 +13,9 @@ import EmptyState from "../../../components/common/EmptyState";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, Field, TextArea, GOALS, MODES, inr, fmtDate, errMsg, todayISO, downloadBlob } from "./gymShared.jsx";
 import PhotoPicker from "./PhotoPicker.jsx";
+import { shiftRange } from "./GymShifts.jsx";
 import ImportMembersModal from "./ImportMembersModal.jsx";
+import ModalErrorBoundary from "./ModalErrorBoundary.jsx";
 
 const TABS = [["all", "All"], ["active", "Active"], ["expiring", "Expiring"], ["expired", "Expired"], ["frozen", "Frozen"], ["dues", "Dues"]];
 
@@ -196,8 +198,14 @@ export default function GymMembers() {
         </div>
       )}
 
-      <EnrollModal isOpen={open} onClose={() => setOpen(false)} vid={vid} lead={state?.lead} onDone={(id) => nav(`/dashboard/gym/members/${id}`)} />
-      {importing && <ImportMembersModal vid={vid} onClose={() => setImporting(false)} onDone={() => { setPage(1); refetch(); }} />}
-   </GymPage>
+      <ModalErrorBoundary key={open ? "enroll-open" : "enroll-closed"} onClose={() => setOpen(false)}>
+        <EnrollModal isOpen={open} onClose={() => setOpen(false)} vid={vid} lead={state?.lead} onDone={(id) => nav(`/dashboard/gym/members/${id}`)} />
+      </ModalErrorBoundary>
+      {importing && (
+        <ModalErrorBoundary onClose={() => setImporting(false)}>
+          <ImportMembersModal vid={vid} onClose={() => setImporting(false)} onDone={() => { setPage(1); refetch(); }} />
+        </ModalErrorBoundary>
+      )}
+    </GymPage>
   );
 }
