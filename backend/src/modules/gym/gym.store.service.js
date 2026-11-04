@@ -610,6 +610,136 @@ async function cancelSale({ venue, user }, id, b) {
   return presentSale(sale);
 }
 
+// Edits a bill: products, quantities, prices, discount, customer. Stock moves by the DIFFERENCE only,
+// every change is written to the stock history, and old prices stay as they were unless the owner edits them.
+async function updateSale({ venue, user }, id, b) {
+  const raw = Array.isArray(b.items) ? b.items : [];
+  if (!raw.length || raw.length > 50) throw new AppError("Add between 1 and 50 products to the bill", 400);
+  const lines = raw.map((r) => {
+    if (!r || !UUID_RE.test(String(r.variant_id))) throw new AppError("Invalid product in the bill", 400);
+    return {
+      variant_id: r.variant_id,
+      qty: U.num(r.qty, "Quantity", { min: 1, max: 10000, int: true }),
+      price: blank(r.price) ? null : U.num(r.price, "Price", { max: 10000000 }),
+      line_discount: blank(r.line_discount) ? 0 : U.num(r.line_discount, "Discount", { max: 10000000 })
+    };
+  });
+  const extra = blank(b.discount) ? 0 : U.num(b.discount, "Discount", { max: 10000000 });
+  const memberGiven = Object.prototype.hasOwnProperty.call(b, "member_id");
+  if (memberGiven && b.member_id && !UUID_RE.test(String(b.member_id))) throw new AppError("Invalid member", 400);
+  const today = U.todayIST();
+
+  const sale = await sequelize.transaction(async (t) => {
+    const s = await lockSale(venue.id, id, t);
+    if (s.status === "cancelled") throw new AppError("A cancelled bill cannot be edited", 400);
+    const oldItems = Array.isArray(s.items) ? s.items : [];
+    const oldTotal = Number(s.total);
+
+    const oldQty = new Map();
+    oldItems.forEach((l) => oldQty.set(l.variant_id, (oldQty.get(l.variant_id) || 0) + Number(l.qty)));
+    const newQty = new Map();
+    lines.forEach((l) => newQty.set(l.variant_id, (newQty.get(l.variant_id) || 0) + l.qty));
+
+    const ids = [...new Set([...oldQty.keys(), ...newQty.keys()])].sort();
+    const variants = await GymProductVariant.findAll({ where: { id: ids, venue_id: venue.id }, order: [["id", "ASC"]], transaction: t, lock: t.LOCK.UPDATE });
+    const vMap = new Map(variants.map((v) => [v.id, v]));
+    const products = await GymProduct.findAll({ where: { id: [...new Set(variants.map((v) => v.product_id))], venue_id: venue.id }, transaction: t });
+    const pMap = new Map(products.map((p) => [p.id, p]));
+
+    const pool = oldItems.map((l) => ({ ...l, used: false })); // old lines keep their snapshot (name, cost, tax)
+    const items = lines.map((l) => {
+      const v = vMap.get(l.variant_id);
+      const p = v && pMap.get(v.product_id);
+      if (!v || !p) throw new AppError("A product in the bill no longer exists", 400);
+      const snap = pool.find((o) => !o.used && o.variant_id === l.variant_id);
+      if (snap) snap.used = true;
+      const grew = (newQty.get(l.variant_id) || 0) > (oldQty.get(l.variant_id) || 0);
+      if ((!snap || grew) && (!v.is_active || p.is_archived)) throw new AppError(`${p.name} (${v.label}) is no longer available for sale`, 400);
+      const price = l.price != null ? l.price : snap ? Number(snap.price) : Number(v.price);
+      const gross = r2(price * l.qty);
+      if (l.line_discount > gross) throw new AppError(`Discount on ${p.name} is more than its price`, 400);
+      const common = { qty: l.qty, price, line_discount: l.line_discount, amount: r2(gross - l.line_discount) };
+      return snap
+        ? {
+            product_id: snap.product_id, variant_id: snap.variant_id, name: snap.name, brand: snap.brand || "", variant_label: snap.variant_label,
+            sku: snap.sku || "", hsn: snap.hsn || "", mrp: Math.max(Number(snap.mrp) || price, price), tax_rate: Number(snap.tax_rate), cost: Number(snap.cost) || 0, ...common
+          }
+        : {
+            product_id: p.id, variant_id: v.id, name: p.name, brand: p.brand || "", variant_label: v.label, sku: v.sku || "", hsn: p.hsn || "",
+            mrp: Math.max(v.mrp != null ? Number(v.mrp) : price, price), tax_rate: Number(p.tax_rate), cost: Number(v.cost_price), ...common
+          };
+    });
+
+    // stock check: only the EXTRA units this edit takes
+    for (const vid of ids) {
+      const v = vMap.get(vid);
+      if (!v) continue; // option no longer in the database: nothing to put back
+      const delta = (newQty.get(vid) || 0) - (oldQty.get(vid) || 0);
+      if (delta <= 0) continue;
+      const name = (pMap.get(v.product_id) || {}).name || "product";
+      if (Number(v.stock_qty) < delta) throw new AppError(`Only ${v.stock_qty} more of ${name} (${v.label}) available in stock`, 400);
+      if (expiryState(v, today) === "expired") throw new AppError(`${name} (${v.label}) is past its expiry date. Remove the expired stock first`, 400);
+    }
+
+    const linesTotal = r2(items.reduce((n, l) => n + l.amount, 0));
+    if (extra > linesTotal) throw new AppError("Discount is more than the bill total", 400);
+    const total = r2(linesTotal - extra);
+    const factor = linesTotal > 0 ? total / linesTotal : 0;
+    const tax = r2(items.reduce((n, l) => n + (l.amount * factor * l.tax_rate) / (100 + l.tax_rate), 0));
+
+    // customer
+    let memberId = s.member_id;
+    let customerName = s.customer_name;
+    let customerPhone = s.customer_phone;
+    if (memberGiven) {
+      if (b.member_id) {
+        const m = await core.findMember(venue.id, b.member_id, t);
+        memberId = m.id; customerName = m.name; customerPhone = m.phone;
+      } else memberId = null;
+    }
+    if (!memberId) {
+      if (b.customer_name !== undefined) customerName = str(b.customer_name, 100) || "Walk-in customer";
+      if (b.customer_phone !== undefined) customerPhone = str(b.customer_phone, 20) ? U.normalizePhone(b.customer_phone) : null;
+    }
+
+    // money: if the new total is lower than what was received, the difference is recorded as a refund
+    let paid = r2(Number(s.amount_paid));
+    const payments = Array.isArray(s.payments) ? [...s.payments] : [];
+    if (paid > total + 0.009) {
+      payments.push({ id: U.token().slice(0, 8), amount: -r2(paid - total), mode: "cash", paid_on: today, reference: "Refund - bill edited", received_by: user && user.name });
+      paid = total;
+    }
+    if (paid < total - 0.009 && !memberId && !customerPhone && customerName === "Walk-in customer") {
+      throw new AppError("Add the customer's name or phone for a bill with dues", 400);
+    }
+
+    await s.update({
+      member_id: memberId, customer_name: customerName, customer_phone: customerPhone, items,
+      subtotal: r2(items.reduce((n, l) => n + l.price * l.qty, 0)), line_discount: r2(items.reduce((n, l) => n + l.line_discount, 0)),
+      discount: extra, total, tax_amount: tax, cost_total: r2(items.reduce((n, l) => n + l.cost * l.qty, 0)),
+      amount_paid: paid, payments, status: paid >= total - 0.009 ? "paid" : paid > 0 ? "partial" : "due",
+      notes: b.notes !== undefined ? str(b.notes, 300) || null : s.notes
+    }, { transaction: t });
+
+    // stock moves by the difference only
+    for (const vid of ids) {
+      const v = vMap.get(vid);
+      if (!v) continue;
+      const delta = (newQty.get(vid) || 0) - (oldQty.get(vid) || 0);
+      if (!delta) continue;
+      const after = Number(v.stock_qty) - delta;
+      await v.update({ stock_qty: after }, { transaction: t });
+      await GymStockMovement.create({
+        venue_id: venue.id, product_id: v.product_id, variant_id: v.id, type: delta > 0 ? "sale" : "sale_reversal",
+        qty_change: -delta, balance_after: after, ref_id: s.id, note: `Edited ${s.invoice_no}`, created_by_name: user && user.name
+      }, { transaction: t });
+    }
+    console.log(`[GYM STORE] Bill edited ${s.invoice_no} (venue ${venue.id}): total Rs ${oldTotal} -> Rs ${total} by ${user && user.name}`);
+    return s;
+  });
+  return presentSale(sale);
+}
+
 /* ---------- overview numbers ---------- */
 async function overview(venueId) {
   const s = await getSettings(venueId);
@@ -728,6 +858,6 @@ async function publicInvoice(token) {
 module.exports = {
   getSettings, updateSettings, listCategories, createCategory, updateCategory, deleteCategory,
   listProducts, getProduct, createProduct, updateProduct, deleteProduct,
-  adjustStock, listMovements, posSearch, createSale, getSale, listSales, addPayment, cancelSale,
-  overview, publicStore, publicInvoice, presentSale, STOCK_REASONS
+  adjustStock, listMovements, posSearch, createSale, getSale, listSales, addPayment, cancelSale, updateSale,
+  overview, publicStore, publicInvoice, presentSale, STOCK_REASONS, 
 };

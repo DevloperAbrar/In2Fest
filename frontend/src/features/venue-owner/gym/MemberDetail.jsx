@@ -120,20 +120,37 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     );
   }
 
-  const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "health_notes", "notes"];
+  const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "weight", "height", "address", "health_notes", "notes"];
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const onlyDigits = (v) => String(v || "").replace(/\D/g, "");
   const editBase = (m) => Object.fromEntries(EDIT_KEYS.map((k) => [k, m[k] ?? ""]));
   const ymdMs = (ymd) => { const [y, m, d] = String(ymd).split("-").map(Number); return Date.UTC(y, m - 1, d); };
   const daysBetween = (a, b) => Math.round((ymdMs(b) - ymdMs(a)) / 86400000);
   const shiftYmd = (ymd, days) => new Date(ymdMs(ymd) + days * 86400000).toISOString().slice(0, 10);
+  // Same month arithmetic as the server (Jan 31 + 1 month => Feb 28/29).
+  const addMonthsYmd = (ymd, m) => {
+    const [y, mo, d] = String(ymd).split("-").map(Number);
+    const t = new Date(Date.UTC(y, mo - 1 + m, d));
+    if (t.getUTCDate() !== d) t.setUTCDate(0);
+    return t.toISOString().slice(0, 10);
+  };
+  // End date a plan gives from a start date (a 1-month plan starting 1 Jan ends 31 Jan), plus days already frozen.
+  const planEndDate = (pl, start, frozenDays) => {
+    const end = pl.duration_unit === "months" ? shiftYmd(addMonthsYmd(start, +pl.duration_value), -1) : shiftYmd(start, +pl.duration_value - 1);
+    return shiftYmd(end, Number(frozenDays) || 0);
+  };
+  const planTotal = (pl, pt, disc, joining) => {
+    const base = +pl.price;
+    const pd = (base * (+pl.discount_percent || 0)) / 100;
+    const extra = Math.min(Math.max(+disc || 0, 0), base - pd);
+    return Math.round((base - pd - extra + (pt ? +pl.pt_addon_price : 0) + (+joining || 0)) * 100) / 100;
+  };
   // The membership that drives the member's status: the active one with the latest end date.
   const currentMembership = (list) =>
     [...(list || [])].filter((x) => x.status === "active")
       .sort((a, b) => String(b.end_date).localeCompare(String(a.end_date)) || String(b.start_date).localeCompare(String(a.start_date)))[0] || null;
-  
-  // Edits the member's profile and the start / end date of the current membership.
-  // Plan, fee and payments change through Renew / Record payment, so receipts always stay correct.
+
+  // Edits the member's profile, the dates of the current membership, and (optionally) changes the plan.
   function EditModal({ isOpen, onClose, vid, member, memberships, onDone }) {
     const current = currentMembership(memberships);
     const frozen = member.status === "frozen";
@@ -143,29 +160,51 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     const [busy, setBusy] = useState(false);
     const [showErrors, setShowErrors] = useState(false);
     const { data: shiftData } = useFetch(isOpen ? `/venues/${vid}/gym/shifts?all=true` : null, { skip: !isOpen });
+    const { data: planData } = useFetch(isOpen ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen });
+    const plans = Array.isArray(planData) ? planData : [];
     const shiftList = shiftData?.items || [];
     const [shiftId, setShiftId] = useState(member.shift_id || "");
+    const blankPc = () => ({ plan_id: "", include_pt: !!current?.has_pt, extra_discount: "", pay_amount: "", pay_mode: "cash" });
+    const [pc, setPc] = useState(blankPc);
     useEffect(() => {
       if (isOpen) {
         setPhoto(null); setShowErrors(false); setF(editBase(member)); setShiftId(member.shift_id || "");
         setMs({ start_date: current?.start_date || "", end_date: current?.end_date || "" });
+        setPc(blankPc());
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, member, memberships]);
     const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+    const setP = (k) => (e) => setPc((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
     // Moving the start date moves the end date by the same number of days (the owner can still adjust it).
     const onStart = (e) => {
       const v = e.target.value;
       setMs((s) => (v && s.start_date && s.end_date ? { start_date: v, end_date: shiftYmd(s.end_date, daysBetween(s.start_date, v)) } : { ...s, start_date: v }));
     };
     const onEnd = (e) => { const v = e.target.value; setMs((s) => ({ ...s, end_date: v })); };
-  
+
+    const planChosen = plans.find((p) => p.id === pc.plan_id) || null;
+    const planChanged = !!current && !frozen && !!planChosen;
+    // Choosing a plan fills in the end date that plan gives. Choosing "keep" puts the old dates back.
+    const onPlan = (e) => {
+      const id = e.target.value;
+      const pl = plans.find((p) => p.id === id);
+      setPc((s) => ({ ...s, plan_id: id, pay_amount: "" }));
+      if (!current) return;
+      if (pl) setMs((s) => ({ ...s, end_date: planEndDate(pl, s.start_date || current.start_date, current.freeze_days_used) }));
+      else setMs({ start_date: current.start_date, end_date: current.end_date });
+    };
+    const newTotal = planChanged ? planTotal(planChosen, pc.include_pt, pc.extra_discount, current.joining_fee) : 0;
+    const paidSoFar = current ? +current.amount_paid || 0 : 0;
+    const newBalance = Math.max(newTotal - paidSoFar, 0);
+    const payNow = +pc.pay_amount || 0;
+
     const base = editBase(member);
     const changed = EDIT_KEYS.filter((k) => String(f[k] ?? "").trim() !== String(base[k] ?? "").trim());
     const msChanged = !!current && !frozen && (ms.start_date !== current.start_date || ms.end_date !== current.end_date);
     const shiftChanged = shiftId !== (member.shift_id || "");
-    const dirty = changed.length > 0 || msChanged || !!photo || shiftChanged;
-  
+    const dirty = changed.length > 0 || msChanged || !!photo || shiftChanged || planChanged;
+
     // Only fields the user actually changed are checked, so old data can never block an unrelated edit.
     const errors = {};
     if (changed.includes("name") && f.name.trim().length < 2) errors.name = "Enter the member's name";
@@ -177,17 +216,27 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
       if (!ms.end_date) errors.end_date = "Choose an end date";
       if (ms.start_date && ms.end_date && ms.end_date < ms.start_date) errors.end_date = "End date cannot be before the start date";
     }
+    if (planChanged) {
+      if (newTotal < paidSoFar - 0.009) errors.plan = `This plan costs ${inr(newTotal)} but ${inr(paidSoFar)} is already received. Correct the payment first or pick a higher plan.`;
+      if (payNow < 0 || payNow > newBalance + 0.009) errors.pay_amount = `Cannot be more than the balance ${inr(newBalance)}`;
+    }
     const err = (k) => (showErrors ? errors[k] : undefined);
-  
+
     const submit = async () => {
       if (Object.keys(errors).length) { setShowErrors(true); return; }
       setBusy(true);
       try {
-        if (changed.length || msChanged || shiftChanged) {
+        if (changed.length || msChanged || shiftChanged || planChanged) {
           const payload = {};
           if (shiftChanged) payload.shift_id = shiftId || null;
           changed.forEach((k) => { payload[k] = k === "phone" || k === "emergency_phone" ? onlyDigits(f[k]) : String(f[k]).trim(); });
           if (msChanged) payload.membership = { id: current.id, start_date: ms.start_date, end_date: ms.end_date };
+          if (planChanged) {
+            payload.plan_change = {
+              membership_id: current.id, plan_id: pc.plan_id, include_pt: !!pc.include_pt, extra_discount: +pc.extra_discount || 0,
+              ...(payNow > 0 ? { payment: { amount: payNow, mode: pc.pay_mode } } : {})
+            };
+          }
           await gymService.updateMember(vid, member.id, payload);
         }
         if (photo) {
@@ -197,20 +246,52 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
         onDone();
       } catch (e) { showError(errMsg(e, "Could not save the changes")); } finally { setBusy(false); }
     };
-  
+
     return (
       <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} title="Edit member" size="lg">
         <div className="space-y-3">
-          <p className="text-xs text-gray-500">{member.member_code} · Fee and payments are changed from Renew and Record payment.</p>
+          <p className="text-xs text-gray-500">{member.member_code} · Use Change plan below to upgrade or downgrade. Renew and Record payment handle the rest.</p>
           <PhotoPicker currentUrl={member.photo_url} name={f.name || member.name} file={photo} onChange={setPhoto} disabled={busy} />
+
+          {current && !frozen && (
+            <div className="pt-3 border-t space-y-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Change plan (upgrade / downgrade)</p>
+                <p className="text-xs text-gray-500">Now: {current.plan_name} · {inr(current.total_amount)} · paid {inr(current.amount_paid)}. Dates, fee, due and receipts update automatically.</p>
+              </div>
+              <Select label="New plan" value={pc.plan_id} onChange={onPlan}
+                options={[{ value: "", label: "Keep current plan" }, ...plans.filter((p) => p.id !== current.plan_id).map((p) => ({ value: p.id, label: `${p.name} - ${inr(p.price)}` }))]} />
+              {planChanged && (
+                <>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <Input label="Extra discount (₹)" inputMode="decimal" value={pc.extra_discount} onChange={setP("extra_discount")} />
+                    <Input label="Collect now (₹)" inputMode="decimal" placeholder={String(Math.round(newBalance))} value={pc.pay_amount} onChange={setP("pay_amount")} error={err("pay_amount")} />
+                    <Select label="Mode" value={pc.pay_mode} onChange={setP("pay_mode")} options={MODES} />
+                  </div>
+                  {+planChosen.pt_addon_price > 0 && (
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={pc.include_pt} onChange={setP("include_pt")} /> Personal training (+{inr(planChosen.pt_addon_price)})</label>
+                  )}
+                  <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
+                    <div className="flex justify-between"><span>New plan fee</span><b>{inr(newTotal)}</b></div>
+                    <div className="flex justify-between"><span>Already paid</span><span>{inr(paidSoFar)}</span></div>
+                    <div className="flex justify-between"><span>Balance due after this change</span><b className={Math.max(newBalance - payNow, 0) > 0 ? "text-red-600" : "text-green-700"}>{inr(Math.max(newBalance - payNow, 0))}</b></div>
+                  </div>
+                  {errors.plan && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{errors.plan}</p>}
+                </>
+              )}
+            </div>
+          )}
+
           {current && (
             <div className="pt-3 border-t space-y-3">
               <div>
                 <p className="text-sm font-medium text-gray-900">Membership period</p>
-                <p className="text-xs text-gray-500">{current.plan_name} · {inr(current.total_amount)}. The fee and payments stay the same.</p>
+                <p className="text-xs text-gray-500">
+                  {planChanged ? "Dates for the new plan are filled in. You can still adjust them." : `${current.plan_name} · ${inr(current.total_amount)}. The fee and payments stay the same.`}
+                </p>
               </div>
               {frozen ? (
-                <p className="text-xs text-sky-700 bg-sky-50 rounded-lg px-3 py-2">This member is frozen. Unfreeze first to change the membership dates.</p>
+                <p className="text-xs text-sky-700 bg-sky-50 rounded-lg px-3 py-2">This member is frozen. Unfreeze first to change the plan or the membership dates.</p>
               ) : (
                 <>
                   <div className="grid sm:grid-cols-2 gap-3">
@@ -239,16 +320,58 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
             <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
             <Input label="Date of birth" type="date" max={todayISO()} value={f.dob} onChange={set("dob")} />
             <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+            <Input label="Weight" placeholder="e.g. 72 kg" maxLength={30} value={f.weight} onChange={set("weight")} />
+            <Input label="Height" placeholder="e.g. 172 cm" maxLength={30} value={f.height} onChange={set("height")} />
             <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
             <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
             <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} error={err("emergency_phone")} />
           </div>
           {changed.includes("phone") && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">The mobile number is used for WhatsApp messages and payment links. Check it before saving.</p>}
+          <Field label="Address"><TextArea rows={2} maxLength={300} value={f.address} onChange={set("address")} /></Field>
           <Field label="Health notes"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>
           <Field label="Internal notes"><TextArea value={f.notes} onChange={set("notes")} /></Field>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button onClick={submit} loading={busy} disabled={!dirty}>Save changes</Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // Owner-only: correct a received payment (amount, mode, date, reference). The receipt PDF follows automatically.
+  function EditPaymentModal({ isOpen, onClose, vid, payment, onDone }) {
+    const [f, setF] = useState({ amount: "", mode: "cash", paid_on: "", reference: "" });
+    const [busy, setBusy] = useState(false);
+    useEffect(() => {
+      if (isOpen && payment) setF({ amount: String(payment.amount), mode: payment.mode || "cash", paid_on: payment.paid_on || "", reference: payment.reference || "" });
+    }, [isOpen, payment]);
+    if (!payment) return null;
+    const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+    const locked = !!payment.rzp_payment_id;
+    const patch = {};
+    if (!locked && +f.amount !== +payment.amount) patch.amount = +f.amount;
+    if (f.mode !== payment.mode) patch.mode = f.mode;
+    if (f.paid_on && f.paid_on !== payment.paid_on) patch.paid_on = f.paid_on;
+    if ((f.reference || "") !== (payment.reference || "")) patch.reference = f.reference;
+    const modeOptions = MODES.some((m) => m.value === f.mode) ? MODES : [...MODES, { value: f.mode, label: f.mode }];
+    const submit = async () => {
+      setBusy(true);
+      try { await gymService.editPayment(vid, payment.id, patch); onDone(); }
+      catch (e) { showError(errMsg(e, "Could not update the payment")); } finally { setBusy(false); }
+    };
+    return (
+      <Modal isOpen={isOpen} onClose={busy ? () => {} : onClose} title={`Edit payment ${payment.receipt_no || ""}`} size="sm">
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">The receipt, balance due and reports update automatically. Every edit is logged.</p>
+          <Input label="Amount (₹)" inputMode="decimal" value={f.amount} onChange={set("amount")} disabled={locked} />
+          {locked && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">Online (Razorpay) payments cannot be changed.</p>}
+          <Select label="Mode" value={f.mode} onChange={set("mode")} options={modeOptions} />
+          <Input label="Payment date" type="date" max={todayISO()} value={f.paid_on} onChange={set("paid_on")} />
+          <Input label="Reference / UTR" value={f.reference} onChange={set("reference")} />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button onClick={submit} loading={busy} disabled={!Object.keys(patch).length || !(+f.amount > 0)}>Save</Button>
           </div>
         </div>
       </Modal>
@@ -444,6 +567,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     const [modal, setModal] = useState(null);
     const [msg, setMsg] = useState(null);
     const [freezeDays, setFreezeDays] = useState("7");
+    const [payEdit, setPayEdit] = useState(null);
 
   
     if (loading || !data) return <GymPage title="Member"><Loader /></GymPage>;
@@ -484,9 +608,11 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
               </div>
             </div>
           </div>
-          {(m.health_notes || m.goal) && (
+          {(m.health_notes || m.goal || m.weight || m.height || m.address) && (
             <div className="mt-3 pt-3 border-t text-sm text-gray-600 space-y-1">
               {m.goal && <p><b>Goal:</b> {m.goal.replace(/_/g, " ")}</p>}
+              {(m.weight || m.height) && <p><b>Body:</b> {[m.weight && `Weight ${m.weight}`, m.height && `Height ${m.height}`].filter(Boolean).join(" · ")}</p>}
+              {m.address && <p><b>Address:</b> {m.address}</p>}
               {m.health_notes && <p><b>Health:</b> {m.health_notes}</p>}
             </div>
           )}
@@ -527,6 +653,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
                   <div><p className="font-medium">{inr(p.amount)} <span className="text-xs text-gray-400 uppercase">{p.mode}</span></p><p className="text-xs text-gray-500">{p.status === "paid" ? `${fmtDate(p.paid_on)} · ${p.receipt_no}` : p.status}</p></div>
                   {p.status === "paid" && (
                     <div className="flex gap-1">
+                      {canDelete && <Button variant="outline" onClick={() => setPayEdit(p)} aria-label="Edit payment"><Pencil size={13} /></Button>}
                       <Button variant="outline" onClick={() => downloadReceipt(p)}><FileText size={13} /> Receipt</Button>
                       <Button variant="outline" onClick={() => setMsg({ title: "Receipt message", params: { type: "receipt", payment_id: p.id } })}><MessageSquare size={13} /></Button>
                     </div>
@@ -564,6 +691,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         <PayModal isOpen={modal === "pay"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />
         <LinkModal isOpen={modal === "link"} onClose={() => setModal(null)} vid={vid} member={m} hasDue={hasDue} />
         <EditModal isOpen={modal === "edit"} onClose={() => setModal(null)} vid={vid} member={m} memberships={memberships} onDone={done("Member details updated")} />
+        <EditPaymentModal isOpen={!!payEdit} onClose={() => setPayEdit(null)} vid={vid} payment={payEdit} onDone={() => { setPayEdit(null); showSuccess("Payment updated"); refetch(); }} />
         <DeleteMemberModal isOpen={modal === "delete"} onClose={() => setModal(null)} vid={vid} member={m} memberships={memberships} payments={payments} workoutCount={plans.length} onDeleted={() => nav("/dashboard/gym/members")} />
         <PhotoModal isOpen={modal === "photo"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done("Photo updated")} />
         <AssignWorkoutModal isOpen={modal === "workout"} onClose={() => setModal(null)} vid={vid} member={m} onDone={done()} />

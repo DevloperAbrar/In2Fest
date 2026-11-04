@@ -51,6 +51,10 @@ module.exports = (sequelize, DataTypes) => {
         health_notes: TEXT,
         emergency_name: STRING,
         emergency_phone: STRING(15),
+        weight: STRING(30),
+        height: STRING(30),
+        address: TEXT,
+
         trainer_name: STRING,
         source: STRING(30),
         notes: TEXT,

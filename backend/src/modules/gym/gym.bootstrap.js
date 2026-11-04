@@ -23,6 +23,14 @@ async function ensureGymSchema() {
   const order = ["GymSettings", "GymPlan", "GymMember", "GymMembership", "GymPayment", "GymExercise", "GymWorkoutPlan", "GymLead"];
   for (const name of order) await models[name].sync();
 
+  // Optional member profile fields. Safe to run on every start.
+  await models.sequelize.query(
+    `ALTER TABLE gym_members
+       ADD COLUMN IF NOT EXISTS weight VARCHAR(30),
+       ADD COLUMN IF NOT EXISTS height VARCHAR(30),
+       ADD COLUMN IF NOT EXISTS address TEXT`
+  );
+
   await syncBuiltInExercises(models);
   await require("./gym.message.models").ensure();
   await require("./gym.store.models").ensure();

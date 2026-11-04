@@ -503,11 +503,147 @@ function Billing({ vid, gymName, onSaved }) {
   );
 }
 
-/* ---------- bills ---------- */
+/* ---------- edit a bill (owner) ---------- */
+function EditSaleModal({ vid, sale, onClose, onDone }) {
+  const [cart, setCart] = useState(() => sale.items.map((l) => ({
+    variant_id: l.variant_id, name: l.name, label: l.variant_label, price: String(l.price), qty: Number(l.qty),
+    line_discount: Number(l.line_discount) ? String(l.line_discount) : "", max: null // max is only known for products added in this edit
+  })));
+  const [discount, setDiscount] = useState(Number(sale.discount) ? String(sale.discount) : "");
+  const [cust, setCust] = useState({
+    member_id: sale.member_id || "",
+    name: sale.member_id || sale.customer_name !== "Walk-in customer" ? sale.customer_name || "" : "",
+    phone: sale.customer_phone || ""
+  });
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [mq, setMq] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { data: members } = useFetch(mq.trim().length >= 2 ? `/venues/${vid}/gym/members?q=${encodeURIComponent(mq.trim())}&limit=5` : null, { skip: mq.trim().length < 2 });
+
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); return undefined; }
+    const t = setTimeout(() => gymService.storeGet(vid, "/pos/search", { q: q.trim() }).then((r) => setResults(r.data.data)).catch(() => {}), 250);
+    return () => clearTimeout(t);
+  }, [q, vid]);
+
+  const hadQty = (variantId) => sale.items.filter((l) => l.variant_id === variantId).reduce((n, l) => n + Number(l.qty), 0);
+  const add = (r) => {
+    setCart((c) => {
+      const i = c.findIndex((x) => x.variant_id === r.variant_id);
+      if (i >= 0) return c.map((x, k) => (k === i ? { ...x, qty: x.max != null ? Math.min(x.qty + 1, x.max) : x.qty + 1 } : x));
+      return [...c, { variant_id: r.variant_id, name: r.name, label: r.label, price: String(r.price), qty: 1, line_discount: "", max: r.stock_qty + hadQty(r.variant_id) }];
+    });
+    setQ("");
+    setResults([]);
+  };
+  const setLine = (i, patch) => setCart((c) => c.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+
+  const lines = cart.map((l) => ({ ...l, amount: Math.max(num(l.price) * l.qty - num(l.line_discount), 0) }));
+  const subtotal = lines.reduce((n, l) => n + l.amount, 0);
+  const total = Math.max(subtotal - num(discount), 0);
+  const received = Number(sale.amount_paid);
+  const refund = Math.max(received - total, 0);
+  const balance = Math.max(total - received, 0);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await gymService.storePatch(vid, `/sales/${sale.id}`, {
+        items: cart.map((l) => ({ variant_id: l.variant_id, qty: l.qty, price: num(l.price), line_discount: num(l.line_discount) })),
+        discount: num(discount), member_id: cust.member_id || null, customer_name: cust.name, customer_phone: cust.phone
+      });
+      showSuccess("Bill updated. Stock adjusted.");
+      onDone();
+    } catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal isOpen onClose={busy ? () => {} : onClose} title={`Edit ${sale.invoice_no}`} size="xl">
+      <div className="grid lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 space-y-3">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Add another product (name, barcode / SKU)"
+              className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          </div>
+          {results.length > 0 && (
+            <div className="border rounded-xl divide-y max-h-52 overflow-y-auto">
+              {results.map((r) => {
+                const avail = r.stock_qty + hadQty(r.variant_id);
+                return (
+                  <button key={r.variant_id} type="button" disabled={avail <= 0} onClick={() => add(r)} className="w-full text-left px-3 py-2 flex justify-between gap-2 text-sm hover:bg-gray-50 disabled:opacity-40">
+                    <span className="truncate">{r.name} <span className="text-gray-400">{r.label}</span></span>
+                    <span className="whitespace-nowrap">{inr(r.price)} <span className={`text-xs ${avail <= 0 ? "text-red-600" : "text-gray-400"}`}>({avail <= 0 ? "out" : `${avail} left`})</span></span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="border rounded-xl divide-y">
+            {cart.length === 0 && <p className="text-sm text-gray-400 p-3">Add at least one product.</p>}
+            {lines.map((l, i) => (
+              <div key={l.variant_id} className="p-2.5 flex flex-wrap items-center gap-2">
+                <div className="flex-1 min-w-[150px]"><p className="text-sm font-medium truncate">{l.name}</p><p className="text-xs text-gray-500">{l.label}</p></div>
+                <input inputMode="decimal" aria-label="Price" title="Price" value={l.price} onChange={(e) => setLine(i, { price: e.target.value })} className="w-20 px-2 py-1.5 border rounded-lg text-sm" />
+                <div className="flex items-center border rounded-lg">
+                  <button type="button" className="p-2" onClick={() => setLine(i, { qty: Math.max(l.qty - 1, 1) })}><Minus size={13} /></button>
+                  <span className="w-8 text-center text-sm">{l.qty}</span>
+                  <button type="button" className="p-2" disabled={l.max != null && l.qty >= l.max} onClick={() => setLine(i, { qty: l.qty + 1 })}><Plus size={13} /></button>
+                </div>
+                <input inputMode="decimal" placeholder="Disc ₹" value={l.line_discount} onChange={(e) => setLine(i, { line_discount: e.target.value })} className="w-20 px-2 py-1.5 border rounded-lg text-sm" />
+                <span className="w-20 text-right text-sm font-semibold">{inr(l.amount)}</span>
+                <button type="button" onClick={() => setCart((c) => c.filter((_, k) => k !== i))} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={15} /></button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400">Price is per unit. Old bills keep their old prices unless you change them here.</p>
+        </div>
+
+        <div className="lg:col-span-2 space-y-3">
+          <Card title="Customer">
+            {cust.member_id ? (
+              <div className="flex items-center justify-between text-sm"><span>{cust.name} <span className="text-gray-400">{cust.phone}</span></span><button type="button" className="text-xs text-primary-600" onClick={() => setCust({ member_id: "", name: "", phone: "" })}>Change</button></div>
+            ) : (
+              <>
+                <Input placeholder="Search gym member by name or mobile" value={mq} onChange={(e) => setMq(e.target.value)} />
+                {members?.items?.map((m) => (
+                  <button key={m.id} type="button" onClick={() => { setCust({ member_id: m.id, name: m.name, phone: m.phone }); setMq(""); }} className="w-full text-left text-sm py-1.5 px-1 hover:bg-gray-50">{m.name} <span className="text-gray-400">{m.phone}</span></button>
+                ))}
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Input placeholder="Walk-in name" value={cust.name} onChange={(e) => setCust({ ...cust, name: e.target.value })} />
+                  <Input placeholder="Mobile" inputMode="numeric" maxLength={10} value={cust.phone} onChange={(e) => setCust({ ...cust, phone: e.target.value })} />
+                </div>
+              </>
+            )}
+          </Card>
+          <Card title="Totals">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Items total</span><span>{inr(subtotal)}</span></div>
+              <Input label="Extra discount (₹)" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+              <div className="flex justify-between text-lg font-bold pt-1"><span>New total</span><span>{inr(total)}</span></div>
+              <div className="flex justify-between text-green-700"><span>Already received</span><span>{inr(received)}</span></div>
+              {balance > 0 && <div className="flex justify-between text-red-600"><span>Balance due</span><span>{inr(balance)}</span></div>}
+              {refund > 0 && <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">The new total is {inr(refund)} less than the amount received. {inr(refund)} will be recorded on this bill as refunded to the customer.</p>}
+              <p className="text-xs text-gray-500">Stock is adjusted automatically and every change is saved in the stock history.</p>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={onClose} disabled={busy}>Cancel</Button>
+                <Button className="flex-1" onClick={submit} loading={busy} disabled={!cart.length || cart.some((l) => l.price === "" || !(l.qty >= 1))}>Save changes</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function SaleModal({ vid, sale, gymName, isOwner, onClose, onDone }) {
   const [amount, setAmount] = useState("");
   const [mode, setMode] = useState("cash");
+  const [editing, setEditing] = useState(false);
   const run = async (fn, ok) => { try { await fn(); showSuccess(ok); onDone(); } catch (e) { showError(errMsg(e)); } };
+  if (editing) return <EditSaleModal vid={vid} sale={sale} onClose={() => setEditing(false)} onDone={onDone} />;
   return (
     <Modal isOpen onClose={onClose} title={`${sale.invoice_no}${sale.status === "cancelled" ? " (cancelled)" : ""}`} size="md">
       <p className="text-sm text-gray-600">{sale.customer_name}{sale.customer_phone ? ` · ${sale.customer_phone}` : ""} · {fmtDate(sale.sold_on)}</p>
@@ -521,7 +657,10 @@ function SaleModal({ vid, sale, gymName, isOwner, onClose, onDone }) {
         <div className="flex justify-between text-green-700"><span>Paid</span><span>{inr(sale.amount_paid)}</span></div>
         {sale.balance > 0 && sale.status !== "cancelled" && <div className="flex justify-between text-red-600"><span>Balance</span><span>{inr(sale.balance)}</span></div>}
       </div>
-      <InvoiceActions vid={vid} sale={sale} gymName={gymName} />
+      <div className="flex flex-wrap gap-2">
+        <InvoiceActions vid={vid} sale={sale} gymName={gymName} />
+        {isOwner && sale.status !== "cancelled" && <Button variant="outline" onClick={() => setEditing(true)}><Pencil size={14} /> Edit bill</Button>}
+      </div>
       {sale.status !== "cancelled" && sale.balance > 0 && (
         <div className="mt-4 pt-3 border-t grid grid-cols-5 gap-2 items-end">
           <div className="col-span-2"><Input label="Collect (₹)" inputMode="decimal" placeholder={String(sale.balance)} value={amount} onChange={(e) => setAmount(e.target.value)} /></div>

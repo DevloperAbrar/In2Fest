@@ -136,6 +136,61 @@ async function settlePending(venue, settings, paymentId, { mode = "upi", referen
   return result;
 }
 
+// Owner-only correction of a RECEIVED payment (amount, mode, date, reference).
+// Membership fee, due, member totals and the receipt PDF all follow automatically.
+async function editPaid(ctx, paymentId, b = {}) {
+  const { venue, user } = ctx;
+  let out;
+  await sequelize.transaction(async (tx) => {
+    const pay = await GymPayment.findOne({ where: { id: paymentId, venue_id: venue.id }, transaction: tx, lock: tx.LOCK.UPDATE });
+    if (!pay) throw new AppError("Payment not found", 404);
+    if (pay.status !== "paid") throw new AppError("Only received payments can be edited", 409);
+    const member = await GymMember.findOne({ where: { id: pay.member_id, venue_id: venue.id }, transaction: tx, lock: tx.LOCK.UPDATE });
+    if (!member) throw new AppError("Member not found", 404);
+
+    const before = { amount: Number(pay.amount), mode: pay.mode, paid_on: pay.paid_on, reference: pay.reference };
+    const patch = {};
+
+    if (b.amount !== undefined) {
+      const amt = U.money(U.num(b.amount, "Amount", { min: 0.01 }));
+      if (amt !== before.amount) {
+        if (pay.rzp_payment_id) throw new AppError("Online (Razorpay) payments cannot be changed", 400);
+        if (pay.membership_id) {
+          const ms = await GymMembership.findByPk(pay.membership_id, { transaction: tx, lock: tx.LOCK.UPDATE });
+          if (ms) {
+            const others = await GymPayment.findAll({
+              where: { membership_id: ms.id, status: "paid", id: { [Op.ne]: pay.id } }, attributes: ["amount"], transaction: tx
+            });
+            const cap = U.money(Number(ms.total_amount) - others.reduce((n, p) => n + Number(p.amount), 0));
+            if (amt > cap + 0.009) throw new AppError(`Amount is more than the membership fee. Maximum ₹${U.inr(Math.max(cap, 0))}`, 400);
+          }
+        }
+        patch.amount = amt;
+      }
+    }
+    if (b.mode !== undefined && b.mode !== pay.mode) {
+      if (!C.PAYMENT_MODES.includes(b.mode)) throw new AppError("Invalid payment mode", 400);
+      patch.mode = b.mode;
+    }
+    if (b.paid_on !== undefined && b.paid_on !== pay.paid_on) {
+      const d = core.checkDate(b.paid_on, "Payment date");
+      if (d > U.todayIST()) throw new AppError("Payment date cannot be in the future", 400);
+      patch.paid_on = d;
+    }
+    if (b.reference !== undefined && (b.reference || null) !== (pay.reference || null)) {
+      patch.reference = b.reference ? String(b.reference).slice(0, 80) : null;
+    }
+
+    if (!Object.keys(patch).length) { out = pay; return; }
+    const edits = Array.isArray(pay.meta && pay.meta.edits) ? pay.meta.edits : [];
+    patch.meta = { ...(pay.meta || {}), edits: [...edits, { at: new Date().toISOString(), by: user && user.name, before }].slice(-20) };
+    await pay.update(patch, { transaction: tx });
+    await core.recomputeFinancials(tx, member.id);
+    out = pay;
+  });
+  return { payment: out };
+}
+
 async function confirm(ctx, paymentId, b = {}) {
   const r = await settlePending(ctx.venue, ctx.settings, paymentId, {
     mode: C.PAYMENT_MODES.includes(b.mode) ? b.mode : "upi", reference: b.reference, receivedBy: ctx.user.name
@@ -204,4 +259,4 @@ async function listPayments(venueId, q) {
   return { items: rows, total: count, page, pages: Math.max(Math.ceil(count / limit), 1) };
 }
 
-module.exports = { rzpClient, urlFor, createPaidTx, recordManual, createRequest, linkForMember, settlePending, confirm, cancel, refresh, pollPendingLinks, listPayments };
+module.exports = { rzpClient, urlFor, createPaidTx, recordManual, createRequest, linkForMember, settlePending, confirm, cancel, refresh, pollPendingLinks, listPayments, editPaid };

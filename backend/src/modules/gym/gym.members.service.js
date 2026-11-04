@@ -81,6 +81,9 @@ function memberFields(b, creating) {
   if (b.trainer_name !== undefined) o.trainer_name = String(b.trainer_name || "").slice(0, 100) || null;
   if (b.source !== undefined) o.source = String(b.source || "").slice(0, 30) || null;
   if (b.notes !== undefined) o.notes = String(b.notes || "").slice(0, 1000) || null;
+  if (b.weight !== undefined) o.weight = String(b.weight || "").trim().slice(0, 30) || null;
+  if (b.height !== undefined) o.height = String(b.height || "").trim().slice(0, 30) || null;
+  if (b.address !== undefined) o.address = String(b.address || "").trim().slice(0, 300) || null;
   if (b.photo_url !== undefined) {
     const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
     o.photo_url = b.photo_url && base && String(b.photo_url).startsWith(`${base}/`) ? b.photo_url : null;
@@ -214,15 +217,82 @@ async function applyMembershipPeriod(tx, member, input) {
   await member.update(patch, { transaction: tx });
 }
 
-// Profile fields, plus (optionally) `membership: { id, start_date, end_date }`.
-// Everything is saved in one transaction, so a rejected date change never leaves half the edit saved.
-async function updateMember(venueId, id, b) {
+// Upgrade / downgrade the member's CURRENT membership (same one freeze and the date editor use).
+// Updates plan, fee, dates and (optionally) records a new payment, all inside the caller's transaction.
+async function applyPlanChange(tx, ctx, member, input, period) {
+  const { venue, settings, user } = ctx;
+  if (member.status === "frozen") throw new AppError("Unfreeze this member before changing the plan", 409);
+
+  const ms = await GymMembership.findOne({
+    where: { member_id: member.id, venue_id: member.venue_id, status: "active" },
+    order: [["end_date", "DESC"], ["start_date", "DESC"]], transaction: tx, lock: tx.LOCK.UPDATE
+  });
+  if (!ms) throw new AppError("This member has no membership to change", 404);
+  if (input.membership_id && input.membership_id !== ms.id) throw new AppError("This membership has changed. Refresh the page and try again", 409);
+
+  const plan = await core.loadPlan(venue.id, input.plan_id);
+  if (!plan.is_active && plan.id !== ms.plan_id) throw new AppError("This plan is inactive. Pick another plan", 409);
+
+  const includePt = input.include_pt === undefined ? !!ms.has_pt : !!input.include_pt;
+  const q = core.quote(plan, { includePt, extraDiscount: input.extra_discount, firstTime: false });
+  const joining = U.money(ms.joining_fee); // whatever joining fee this membership already carried stays
+  const total = U.money(q.total + joining);
+
+  const paidRows = await GymPayment.findAll({ where: { membership_id: ms.id, status: "paid" }, attributes: ["amount"], transaction: tx });
+  const paidSoFar = U.money(paidRows.reduce((n, p) => n + Number(p.amount), 0));
+  if (total < paidSoFar - 0.009) {
+    throw new AppError(`This plan costs ₹${U.inr(total)} but ₹${U.inr(paidSoFar)} is already received on this membership. Correct the payment first or pick a higher plan`, 400);
+  }
+
+  const start = period && period.start_date ? String(period.start_date) : ms.start_date;
+  const end = period && period.end_date
+    ? String(period.end_date)
+    : U.addDays(U.membershipEnd(start, plan.duration_unit, plan.duration_value), Number(ms.freeze_days_used) || 0);
+  checkMembershipPeriod(start, end);
+
+  if (ms.start_date !== start) {
+    const prev = await GymMembership.findOne({
+      where: { member_id: member.id, status: "active", id: { [Op.ne]: ms.id } },
+      order: [["end_date", "DESC"]], transaction: tx
+    });
+    if (prev && start <= prev.end_date) throw new AppError(`Start date must be after the previous membership ends (${U.fmtDate(prev.end_date)})`, 409);
+  }
+
+  const oldStart = ms.start_date;
+  const note = `Plan changed from ${ms.plan_name} to ${plan.name} on ${U.todayIST()} (fee Rs ${U.inr(ms.total_amount)} -> Rs ${U.inr(total)})`;
+  await ms.update({
+    plan_id: plan.id, plan_name: plan.name, base_price: q.base, discount_amount: q.discount, joining_fee: joining,
+    pt_amount: q.pt, total_amount: total, amount_paid: paidSoFar, tax_rate: plan.tax_rate, has_pt: includePt,
+    start_date: start, end_date: end, notes: [ms.notes, note].filter(Boolean).join("\n").slice(0, 2000)
+  }, { transaction: tx });
+
+  if (member.joined_on === oldStart && start !== oldStart) await member.update({ joined_on: start }, { transaction: tx });
+  await core.syncMemberFromMembership(tx, member, ms);
+
+  const pay = input.payment;
+  if (pay && Number(pay.amount) > 0) {
+    await payments.createPaidTx(tx, { ...pay, venue, settings, member, membership: ms, receivedBy: user.name });
+  }
+  await core.recomputeFinancials(tx, member.id);
+  await member.reload({ transaction: tx });
+}
+
+// Profile fields, plus optionally:
+//   membership:  { id, start_date, end_date }                       (date change only)
+//   plan_change: { membership_id, plan_id, include_pt, extra_discount, payment: { amount, mode } }
+// Everything is saved in one transaction, so a rejected change never leaves half the edit saved.
+async function updateMember(venueId, id, b, ctx) {
   const fields = memberFields(b, false);
   return sequelize.transaction(async (tx) => {
     const member = await core.findMember(venueId, id, tx);
-    if (b.membership) await member.reload({ transaction: tx, lock: tx.LOCK.UPDATE });
+    if (b.membership || b.plan_change) await member.reload({ transaction: tx, lock: tx.LOCK.UPDATE });
     if (fields.phone) await assertPhoneFree(venueId, fields.phone, id);
-    if (b.membership) await applyMembershipPeriod(tx, member, b.membership);
+    if (b.plan_change) {
+      if (!ctx) throw new AppError("Plan change is not available here", 400);
+      await applyPlanChange(tx, ctx, member, b.plan_change, b.membership);
+    } else if (b.membership) {
+      await applyMembershipPeriod(tx, member, b.membership);
+    }
     try {
       await member.update(fields, { transaction: tx });
     } catch (e) {

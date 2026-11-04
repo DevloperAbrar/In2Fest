@@ -128,7 +128,7 @@ router.patch("/members/:id", h(async (req) => {
   const body = req.body || {};
   const hasShift = Object.prototype.hasOwnProperty.call(body, "shift_id"); // only touched when the screen sends it
   const shiftId = hasShift ? await shifts.checkShift(venueId, body.shift_id) : undefined;
-  const out = await members.updateMember(venueId, req.params.id, body);
+  const out = await members.updateMember(venueId, req.params.id, body, ctx(req));
   if (hasShift) await shifts.assign(venueId, req.params.id, shiftId);
   return out;
 }));
@@ -162,6 +162,7 @@ router.get("/payments", h((req) => payments.listPayments(req.gymVenue.id, req.qu
 router.get("/payments/:id/receipt", async (req, res, next) => {
   try { await receipt.receiptPdf(ctx(req), req.params.id, res); } catch (e) { next(e); }
 });
+router.patch("/payments/:id", ownerOnly, h((req) => payments.editPaid(ctx(req), req.params.id, req.body)));
 router.post("/payments/:id/confirm", h((req) => payments.confirm(ctx(req), req.params.id, req.body)));
 router.post("/payments/:id/cancel", h((req) => payments.cancel(ctx(req), req.params.id)));
 router.post("/payments/:id/refresh", h((req) => payments.refresh(ctx(req), req.params.id)));
@@ -223,6 +224,7 @@ router.get("/store/pos/search", h((req) => store.posSearch(req.gymVenue.id, req.
 router.get("/store/sales", h((req) => store.listSales(req.gymVenue.id, req.query)));
 router.post("/store/sales", h((req) => store.createSale(ctx(req), req.body), 201));
 router.get("/store/sales/:id", h((req) => store.getSale(req.gymVenue.id, req.params.id)));
+router.patch("/store/sales/:id", ownerOnly, h((req) => store.updateSale(ctx(req), req.params.id, req.body)));
 router.post("/store/sales/:id/payments", h((req) => store.addPayment(ctx(req), req.params.id, req.body)));
 router.post("/store/sales/:id/cancel", ownerOnly, h((req) => store.cancelSale(ctx(req), req.params.id, req.body)));
 router.get("/store/sales/:id/invoice", async (req, res, next) => {
