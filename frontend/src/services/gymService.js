@@ -87,5 +87,11 @@ export const gymService = {
     fd.append("image", file);
     return api.post(`${b(v)}/store/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
   },
-  storeInvoice: (v, id) => api.get(`${b(v)}/store/sales/${id}/invoice`, { responseType: "blob" })
+  storeInvoice: (v, id) => api.get(`${b(v)}/store/sales/${id}/invoice`, { responseType: "blob" }),
+
+  // member attendance
+  attGet: (v, path, params) => api.get(`${b(v)}/attendance${path}`, { params }),
+  attPost: (v, path, body) => api.post(`${b(v)}/attendance${path}`, body),
+  attPut: (v, path, body) => api.put(`${b(v)}/attendance${path}`, body),
+  attBlob: (v, path, params) => api.get(`${b(v)}/attendance${path}`, { params, responseType: "blob" })
 };

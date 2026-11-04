@@ -4,6 +4,9 @@ const c = require("./gym.public.controller");
 
 const router = express.Router();
 
+// QR attendance has its own limiter, so it must be mounted BEFORE the general one below.
+router.use("/checkin", require("./gym.attendance.public"));
+
 router.use(rateLimit({
   windowMs: 15 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: "Too many requests. Please try again later." }

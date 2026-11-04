@@ -22,6 +22,7 @@ const workout = require("./gym.workout.service");
 const store = require("./gym.store.service");
 const shifts = require("./gym.shift.service");
 const invoicePdf = require("./gym.store.invoice");
+const att = require("./gym.attendance.service");
 
 const router = express.Router({ mergeParams: true });
 
@@ -232,6 +233,26 @@ router.get("/store/sales/:id/invoice", async (req, res, next) => {
     const [sale, st] = await Promise.all([store.getSale(req.gymVenue.id, req.params.id), store.getSettings(req.gymVenue.id)]);
     invoicePdf.render(res, req.gymVenue, sale, { terms: st.invoice_terms || "" });
   } catch (e) { next(e); }
+});
+// ---------- member attendance ----------
+router.get("/attendance/day", h((req) => att.day(req.gymVenue.id, req.query.date)));
+router.post("/attendance/mark", h((req) => att.mark(ctx(req), req.body)));
+router.post("/attendance/mark-all", h((req) => att.markAll(ctx(req), req.body)));
+router.get("/attendance/analytics", h((req) => att.analytics(req.gymVenue.id, req.query)));
+router.get("/attendance/settings", h((req) => att.publicSettings(req.gymVenue.id)));
+router.put("/attendance/settings", ownerOnly, h((req) => att.updateSettings(req.gymVenue.id, req.body)));
+router.post("/attendance/qr/regenerate", ownerOnly, h((req) => att.regenerateQr(req.gymVenue.id)));
+router.get("/attendance/qr.png", async (req, res, next) => {
+  try {
+    const png = await att.qrPng(req.gymVenue.id);
+    res.set({
+      "Content-Type": "image/png", "Cache-Control": "no-store",
+      ...(req.query.download ? { "Content-Disposition": 'attachment; filename="attendance-qr.png"' } : {})
+    }).send(png);
+  } catch (e) { next(e); }
+});
+router.get("/attendance/poster.pdf", async (req, res, next) => {
+  try { await att.posterPdf(req.gymVenue, res); } catch (e) { next(e); }
 });
 
 module.exports = router;

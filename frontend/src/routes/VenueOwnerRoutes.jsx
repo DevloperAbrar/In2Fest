@@ -54,6 +54,7 @@ import GymMembers from "../features/venue-owner/gym/GymMembers.jsx";
 import MemberDetail from "../features/venue-owner/gym/MemberDetail.jsx";
 import GymPlans from "../features/venue-owner/gym/GymPlans.jsx";
 import GymShifts from "../features/venue-owner/gym/GymShifts.jsx";
+import GymAttendance from "../features/venue-owner/gym/GymAttendance.jsx";
 import WorkoutPlans from "../features/venue-owner/gym/WorkoutPlans.jsx";
 import WorkoutBuilder from "../features/venue-owner/gym/WorkoutBuilder.jsx";
 import GymLeads from "../features/venue-owner/gym/GymLeads.jsx";
@@ -130,6 +131,7 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/members/:id" element={<RequireFeature feature="gym"><MemberDetail /></RequireFeature>} />
         <Route path="gym/plans" element={<RequireFeature feature="gym"><GymPlans /></RequireFeature>} />
         <Route path="gym/shifts" element={<RequireFeature feature="gym"><GymShifts /></RequireFeature>} />
+        <Route path="gym/attendance" element={<RequireFeature feature="gym"><GymAttendance /></RequireFeature>} />
         <Route path="gym/workouts" element={<RequireFeature feature="gym"><WorkoutPlans /></RequireFeature>} />
         <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><WorkoutBuilder /></RequireFeature>} />
         <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
