@@ -28,7 +28,8 @@ async function ensureGymSchema() {
     `ALTER TABLE gym_members
        ADD COLUMN IF NOT EXISTS weight VARCHAR(30),
        ADD COLUMN IF NOT EXISTS height VARCHAR(30),
-       ADD COLUMN IF NOT EXISTS address TEXT`
+       ADD COLUMN IF NOT EXISTS address TEXT,
+       ADD COLUMN IF NOT EXISTS parent_name VARCHAR(100)`
   );
 
   await syncBuiltInExercises(models);

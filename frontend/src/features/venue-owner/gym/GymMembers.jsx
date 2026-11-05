@@ -32,7 +32,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   const { data: plans } = useFetch(isOpen && vid ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen || !vid });
   const { data: shiftData } = useFetch(isOpen && vid ? `/venues/${vid}/gym/shifts` : null, { skip: !isOpen || !vid });
   const shifts = shiftData?.items || [];
-  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", weight: "", height: "", address: "", health_notes: "", emergency_name: "", emergency_phone: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
+  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", weight: "", height: "", address: "", health_notes: "", emergency_name: "", emergency_phone: "", parent_name: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
   const [f, setF] = useState(blank);
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -54,7 +54,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
     try {
       const res = await gymService.enroll(vid, {
         name: f.name, phone: f.phone, gender: f.gender, goal: f.goal, health_notes: f.health_notes, emergency_name: f.emergency_name,
-        emergency_phone: f.emergency_phone, trainer_name: f.trainer_name, plan_id: f.plan_id, start_date: f.start_date,
+        emergency_phone: f.emergency_phone, parent_name: f.parent_name, trainer_name: f.trainer_name, plan_id: f.plan_id, start_date: f.start_date,
         weight: f.weight, height: f.height, address: f.address,
         ...(f.shift_id ? { shift_id: f.shift_id } : {}),
         include_pt: f.include_pt, extra_discount: f.extra_discount || 0, waive_joining: f.waive_joining, lead_id: lead?.id,
@@ -85,6 +85,9 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
           <Input label="Height (optional)" placeholder="e.g. 172 cm" maxLength={30} value={f.height} onChange={set("height")} />
           <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
           <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} />
+          <div className="sm:col-span-2">
+            <Input label="Parent name (optional)" maxLength={100} value={f.parent_name} onChange={set("parent_name")} />
+          </div>
         </div>
         <Field label="Address (optional)"><TextArea rows={2} maxLength={300} value={f.address} onChange={set("address")} /></Field>
         <Field label="Health notes (injury, medical condition)"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>

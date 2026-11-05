@@ -120,7 +120,7 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
     );
   }
 
-  const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "weight", "height", "address", "health_notes", "notes"];
+  const EDIT_KEYS = ["name", "phone", "email", "gender", "dob", "goal", "trainer_name", "emergency_name", "emergency_phone", "parent_name", "weight", "height", "address", "health_notes", "notes"];
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const onlyDigits = (v) => String(v || "").replace(/\D/g, "");
   const editBase = (m) => Object.fromEntries(EDIT_KEYS.map((k) => [k, m[k] ?? ""]));
@@ -325,6 +325,7 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
             <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
             <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
             <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} error={err("emergency_phone")} />
+            <Input label="Parent name (optional)" maxLength={100} value={f.parent_name} onChange={set("parent_name")} />
           </div>
           {changed.includes("phone") && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">The mobile number is used for WhatsApp messages and payment links. Check it before saving.</p>}
           <Field label="Address"><TextArea rows={2} maxLength={300} value={f.address} onChange={set("address")} /></Field>
@@ -608,10 +609,11 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
               </div>
             </div>
           </div>
-          {(m.health_notes || m.goal || m.weight || m.height || m.address) && (
+          {(m.health_notes || m.goal || m.weight || m.height || m.address || m.parent_name) && (
             <div className="mt-3 pt-3 border-t text-sm text-gray-600 space-y-1">
               {m.goal && <p><b>Goal:</b> {m.goal.replace(/_/g, " ")}</p>}
               {(m.weight || m.height) && <p><b>Body:</b> {[m.weight && `Weight ${m.weight}`, m.height && `Height ${m.height}`].filter(Boolean).join(" · ")}</p>}
+              {m.parent_name && <p><b>Parent:</b> {m.parent_name}</p>}
               {m.address && <p><b>Address:</b> {m.address}</p>}
               {m.health_notes && <p><b>Health:</b> {m.health_notes}</p>}
             </div>

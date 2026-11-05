@@ -78,6 +78,7 @@ function memberFields(b, creating) {
   if (b.health_notes !== undefined) o.health_notes = String(b.health_notes || "").slice(0, 1000) || null;
   if (b.emergency_name !== undefined) o.emergency_name = String(b.emergency_name || "").slice(0, 100) || null;
   if (b.emergency_phone !== undefined) o.emergency_phone = String(b.emergency_phone || "").replace(/\D/g, "").slice(0, 15) || null;
+  if (b.parent_name !== undefined) o.parent_name = String(b.parent_name || "").trim().slice(0, 100) || null;
   if (b.trainer_name !== undefined) o.trainer_name = String(b.trainer_name || "").slice(0, 100) || null;
   if (b.source !== undefined) o.source = String(b.source || "").slice(0, 30) || null;
   if (b.notes !== undefined) o.notes = String(b.notes || "").slice(0, 1000) || null;
