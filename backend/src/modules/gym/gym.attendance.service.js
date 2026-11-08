@@ -168,6 +168,91 @@ async function markAll({ venue, user }, b) {
   return { marked: rows.length };
 }
 
+/* ===================== one member, one month ===================== */
+// Calendar data for a single member: every day of the month with its mark, whether the gym was
+// closed, and whether the member had a running membership on that day.
+async function memberMonth(venueId, memberId, q) {
+  if (!UUID_RE.test(String(memberId))) throw new AppError("Member not found", 404);
+  const member = await core.findMember(venueId, memberId);
+  const today = U.todayIST();
+  const thisMonth = today.slice(0, 7);
+  const asked = q && typeof q.month === "string" ? q.month : "";
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(asked) ? asked : thisMonth;
+  if (month > thisMonth) throw new AppError("Choose a month that is not in the future", 400);
+
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const from = `${month}-01`;
+  const to = `${month}-${String(lastDay).padStart(2, "0")}`;
+  const settings = await getSettings(venueId);
+
+  const [rows, spans, totals] = await Promise.all([
+    run(
+      `SELECT to_char(att_date, 'YYYY-MM-DD') AS d, status, check_in_at, source, marked_by
+         FROM gym_attendance
+        WHERE venue_id = :v AND member_id = :m AND att_date BETWEEN CAST(:f AS date) AND CAST(:t AS date)`,
+      { v: venueId, m: member.id, f: from, t: to }
+    ),
+    run(
+      `SELECT to_char(start_date, 'YYYY-MM-DD') AS s, to_char(end_date, 'YYYY-MM-DD') AS e
+         FROM gym_memberships
+        WHERE member_id = :m AND status = 'active' AND start_date <= CAST(:t AS date) AND end_date >= CAST(:f AS date)`,
+      { m: member.id, f: from, t: to }
+    ),
+    run(
+      `SELECT to_char(MAX(att_date) FILTER (WHERE status = 'present'), 'YYYY-MM-DD') AS last_visit,
+              COUNT(*) FILTER (WHERE status = 'present') AS visits
+         FROM gym_attendance WHERE venue_id = :v AND member_id = :m`,
+      { v: venueId, m: member.id }
+    )
+  ]);
+
+  const byDate = new Map(rows.map((r) => [r.d, r]));
+  const covered = (ymd) => spans.some((s) => s.s <= ymd && s.e >= ymd);
+  const days = [];
+  let present = 0;
+  let absentMarked = 0;
+  let notMarked = 0;
+  for (let i = 1; i <= lastDay; i += 1) {
+    const date = `${month}-${String(i).padStart(2, "0")}`;
+    const row = byDate.get(date) || null;
+    const future = date > today;
+    const off = offReason(settings, date);
+    const inPlan = covered(date);
+    if (row && row.status === "present") present += 1;
+    else if (row && row.status === "absent") absentMarked += 1;
+    else if (!row && inPlan && !off && !future) notMarked += 1;
+    days.push({
+      date,
+      status: row ? row.status : null,
+      check_in_at: row ? row.check_in_at : null,
+      source: row ? row.source : null,
+      marked_by: row ? row.marked_by : null,
+      off,
+      covered: inPlan,
+      future
+    });
+  }
+  const counted = present + absentMarked + notMarked;
+  const t = totals[0] || {};
+  return {
+    member: {
+      id: member.id, name: member.name, member_code: member.member_code, phone: member.phone,
+      photo_url: member.photo_url, plan_name: member.plan_name, status: member.status
+    },
+    month,
+    today,
+    days,
+    summary: {
+      present, absent_marked: absentMarked, not_marked: notMarked,
+      absent: absentMarked + notMarked,
+      rate: counted ? Math.round((present / counted) * 100) : null
+    },
+    last_visit: t.last_visit || null,
+    total_visits: Number(t.visits || 0)
+  };
+}
+
 /* ===================== analytics ===================== */
 async function analytics(venueId, q) {
   const settings = await getSettings(venueId);
@@ -392,5 +477,5 @@ async function checkIn(token, input) {
 }
 
 module.exports = {
-  getSettings, publicSettings, updateSettings, regenerateQr, day, mark, markAll, analytics, qrPng, posterPdf, findByToken, checkIn
+  getSettings, publicSettings, updateSettings, regenerateQr, day, mark, markAll, memberMonth, analytics, qrPng, posterPdf, findByToken, checkIn
 };

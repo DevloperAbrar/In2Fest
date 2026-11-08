@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, ChevronUp, ChevronDown, ClipboardList } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
@@ -12,10 +12,14 @@ import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, Field, TextArea, GOALS, BODY_PARTS, BODY_PART_GROUPS, errMsg } from "./gymShared.jsx";
+import { TONES } from "./gymUi.jsx";
 
 const LEVELS = [{ value: "beginner", label: "Beginner" }, { value: "intermediate", label: "Intermediate" }, { value: "advanced", label: "Advanced" }];
 const newDay = (n) => ({ title: `Day ${n}`, focus: [], notes: "", exercises: [] });
 const label = (s) => s.replace(/_/g, " ");
+
+// Each day gets its own colour for the number badge on mobile.
+const DAY_TONES = ["red", "sky", "emerald", "amber", "violet", "navy", "red"];
 
 function ExercisePicker({ isOpen, onClose, vid, onPick }) {
   const [group, setGroup] = useState("");
@@ -34,7 +38,7 @@ function ExercisePicker({ isOpen, onClose, vid, onPick }) {
     return inGroup.filter((e) => (!part || e.body_part === part) && (!equip || e.equipment === equip) && (!n || e.name.toLowerCase().includes(n)));
   }, [inGroup, part, equip, q]);
   const subParts = g ? g.parts.filter((p) => list.some((e) => e.body_part === p)) : [];
-  const chip = (on) => `px-3 py-1 rounded-full text-xs border ${on ? "bg-primary-600 text-white border-primary-600" : "text-gray-600"}`;
+  const chip = (on) => `tap-scale px-3.5 py-1.5 md:px-3 md:py-1 rounded-full text-[13px] md:text-xs border ${on ? "bg-primary-600 text-white border-primary-600" : "text-gray-600"}`;
 
   const addCustom = async () => {
     const name = custom.name.trim();
@@ -72,26 +76,28 @@ function ExercisePicker({ isOpen, onClose, vid, onPick }) {
         <Select value={equip} onChange={(e) => setEquip(e.target.value)} options={[{ value: "", label: "Any equipment" }, ...equipment.map((v) => ({ value: v, label: v }))]} />
       </div>
       <p className="text-xs text-gray-400 mt-2">{shown.length} exercises</p>
-      <div className="mt-1 max-h-64 overflow-y-auto divide-y">
+      <div className="mt-1 max-h-[40vh] md:max-h-64 overflow-y-auto divide-y">
         {loading ? <Loader /> : shown.map((ex) => (
           <button key={ex.id} onClick={() => { onPick({ exercise_id: ex.id, name: ex.name, body_part: ex.body_part }); onClose(); }}
-            className="w-full text-left py-2 px-1 flex justify-between gap-2 text-sm hover:bg-gray-50">
+            className="w-full text-left py-3 md:py-2 px-1 flex flex-col md:flex-row md:justify-between gap-0.5 md:gap-2 text-sm hover:bg-gray-50 active:bg-navy-50 md:active:bg-transparent">
             <span>{ex.name}</span>
-            <span className="text-xs text-gray-400 capitalize whitespace-nowrap">{label(ex.body_part)}{ex.equipment ? ` · ${ex.equipment}` : ""}</span>
+            <span className="text-[11.5px] md:text-xs text-gray-400 capitalize md:whitespace-nowrap">{label(ex.body_part)}{ex.equipment ? ` · ${ex.equipment}` : ""}</span>
           </button>
         ))}
       </div>
-      <div className="mt-3 pt-3 border-t space-y-2">
-        <p className="text-xs text-gray-500">Not in the list? Add your own</p>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="col-span-2"><Input placeholder="Exercise name" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} /></div>
-          <Select value={custom.part} onChange={(e) => setCustom({ ...custom, part: e.target.value })} options={[{ value: "", label: "Body part" }, ...BODY_PARTS.map((p) => ({ value: p, label: label(p) }))]} />
-        </div>
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-gray-600 flex items-center gap-2">
-            <input type="checkbox" checked={custom.save} disabled={!custom.part} onChange={(e) => setCustom({ ...custom, save: e.target.checked })} /> Save to my exercise library
-          </label>
-          <Button variant="outline" disabled={!custom.name.trim()} onClick={addCustom}>Add</Button>
+      <div className="mt-3 md:pt-3 md:border-t">
+        <div className="space-y-2 rounded-2xl bg-navy-50/50 border border-navy-100/70 p-3 md:rounded-none md:bg-transparent md:border-0 md:p-0">
+          <p className="text-xs text-gray-500">Not in the list? Add your own</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2"><Input placeholder="Exercise name" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} /></div>
+            <Select value={custom.part} onChange={(e) => setCustom({ ...custom, part: e.target.value })} options={[{ value: "", label: "Body part" }, ...BODY_PARTS.map((p) => ({ value: p, label: label(p) }))]} />
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-gray-600 flex items-center gap-2">
+              <input type="checkbox" checked={custom.save} disabled={!custom.part} onChange={(e) => setCustom({ ...custom, save: e.target.checked })} /> Save to my exercise library
+            </label>
+            <Button variant="outline" disabled={!custom.name.trim()} onClick={addCustom}>Add</Button>
+          </div>
         </div>
       </div>
     </Modal>
@@ -156,6 +162,8 @@ export default function WorkoutBuilder() {
 
   if (loading) return <GymPage title="Workout plan"><Loader /></GymPage>;
 
+  const iconBtn = "tap-scale w-9 h-9 md:w-auto md:h-auto md:p-1 flex items-center justify-center rounded-xl bg-navy-50 md:bg-transparent text-gray-400";
+
   return (
     <GymPage
       title={isNew ? (memberId ? "Custom plan for member" : "New template") : "Edit workout plan"}
@@ -163,14 +171,24 @@ export default function WorkoutBuilder() {
       actions={<Button onClick={save} loading={busy} disabled={!plan.name}>Save plan</Button>}
     >
       <Card className="mb-4">
-        <div className="grid sm:grid-cols-4 gap-3">
-          <div className="sm:col-span-2"><Input label="Plan name *" value={plan.name} onChange={(e) => setPlan({ ...plan, name: e.target.value })} /></div>
+        {/* Mobile heading for this block */}
+        <div className="md:hidden flex items-center gap-2.5 mb-3">
+          <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${TONES.sky.chip}`}>
+            <ClipboardList size={16} strokeWidth={2.1} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-display font-semibold text-[14px] text-navy-900 leading-tight">Plan details</p>
+            <p className="text-[11.5px] text-navy-400 leading-tight mt-0.5">Name, goal, level and notes</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="col-span-2"><Input label="Plan name *" value={plan.name} onChange={(e) => setPlan({ ...plan, name: e.target.value })} /></div>
           <Select label="Goal" value={plan.goal} onChange={(e) => setPlan({ ...plan, goal: e.target.value })} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
           <Select label="Level" value={plan.level} onChange={(e) => setPlan({ ...plan, level: e.target.value })} options={LEVELS} />
         </div>
-        <div className="grid sm:grid-cols-4 gap-3 mt-3">
-          <Input label="Weeks" inputMode="numeric" value={plan.duration_weeks} onChange={(e) => setPlan({ ...plan, duration_weeks: e.target.value })} />
-          <div className="sm:col-span-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+          <div className="col-span-2 sm:col-span-1"><Input label="Weeks" inputMode="numeric" value={plan.duration_weeks} onChange={(e) => setPlan({ ...plan, duration_weeks: e.target.value })} /></div>
+          <div className="col-span-2 sm:col-span-3">
             <Field label="General notes (warm-up, diet tips, safety)">
               <TextArea rows={2} value={plan.notes} onChange={(e) => setPlan({ ...plan, notes: e.target.value })} />
             </Field>
@@ -179,54 +197,70 @@ export default function WorkoutBuilder() {
       </Card>
 
       <div className="space-y-3">
-        {plan.days.map((d, di) => (
-          <Card key={di}>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-7 h-7 rounded-full bg-primary-600 text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">{di + 1}</span>
-              <Input value={d.title} onChange={(e) => setDay(di, { title: e.target.value })} placeholder="e.g. Chest + Triceps" />
-              {plan.days.length > 1 && (
-                <button onClick={() => setPlan((p) => ({ ...p, days: p.days.filter((_, k) => k !== di) }))} className="p-2 text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {[...BODY_PARTS, ...d.focus.filter((x) => !BODY_PARTS.includes(x))].map((bp) => (
-                <button key={bp} onClick={() => toggleFocus(di, bp)}
-                  className={`px-2.5 py-0.5 rounded-full text-xs border capitalize ${d.focus.includes(bp) ? "bg-primary-50 border-primary-500 text-primary-700" : "text-gray-500"}`}>
-                  {label(bp)}
-                </button>
-              ))}
-            </div>
+        {plan.days.map((d, di) => {
+          const tone = DAY_TONES[di % DAY_TONES.length];
+          return (
+            <Card key={di}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`w-9 h-9 md:w-7 md:h-7 rounded-full md:bg-primary-600 md:text-white text-sm md:text-xs font-semibold flex items-center justify-center flex-shrink-0 ${TONES[tone].chip}`}>{di + 1}</span>
+                <Input value={d.title} onChange={(e) => setDay(di, { title: e.target.value })} placeholder="e.g. Chest + Triceps" />
+                {plan.days.length > 1 && (
+                  <button onClick={() => setPlan((p) => ({ ...p, days: p.days.filter((_, k) => k !== di) }))} aria-label={`Remove day ${di + 1}`} className="tap-scale p-2.5 md:p-2 rounded-xl bg-primary-50 text-primary-600 md:bg-transparent md:text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
+                )}
+              </div>
+              <p className="md:hidden text-[11px] font-semibold uppercase tracking-wide text-navy-400 mb-1.5">Focus</p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {[...BODY_PARTS, ...d.focus.filter((x) => !BODY_PARTS.includes(x))].map((bp) => (
+                  <button key={bp} onClick={() => toggleFocus(di, bp)}
+                    className={`tap-scale px-3 py-1.5 md:px-2.5 md:py-0.5 rounded-full text-[12.5px] md:text-xs border capitalize ${d.focus.includes(bp) ? "bg-primary-50 border-primary-500 text-primary-700" : "text-gray-500"}`}>
+                    {label(bp)}
+                  </button>
+                ))}
+              </div>
 
-            {d.exercises.length === 0 && <p className="text-sm text-gray-400 mb-2">No exercises. Leave empty for a rest day.</p>}
-            <div className="space-y-2">
-              {d.exercises.map((e, ei) => (
-                <div key={ei} className="border rounded-xl p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-gray-900 truncate">{e.name}</p>
-                    <div className="flex items-center flex-shrink-0">
-                      <button onClick={() => move(di, ei, -1)} className="p-1 text-gray-400"><ChevronUp size={16} /></button>
-                      <button onClick={() => move(di, ei, 1)} className="p-1 text-gray-400"><ChevronDown size={16} /></button>
-                      <button onClick={() => removeEx(di, ei)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={15} /></button>
+              <div className="md:hidden flex items-center justify-between mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-400">Exercises</p>
+                <span className="text-[11.5px] text-navy-400 tabular-nums">{d.exercises.length === 0 ? "Rest day" : `${d.exercises.length} added`}</span>
+              </div>
+              {d.exercises.length === 0 && <p className="text-sm text-gray-400 mb-2">No exercises. Leave empty for a rest day.</p>}
+              <div className="space-y-2">
+                {d.exercises.map((e, ei) => (
+                  <div key={ei} className="border rounded-2xl md:rounded-xl p-3 md:p-2.5 bg-navy-50/40 md:bg-transparent">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{e.name}</p>
+                        {e.body_part && <p className="md:hidden text-[11.5px] text-navy-400 capitalize mt-0.5">{label(e.body_part)}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5 md:gap-0 flex-shrink-0">
+                        <button onClick={() => move(di, ei, -1)} aria-label="Move up" className={iconBtn}><ChevronUp size={16} /></button>
+                        <button onClick={() => move(di, ei, 1)} aria-label="Move down" className={iconBtn}><ChevronDown size={16} /></button>
+                        <button onClick={() => removeEx(di, ei)} aria-label="Remove exercise" className={`${iconBtn} hover:text-red-600`}><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Input label="Sets" inputMode="numeric" value={e.sets} onChange={(ev) => setEx(di, ei, { sets: ev.target.value })} />
+                      <Input label="Reps" value={e.reps} onChange={(ev) => setEx(di, ei, { reps: ev.target.value })} />
+                      <Input label="Rest (sec)" inputMode="numeric" value={e.rest_sec} onChange={(ev) => setEx(di, ei, { rest_sec: ev.target.value })} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    <Input label="Sets" inputMode="numeric" value={e.sets} onChange={(ev) => setEx(di, ei, { sets: ev.target.value })} />
-                    <Input label="Reps" value={e.reps} onChange={(ev) => setEx(di, ei, { reps: ev.target.value })} />
-                    <Input label="Rest (sec)" inputMode="numeric" value={e.rest_sec} onChange={(ev) => setEx(di, ei, { rest_sec: ev.target.value })} />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button variant="outline" className="mt-3" onClick={() => setPicker(di)}><Plus size={14} /> Add exercise</Button>
-          </Card>
-        ))}
+                ))}
+              </div>
+              <Button variant="outline" className="mt-3 w-full md:w-auto h-11 md:h-auto items-center border-dashed md:border-solid" onClick={() => setPicker(di)}><Plus size={14} /> Add exercise</Button>
+            </Card>
+          );
+        })}
       </div>
 
       {plan.days.length < 7 && (
-        <Button variant="outline" className="mt-3" onClick={() => setPlan((p) => ({ ...p, days: [...p.days, newDay(p.days.length + 1)] }))}>
+        <Button variant="outline" className="mt-3 w-full md:w-auto h-12 md:h-auto items-center border-dashed md:border-solid" onClick={() => setPlan((p) => ({ ...p, days: [...p.days, newDay(p.days.length + 1)] }))}>
           <Plus size={14} /> Add day
         </Button>
       )}
+
+      {/* Mobile: save at the end of the page so it is within reach after a long plan */}
+      <div className="md:hidden mt-5">
+        <Button className="w-full h-12 items-center" onClick={save} loading={busy} disabled={!plan.name}>Save plan</Button>
+      </div>
 
       <ExercisePicker isOpen={picker !== null} onClose={() => setPicker(null)} vid={vid} onPick={(ex) => addExercise(picker, ex)} />
     </GymPage>

@@ -238,6 +238,7 @@ router.get("/store/sales/:id/invoice", async (req, res, next) => {
 router.get("/attendance/day", h((req) => att.day(req.gymVenue.id, req.query.date)));
 router.post("/attendance/mark", h((req) => att.mark(ctx(req), req.body)));
 router.post("/attendance/mark-all", h((req) => att.markAll(ctx(req), req.body)));
+router.get("/attendance/member/:id", h((req) => att.memberMonth(req.gymVenue.id, req.params.id, req.query)));
 router.get("/attendance/analytics", h((req) => att.analytics(req.gymVenue.id, req.query)));
 router.get("/attendance/settings", h((req) => att.publicSettings(req.gymVenue.id)));
 router.put("/attendance/settings", ownerOnly, h((req) => att.updateSettings(req.gymVenue.id, req.body)));
