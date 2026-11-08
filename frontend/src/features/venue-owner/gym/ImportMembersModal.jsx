@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Upload, Download } from "lucide-react";
+import { Upload, Download, Check } from "lucide-react";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
 import Button from "../../../components/common/Button";
@@ -7,6 +7,7 @@ import Select from "../../../components/common/Select";
 import Modal from "../../../components/common/Modal";
 import { showError, showSuccess } from "../../../components/common/Toast";
 import { errMsg, downloadBlob } from "./gymShared.jsx";
+import { UploadArt } from "./memberUi.jsx";
 import { FIELDS, decodeBuffer, parseCsv, autoMap, guessDateFormat, distinctPlans, autoMatchPlans, buildRows, toCsv } from "./importUtils.js";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -23,12 +24,46 @@ const chunk = (arr, n) => {
 const Stat = ({ label, value, tone = "gray" }) => {
   const tones = { gray: "bg-gray-50 text-gray-900", green: "bg-green-50 text-green-700", amber: "bg-amber-50 text-amber-700", red: "bg-red-50 text-red-700" };
   return (
-    <div className={`rounded-xl p-3 ${tones[tone]}`}>
-      <p className="text-xs opacity-80">{label}</p>
-      <p className="text-xl font-semibold">{value}</p>
+    <div className={`rounded-2xl md:rounded-xl p-3.5 md:p-3 ${tones[tone]}`}>
+      <p className="text-xs opacity-80 leading-tight">{label}</p>
+      <p className="mt-1 md:mt-0 text-2xl md:text-xl font-semibold tabular-nums">{value}</p>
     </div>
   );
 };
+
+// Mobile only: shows where the owner is in the 4 steps.
+const STEPS = ["Upload", "Match", "Check", "Import"];
+const stepIndex = (step) => ({ upload: 0, map: 1, check: 2, importing: 3, done: 3 }[step] ?? 0);
+
+function StepBar({ step }) {
+  const cur = stepIndex(step);
+  return (
+    <ol className="md:hidden flex items-start mb-5" aria-label="Import progress">
+      {STEPS.map((label, i) => {
+        const done = i < cur || step === "done";
+        const active = i === cur && step !== "done";
+        return (
+          <li key={label} className="flex-1 flex flex-col items-center relative">
+            {i > 0 && (
+              <span
+                className={`absolute top-[13px] right-1/2 w-full h-0.5 -z-0 ${i <= cur || step === "done" ? "bg-primary-500" : "bg-navy-100"}`}
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-semibold ${
+                done ? "bg-primary-600 text-white" : active ? "bg-navy-900 text-white ring-4 ring-navy-100" : "bg-navy-50 text-navy-400"
+              }`}
+            >
+              {done ? <Check size={14} strokeWidth={3} /> : i + 1}
+            </span>
+            <span className={`mt-1.5 text-[11px] font-medium ${active ? "text-navy-900" : "text-navy-400"}`}>{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export default function ImportMembersModal({ vid, onClose, onDone }) {
   const { data: plans } = useFetch(vid ? `/venues/${vid}/gym/plans` : null, { skip: !vid });
@@ -154,26 +189,35 @@ export default function ImportMembersModal({ vid, onClose, onDone }) {
 
   return (
     <Modal isOpen onClose={safeClose} title="Import members from another software" size="xl">
+      <StepBar step={step} />
       {step === "upload" && (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
             Export your members from your old gym software as a CSV file and upload it here. You will match the columns and check everything
             before anything is saved.
           </p>
-          <label className="block border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-primary-400">
+          {/* Mobile */}
+          <label className="md:hidden tap-scale block rounded-3xl border-2 border-dashed border-primary-200 bg-primary-50/40 px-5 py-6 text-center cursor-pointer">
+            <UploadArt className="w-28 h-24 mx-auto" />
+            <span className="block mt-1 text-[15px] font-display font-semibold text-navy-900">Tap to choose a CSV file</span>
+            <span className="block text-xs text-navy-400 mt-1">Up to {MAX_ROWS} members, 5 MB</span>
+            <input type="file" accept=".csv,.txt,text/csv" className="hidden" onChange={pickFile} />
+          </label>
+          {/* Desktop / tablet (unchanged) */}
+          <label className="hidden md:block border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-primary-400">
             <Upload size={26} className="mx-auto text-gray-400 mb-2" />
             <span className="block text-sm font-medium text-gray-800">Choose a CSV file</span>
             <span className="block text-xs text-gray-500 mt-1">Up to {MAX_ROWS} members, 5 MB</span>
             <input type="file" accept=".csv,.txt,text/csv" className="hidden" onChange={pickFile} />
           </label>
-          <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600 space-y-1">
+          <div className="bg-gray-50 rounded-2xl md:rounded-xl p-3.5 md:p-3 text-xs text-gray-600 space-y-1.5 md:space-y-1">
             <p><b>Only Name and Mobile are required.</b> Plan, dates, amounts, trainer, goal and notes are optional.</p>
             <p>Excel file? Open it and choose File &gt; Save As &gt; CSV, then upload that file.</p>
             <p>Only the latest membership of each member is imported. Photos and old payment receipts are not.</p>
           </div>
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={downloadSample}><Download size={15} /> Sample file</Button>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <div className="flex gap-2 md:justify-between">
+            <Button variant="outline" className="flex-1 md:flex-none" onClick={downloadSample}><Download size={15} /> Sample file</Button>
+            <Button variant="outline" className="flex-1 md:flex-none" onClick={onClose}>Cancel</Button>
           </div>
         </div>
       )}

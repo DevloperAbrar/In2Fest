@@ -144,12 +144,13 @@ function DashboardContent({ venue }) {
           </motion.div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            {tiles.slice(0, 4).map((t) => {
+            {tiles.slice(0, 4).map((t, idx) => {
               const isCurrency = t.kind === "currency";
               const isNumber = t.kind === "number" || isCurrency;
               return (
                 <StatTile
                   key={t.key}
+                  index={idx}
                   icon={TILE_ICONS[t.icon] || Wallet}
                   tone={t.tone}
                   label={t.label}

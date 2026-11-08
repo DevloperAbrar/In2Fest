@@ -96,10 +96,40 @@ export function InitialsAvatar({ name = "?", size = 38 }) {
   );
 }
 
+// Mobile-only tinted cards: the colour tells the owner what kind of number it is.
+const MOBILE_TILE = {
+  emerald: { card: "from-emerald-50 to-white border-emerald-100", chip: "bg-emerald-500 text-white", sub: "bg-emerald-100/70 text-emerald-700" },
+  amber: { card: "from-amber-50 to-white border-amber-100", chip: "bg-amber-500 text-white", sub: "bg-amber-100/70 text-amber-700" },
+  red: { card: "from-primary-50 to-white border-primary-100", chip: "bg-primary-500 text-white", sub: "bg-primary-100/70 text-primary-700" },
+  violet: { card: "from-violet-50 to-white border-violet-100", chip: "bg-violet-500 text-white", sub: "bg-violet-100/70 text-violet-700" },
+  sky: { card: "from-sky-50 to-white border-sky-100", chip: "bg-sky-500 text-white", sub: "bg-sky-100/70 text-sky-700" },
+  navy: { card: "from-navy-50 to-white border-navy-100", chip: "bg-navy-700 text-white", sub: "bg-navy-100/70 text-navy-600" }
+};
+
 export function StatTile({ icon: Icon, label, value, format, sublabel, tone = "navy" }) {
+  const m = MOBILE_TILE[tone] || MOBILE_TILE.navy;
   return (
     <motion.div variants={fadeUp}>
-      <Surface className="p-4 h-full">
+      {/* Mobile */}
+      <div className={`md:hidden h-full rounded-3xl border bg-gradient-to-br p-4 shadow-card ${m.card}`}>
+        <span className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm ${m.chip}`}>
+          <Icon size={19} strokeWidth={2.2} />
+        </span>
+        <p className="mt-3 text-[12px] font-medium text-navy-500 truncate">{label}</p>
+        <p className="mt-1 font-display font-bold text-[26px] leading-none text-navy-900 truncate tabular-nums">
+          <AnimatedNumber value={Number(value) || 0} format={format} />
+        </p>
+        {sublabel ? (
+          <p className={`mt-2.5 inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[10.5px] font-medium ${m.sub}`}>
+            {sublabel}
+          </p>
+        ) : (
+          <div className="mt-2.5 h-5" aria-hidden="true" />
+        )}
+      </div>
+
+      {/* Desktop / tablet (unchanged) */}
+      <Surface className="hidden md:block p-4 h-full">
         <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${TONES[tone].chip}`}>
           <Icon size={17} strokeWidth={2.1} />
         </span>

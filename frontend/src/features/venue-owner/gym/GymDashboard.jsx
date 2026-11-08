@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import dayjs from "dayjs";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -47,11 +48,22 @@ function ChartTooltip({ active, payload, label }) {
   );
 }
 
+// Desktop / tablet stat (unchanged)
 function MiniStat({ label, children }) {
   return (
     <div className="flex-1 min-w-0 px-3 first:pl-0 last:pr-0">
       <p className="text-[11px] text-white/55 truncate">{label}</p>
       <p className="mt-0.5 font-display font-semibold text-[15px] md:text-base text-white truncate tabular-nums">{children}</p>
+    </div>
+  );
+}
+
+// Mobile stat tile
+function GlassStat({ label, children }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-white/[0.07] ring-1 ring-inset ring-white/10 px-3 py-2.5">
+      <p className="text-[10.5px] leading-tight text-white/55 line-clamp-2 min-h-[26px]">{label}</p>
+      <p className="mt-1 font-display font-semibold text-[15px] text-white truncate tabular-nums">{children}</p>
     </div>
   );
 }
@@ -62,11 +74,20 @@ function Hero({ d, c, series }) {
   const delta = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
   const up = delta !== null && delta >= 0;
   const trend = series.map(monthTotal);
+  const months = series.map((s) => {
+    const m = dayjs(`${s.month}-01`);
+    return m.isValid() ? m.format("MMM") : "";
+  });
+
+  const activeStat = <AnimatedNumber value={Number(c.active) || 0} />;
+  const renewalStat =
+    d.renewal_rate == null ? "-" : <AnimatedNumber value={Number(d.renewal_rate) || 0} format={(v) => `${Math.round(v)}%`} />;
+  const enquiryStat = <AnimatedNumber value={Number(d.new_leads) || 0} />;
 
   return (
     <motion.section
       variants={fadeUp}
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 md:p-7 shadow-card"
+      className="relative overflow-hidden rounded-[28px] md:rounded-3xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 md:p-7 shadow-card"
     >
       <svg className="absolute -right-10 -top-16 w-72 h-72 text-white pointer-events-none" viewBox="0 0 200 200" fill="none" aria-hidden="true">
         {[30, 52, 74, 96].map((r, i) => (
@@ -77,9 +98,9 @@ function Hero({ d, c, series }) {
 
       <div className="relative">
         <p className="text-[12px] text-white/60">This month's collection</p>
-        <div className="mt-1.5 flex items-end justify-between gap-4">
+        <div className="mt-1.5 md:flex md:items-end md:justify-between md:gap-4">
           <div className="min-w-0">
-            <p className="font-display font-bold text-[34px] md:text-[40px] leading-none tabular-nums truncate">
+            <p className="font-display font-bold text-[36px] md:text-[40px] leading-none tabular-nums truncate">
               <AnimatedNumber value={thisMonth} format={(v) => inr(Math.round(v))} />
             </p>
             <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] font-medium">
@@ -92,18 +113,79 @@ function Hero({ d, c, series }) {
               <span className="text-white/55">Last month: {inr(lastMonth)}</span>
             </div>
           </div>
-          <Sparkline values={trend} className="w-28 md:w-44 h-14 md:h-16 shrink-0" />
+          {/* Desktop / tablet: sparkline on the right (unchanged) */}
+          <Sparkline values={trend} className="hidden md:block w-44 h-16 shrink-0" />
         </div>
 
-        <div className="mt-6 pt-4 border-t border-white/10 flex divide-x divide-white/10">
-          <MiniStat label="Active members"><AnimatedNumber value={Number(c.active) || 0} /></MiniStat>
-          <MiniStat label="Renewal rate">
-            {d.renewal_rate == null ? "-" : <AnimatedNumber value={Number(d.renewal_rate) || 0} format={(v) => `${Math.round(v)}%`} />}
-          </MiniStat>
-          <MiniStat label="New enquiries"><AnimatedNumber value={Number(d.new_leads) || 0} /></MiniStat>
+        {/* Mobile: full-width trend line */}
+        <div className="md:hidden mt-4">
+          <Sparkline values={trend} width={320} height={64} className="w-full h-16" />
+          {months.length > 1 && (
+            <div className="mt-1 flex justify-between px-1 text-[10px] text-white/40">
+              <span>{months[0]}</span>
+              <span>{months[months.length - 1]}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile: three separate stat tiles */}
+        <div className="md:hidden mt-4 grid grid-cols-3 gap-2">
+          <GlassStat label="Active members">{activeStat}</GlassStat>
+          <GlassStat label="Renewal rate">{renewalStat}</GlassStat>
+          <GlassStat label="New enquiries">{enquiryStat}</GlassStat>
+        </div>
+
+        {/* Desktop / tablet: divided row (unchanged) */}
+        <div className="hidden md:flex mt-6 pt-4 border-t border-white/10 divide-x divide-white/10">
+          <MiniStat label="Active members">{activeStat}</MiniStat>
+          <MiniStat label="Renewal rate">{renewalStat}</MiniStat>
+          <MiniStat label="New enquiries">{enquiryStat}</MiniStat>
         </div>
       </div>
     </motion.section>
+  );
+}
+
+// Mobile only: one bar that shows how the members are split.
+// "active" from the server already includes the ones expiring soon, so we split them apart here.
+function MemberHealth({ c }) {
+  const expiring = Number(c.expiring) || 0;
+  const running = Math.max((Number(c.active) || 0) - expiring, 0);
+  const expired = Number(c.expired) || 0;
+  const frozen = Number(c.frozen) || 0;
+  const total = running + expiring + expired + frozen;
+  const parts = [
+    { key: "running", label: "Active", value: running, bar: "bg-emerald-500" },
+    { key: "expiring", label: "Expiring soon", value: expiring, bar: "bg-amber-400" },
+    { key: "expired", label: "Expired", value: expired, bar: "bg-primary-500" },
+    { key: "frozen", label: "Frozen", value: frozen, bar: "bg-sky-400" }
+  ];
+  return (
+    <motion.div variants={fadeUp} className="md:hidden">
+      <Surface className="p-4">
+        <SectionTitle title="Member health" hint={`${total} member${total === 1 ? "" : "s"} in total`} />
+        {total === 0 ? (
+          <p className="text-xs text-navy-400">Add your first member to see this.</p>
+        ) : (
+          <>
+            <div className="flex h-3 gap-0.5 rounded-full overflow-hidden bg-navy-100">
+              {parts.filter((p) => p.value > 0).map((p) => (
+                <div key={p.key} className={p.bar} style={{ width: `${(p.value / total) * 100}%` }} />
+              ))}
+            </div>
+            <div className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {parts.map((p) => (
+                <div key={p.key} className="flex items-center gap-2 text-[12.5px]">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.bar}`} />
+                  <span className="text-navy-500 flex-1 truncate">{p.label}</span>
+                  <b className="text-navy-900 tabular-nums">{p.value}</b>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Surface>
+    </motion.div>
   );
 }
 
@@ -174,8 +256,10 @@ export default function GymDashboard() {
           <StatTile icon={Wallet} tone="violet" label="Pending dues" value={c.dues_total} format={(v) => inr(Math.round(v))} sublabel={`${c.dues_count} members`} />
         </div>
 
-        <motion.div variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          <Surface className="p-4 md:p-5 flex items-center gap-4">
+        <MemberHealth c={c} />
+
+        <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 md:gap-4">
+          <Surface className="p-4 md:p-5 flex flex-col items-start gap-3 md:flex-row md:items-center md:gap-4">
             <ProgressRing percent={d.renewal_rate || 0} display={d.renewal_rate == null ? "-" : `${d.renewal_rate}%`} />
             <div className="min-w-0">
               <p className="font-display font-semibold text-[15px] text-navy-900">Renewal rate (30 days)</p>
@@ -184,15 +268,15 @@ export default function GymDashboard() {
           </Surface>
 
           <Link to="/dashboard/gym/leads" className="tap-scale block">
-            <Surface className="p-4 md:p-5 h-full flex items-center gap-4 hover:border-primary-200 transition-colors">
+            <Surface className="p-4 md:p-5 h-full flex flex-col items-start gap-3 md:flex-row md:items-center md:gap-4 hover:border-primary-200 transition-colors">
               <span className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${TONES.sky.chip}`}>
                 <UserPlus size={22} />
               </span>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 md:flex-1">
                 <p className="font-display font-semibold text-[15px] text-navy-900">New enquiries</p>
                 <p className="font-display font-bold text-2xl text-navy-900 tabular-nums leading-tight">{d.new_leads}</p>
               </div>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 shrink-0">
+              <span className="mt-auto md:mt-0 inline-flex items-center gap-1 text-xs font-semibold text-primary-600 shrink-0">
                 View leads <ArrowRight size={14} />
               </span>
             </Surface>
@@ -201,7 +285,7 @@ export default function GymDashboard() {
 
         {d.pending_payments.length > 0 && (
           <motion.div variants={fadeUp}>
-            <Surface className="p-4 md:p-5 !border-amber-200/80">
+            <Surface className="p-4 md:p-5 !border-amber-200/80 bg-gradient-to-br from-amber-50/70 to-white md:bg-none">
               <SectionTitle
                 title={`Payments to confirm (${d.pending_payments.length})`}
                 hint="Check these against your bank / UPI before confirming"
@@ -256,7 +340,25 @@ export default function GymDashboard() {
               hint="Last 6 months"
               action={<p className="font-display font-bold text-lg text-navy-900 tabular-nums">{inr(chartTotal)}</p>}
             />
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+            {/* Mobile: this month's split in three small cards */}
+            <div className="md:hidden mb-3">
+              <p className="text-[11px] text-navy-400 mb-1.5">This month</p>
+              <div className="grid grid-cols-3 gap-2">
+                {SERIES.map((s) => (
+                  <div key={s.key} className="min-w-0 rounded-2xl bg-navy-50/70 px-2.5 py-2">
+                    <span className="flex items-center gap-1.5 text-[10.5px] text-navy-500 truncate">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                      {s.label}
+                    </span>
+                    <p className="mt-0.5 font-display font-semibold text-[13px] text-navy-900 truncate tabular-nums">
+                      {inr(Number(series[series.length - 1]?.[s.key]) || 0)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Desktop / tablet legend (unchanged) */}
+            <div className="hidden md:flex flex-wrap gap-x-4 gap-y-1 mb-2">
               {SERIES.map((s) => (
                 <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] text-navy-500">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
@@ -264,7 +366,7 @@ export default function GymDashboard() {
                 </span>
               ))}
             </div>
-            <div className="relative h-56">
+            <div className="relative h-48 md:h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={series} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap="28%">
                   <CartesianGrid vertical={false} stroke="#e3e5ec" strokeDasharray="3 5" />

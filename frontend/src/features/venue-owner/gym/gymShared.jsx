@@ -11,6 +11,7 @@ import Button from "../../../components/common/Button";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { isDemoMode } from "../../../lib/demoMode";
+import { TONES } from "./gymUi.jsx";
 
 export const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 export const todayISO = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
@@ -163,17 +164,17 @@ export function MessageModal({ onClose, vid, memberId, title = "Message", types,
 }
 
 const TAB_DEFS = [
-  { to: "/dashboard/gym", label: "Overview", icon: LayoutGrid, end: true },
-  { to: "/dashboard/gym/members", label: "Members", icon: Users },
-  { to: "/dashboard/gym/plans", label: "Plans", icon: Ticket },
-  { to: "/dashboard/gym/shifts", label: "Shifts", icon: Clock },
-  { to: "/dashboard/gym/attendance", label: "Attendance", icon: CalendarCheck },
-  { to: "/dashboard/gym/workouts", label: "Workouts", icon: Dumbbell },
-  { to: "/dashboard/gym/leads", label: "Leads", icon: UserPlus },
-  { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle },
-  { to: "/dashboard/gym/store", label: "Store", icon: ShoppingBag }
+  { to: "/dashboard/gym", label: "Overview", icon: LayoutGrid, end: true, tone: "navy" },
+  { to: "/dashboard/gym/members", label: "Members", icon: Users, tone: "emerald" },
+  { to: "/dashboard/gym/plans", label: "Plans", icon: Ticket, tone: "violet" },
+  { to: "/dashboard/gym/shifts", label: "Shifts", icon: Clock, tone: "amber" },
+  { to: "/dashboard/gym/attendance", label: "Attendance", icon: CalendarCheck, tone: "sky" },
+  { to: "/dashboard/gym/workouts", label: "Workouts", icon: Dumbbell, tone: "red" },
+  { to: "/dashboard/gym/leads", label: "Leads", icon: UserPlus, tone: "sky" },
+  { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle, tone: "emerald" },
+  { to: "/dashboard/gym/store", label: "Store", icon: ShoppingBag, tone: "violet" }
 ];
-const SETTINGS_TAB = { to: "/dashboard/gym/settings", label: "Settings", icon: Settings };
+const SETTINGS_TAB = { to: "/dashboard/gym/settings", label: "Settings", icon: Settings, tone: "navy" };
 
 export function GymTabs() {
   const { user } = useAuth();
@@ -189,20 +190,25 @@ export function GymTabs() {
   }, [pathname, reduce]);
 
   return (
-    <nav aria-label="Gym sections" className="mb-5 bg-white border border-navy-100/70 shadow-card rounded-2xl p-1">
+    <nav
+      aria-label="Gym sections"
+      className="relative mb-4 md:mb-5 -mx-4 md:mx-0 md:bg-white md:border md:border-navy-100/70 md:shadow-card md:rounded-2xl md:p-1"
+    >
       <div
         ref={rowRef}
-        className="flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+        className="flex gap-2 md:gap-1 overflow-x-auto px-4 md:px-0 py-1 md:py-0 [&::-webkit-scrollbar]:hidden"
         style={{ scrollbarWidth: "none" }}
       >
-        {tabs.map(({ to, label, icon: Icon, end }) => (
+        {tabs.map(({ to, label, icon: Icon, end, tone }) => (
           <NavLink
             key={to}
             to={to}
             end={!!end}
             className={({ isActive }) =>
-              `tap-scale relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium whitespace-nowrap transition-colors ${
-                isActive ? "text-white" : "text-navy-500 hover:text-navy-800 hover:bg-navy-50"
+              `tap-scale relative shrink-0 flex items-center gap-2 md:gap-1.5 pl-1.5 pr-3.5 md:px-3.5 py-1.5 md:py-2 rounded-full md:rounded-xl border md:border-0 text-[13px] font-semibold md:font-medium whitespace-nowrap transition-colors ${
+                isActive
+                  ? "text-white border-navy-900"
+                  : "text-navy-700 md:text-navy-500 bg-white md:bg-transparent border-navy-100 shadow-sm md:shadow-none md:hover:text-navy-800 md:hover:bg-navy-50"
               }`
             }
           >
@@ -211,17 +217,28 @@ export function GymTabs() {
                 {isActive && (
                   <motion.span
                     layoutId="gym-tab-pill"
-                    className="absolute inset-0 rounded-xl bg-navy-900 shadow-sm"
+                    className="absolute inset-0 rounded-full md:rounded-xl bg-navy-900 shadow-sm"
                     transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
                   />
                 )}
-                <Icon size={15} strokeWidth={2.1} className="relative" />
+                <span
+                  className={`relative flex items-center justify-center w-7 h-7 rounded-full md:w-auto md:h-auto md:rounded-none md:bg-transparent ${
+                    isActive ? "bg-white/15 text-white" : `${(TONES[tone] || TONES.navy).chip} md:text-inherit`
+                  }`}
+                >
+                  <Icon size={15} strokeWidth={2.1} />
+                </span>
                 <span className="relative">{label}</span>
               </>
             )}
           </NavLink>
         ))}
       </div>
+      {/* Mobile hint that the row scrolls */}
+      <div
+        className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-paper to-transparent md:hidden"
+        aria-hidden="true"
+      />
     </nav>
   );
 }

@@ -58,11 +58,39 @@ export function InitialsAvatar({ name = "?", size = 38 }) {
   );
 }
 
-export function StatTile({ icon: Icon, label, value, format, sublabel, tone = "navy" }) {
+// Mobile-only colour pairs: alternate brand red / dark navy like a checkerboard.
+const MOBILE_STAT_STYLES = [
+  { bg: "from-primary-500 via-primary-600 to-primary-700", glow: "bg-white/20" },
+  { bg: "from-navy-600 via-navy-700 to-navy-900", glow: "bg-primary-500/30" },
+  { bg: "from-navy-600 via-navy-700 to-navy-900", glow: "bg-primary-500/30" },
+  { bg: "from-primary-500 via-primary-600 to-primary-700", glow: "bg-white/20" }
+];
+
+export function StatTile({ icon: Icon, label, value, format, sublabel, tone = "navy", index = 0 }) {
   const isNumber = typeof value === "number";
+  const style = MOBILE_STAT_STYLES[index % MOBILE_STAT_STYLES.length];
   return (
     <motion.div variants={fadeUp}>
-      <Surface className="p-4 h-full">
+      {/* Mobile */}
+      <div
+        className={`md:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br ${style.bg} text-white p-4 h-full min-h-[118px] shadow-card`}
+      >
+        <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl ${style.glow}`} aria-hidden="true" />
+        <Icon size={64} strokeWidth={1.4} className="absolute -right-2 -bottom-2 text-white/10" aria-hidden="true" />
+        <div className="relative">
+          <span className="w-9 h-9 rounded-xl bg-white/15 ring-1 ring-inset ring-white/20 flex items-center justify-center">
+            <Icon size={17} strokeWidth={2.1} />
+          </span>
+          <p className="mt-3 text-[11.5px] font-medium text-white/70 truncate">{label}</p>
+          <p className="mt-0.5 font-display font-bold text-[22px] leading-tight truncate tabular-nums">
+            {isNumber ? <AnimatedNumber value={value} format={format} /> : value}
+          </p>
+          {sublabel && <p className="text-[11px] text-white/60 mt-0.5 truncate">{sublabel}</p>}
+        </div>
+      </div>
+
+      {/* Desktop / tablet (unchanged) */}
+      <Surface className="hidden md:block p-4 h-full">
         <div className="flex items-center justify-between">
           <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${TONES[tone].chip}`}>
             <Icon size={17} strokeWidth={2.1} />

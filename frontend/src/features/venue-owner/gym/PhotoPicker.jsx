@@ -224,27 +224,27 @@ export default function PhotoPicker({ currentUrl, name, file, onChange, disabled
   const initial = String(name || "?").trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-col items-center gap-3 md:flex-row md:items-center md:gap-4">
       {shown ? (
-        <img src={shown} alt="" className="w-20 h-20 rounded-full object-cover border border-gray-200" />
+        <img src={shown} alt="" className="w-24 h-24 md:w-20 md:h-20 rounded-full object-cover border border-gray-200 ring-4 ring-white shadow-sm md:ring-0 md:shadow-none" />
       ) : (
-        <div className="w-20 h-20 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-2xl font-semibold">{initial}</div>
+        <div className="w-24 h-24 md:w-20 md:h-20 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-3xl md:text-2xl font-semibold ring-4 ring-white shadow-sm md:ring-0 md:shadow-none">{initial}</div>
       )}
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
+      <div className="w-full md:w-auto space-y-2">
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-wrap">
           <button type="button" disabled={disabled || busy} onClick={() => setCameraOpen(true)}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-40">
+            className="tap-scale px-3 py-2.5 md:py-2 rounded-xl md:rounded-lg border border-gray-300 bg-white text-sm text-gray-700 flex items-center justify-center md:justify-start gap-1.5 hover:bg-gray-50 disabled:opacity-40">
             <Camera size={15} /> Take photo
           </button>
           <button type="button" disabled={disabled || busy} onClick={() => inputRef.current && inputRef.current.click()}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-40">
-            <ImagePlus size={15} /> {busy ? "Processing..." : "Upload from gallery"}
+            className="tap-scale px-3 py-2.5 md:py-2 rounded-xl md:rounded-lg border border-gray-300 bg-white text-sm text-gray-700 flex items-center justify-center md:justify-start gap-1.5 hover:bg-gray-50 disabled:opacity-40">
+            <ImagePlus size={15} /> {busy ? "Processing..." : <><span className="md:hidden">Gallery</span><span className="hidden md:inline">Upload from gallery</span></>}
           </button>
           {file && (
-            <button type="button" onClick={() => onChange(null)} className="px-3 py-2 text-sm text-red-600 hover:underline">Remove</button>
+            <button type="button" onClick={() => onChange(null)} className="col-span-2 px-3 py-2 text-sm text-red-600 hover:underline">Remove</button>
           )}
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-400 text-center md:text-left">
           {file ? `New photo ready (${Math.max(1, Math.round(file.size / 1024))} KB, compressed)` : "Photos are compressed automatically."}
         </p>
       </div>

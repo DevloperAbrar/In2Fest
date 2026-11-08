@@ -29,6 +29,7 @@ function legacyStats(a) {
   ];
 }
 
+// Desktop / tablet stat (unchanged)
 function MiniStat({ label, children }) {
   return (
     <div className="flex-1 min-w-0 px-3 first:pl-0 last:pr-0">
@@ -40,9 +41,21 @@ function MiniStat({ label, children }) {
   );
 }
 
+// Mobile stat tile
+function GlassStat({ label, children }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-white/[0.07] ring-1 ring-inset ring-white/10 px-3 py-2.5">
+      <p className="text-[10.5px] leading-tight text-white/55 line-clamp-2 min-h-[26px]">{label}</p>
+      <p className="mt-1 font-display font-semibold text-[15px] text-white truncate tabular-nums">{children}</p>
+    </div>
+  );
+}
+
 export default function DashboardHero({ userName, venueName, analytics, refreshing, onRefresh }) {
   const firstName = (userName || "").trim().split(/\s+/)[0] || "there";
-  const trend = (analytics?.revenueTrend || []).map((t) => Number(t.revenue) || 0);
+  const trendRows = analytics?.revenueTrend || [];
+  const trend = trendRows.map((t) => Number(t.revenue) || 0);
+  const months = trendRows.map((t) => String(t.month || "").split(" ")[0]);
   const current = Number(analytics?.monthlyRevenue) || 0;
   const labels = analytics?.labels || {};
   const stats = analytics?.heroStats?.length ? analytics.heroStats : legacyStats(analytics);
@@ -51,10 +64,17 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
   const delta = prev > 0 ? Math.round(((current - prev) / prev) * 100) : null;
   const up = delta !== null && delta >= 0;
 
+  const statValue = (s) =>
+    s.value === null || s.value === undefined ? (
+      "–"
+    ) : (
+      <AnimatedNumber value={Number(s.value) || 0} format={FORMATS[s.kind]} />
+    );
+
   return (
     <motion.section
       variants={fadeUp}
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 md:p-7 shadow-card"
+      className="relative overflow-hidden rounded-[28px] md:rounded-3xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 md:p-7 shadow-card"
     >
       <svg
         className="absolute -right-10 -top-16 w-72 h-72 text-white pointer-events-none"
@@ -81,16 +101,16 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
             type="button"
             onClick={onRefresh}
             aria-label="Refresh dashboard"
-            className="tap-scale w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center shrink-0"
+            className="tap-scale w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 ring-1 ring-inset ring-white/10 flex items-center justify-center shrink-0"
           >
             <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
           </button>
         </div>
 
-        <div className="mt-5 flex items-end justify-between gap-4">
+        <div className="mt-5 md:flex md:items-end md:justify-between md:gap-4">
           <div className="min-w-0">
             <p className="text-[12px] text-white/60">{labels.revenue || "This month's revenue"}</p>
-            <p className="font-display font-bold text-[34px] md:text-[40px] leading-none mt-1.5 tabular-nums truncate">
+            <p className="font-display font-bold text-[36px] md:text-[40px] leading-none mt-1.5 tabular-nums truncate">
               <AnimatedNumber value={current} format={(v) => formatCurrency(Math.round(v))} />
             </p>
             <div className="mt-2.5 inline-flex items-center gap-1.5 text-[11.5px] font-medium">
@@ -110,17 +130,35 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
             </div>
           </div>
 
-          <Sparkline values={trend} className="w-28 md:w-44 h-14 md:h-16 shrink-0" />
+          {/* Desktop / tablet: sparkline on the right (unchanged) */}
+          <Sparkline values={trend} className="hidden md:block w-44 h-16 shrink-0" />
         </div>
 
-        <div className="mt-6 pt-4 border-t border-white/10 flex divide-x divide-white/10">
+        {/* Mobile: full-width trend line under the amount */}
+        <div className="md:hidden mt-4">
+          <Sparkline values={trend} width={320} height={64} className="w-full h-16" />
+          {months.length > 1 && (
+            <div className="mt-1 flex justify-between px-1 text-[10px] text-white/40">
+              <span>{months[0]}</span>
+              <span>{months[months.length - 1]}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile: three separate stat tiles */}
+        <div className="md:hidden mt-4 grid grid-cols-3 gap-2">
+          {stats.slice(0, 3).map((s) => (
+            <GlassStat key={s.key || s.label} label={s.label}>
+              {statValue(s)}
+            </GlassStat>
+          ))}
+        </div>
+
+        {/* Desktop / tablet: divided row (unchanged) */}
+        <div className="hidden md:flex mt-6 pt-4 border-t border-white/10 divide-x divide-white/10">
           {stats.slice(0, 3).map((s) => (
             <MiniStat key={s.key || s.label} label={s.label}>
-              {s.value === null || s.value === undefined ? (
-                "–"
-              ) : (
-                <AnimatedNumber value={Number(s.value) || 0} format={FORMATS[s.kind]} />
-              )}
+              {statValue(s)}
             </MiniStat>
           ))}
         </div>

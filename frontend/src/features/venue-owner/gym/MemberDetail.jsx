@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Phone, RefreshCw, IndianRupee, Snowflake, Link2, Dumbbell, Camera, Pencil,
-  MessageSquare, FileText, Share2, Copy, CreditCard, Trash2, Archive
+  MessageSquare, FileText, Share2, Copy, CreditCard, Trash2, Archive,
+  CalendarDays, Target, Ruler, MapPin, HeartPulse, UserRound, Receipt, ChevronRight, Clock, Check, X, ArrowLeft
 } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useAuth } from "../../../context/AuthContext";
@@ -17,6 +18,7 @@ import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import PhotoPicker from "./PhotoPicker.jsx";
+import { MemberAvatar, ActionTile, InfoRow } from "./memberUi.jsx";
 import { shiftRange } from "./GymShifts.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import {
@@ -589,9 +591,290 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     ];
     if (hasDue && m.display_status === "active") msgTypes.sort((a, b) => (b.key === "dues") - (a.key === "dues"));
   
+    // ---- mobile-only values (all come from data already loaded above) ----
+    const paidTotal = payments.filter((p) => p.status === "paid").reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const hasPeriod = !!(m.start_date && m.end_date);
+    const totalDays = hasPeriod ? Math.max(daysBetween(m.start_date, m.end_date) + 1, 1) : 0;
+    const leftDays = hasPeriod && typeof m.days_left === "number" ? Math.max(m.days_left, 0) : null;
+    const usedPct = hasPeriod && leftDays !== null ? Math.min(100, Math.max(0, Math.round(((totalDays - leftDays) / totalDays) * 100))) : 0;
+    const bodyText = [m.weight && `Weight ${m.weight}`, m.height && `Height ${m.height}`].filter(Boolean).join(" · ");
+    const hasDetails = !!(m.goal || bodyText || m.parent_name || m.address || m.health_notes);
+    const callHref = `tel:+91${m.phone}`;
+
     return (
       <GymPage title={m.name} subtitle={`${m.member_code} · ${m.phone}`}
         actions={<Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit</Button>}>
+
+        {/* ================= MOBILE ================= */}
+        <div className="md:hidden space-y-3.5">
+          {/* Back to the full member list */}
+          <Link
+            to="/dashboard/gym/members"
+            className="tap-scale inline-flex items-center gap-2 -mb-1 pl-2 pr-4 py-2 rounded-full bg-white border border-navy-100/70 shadow-sm text-[13px] font-semibold text-navy-700"
+          >
+            <span className="w-7 h-7 rounded-full bg-navy-50 flex items-center justify-center">
+              <ArrowLeft size={15} strokeWidth={2.3} />
+            </span>
+            All members
+          </Link>
+
+          {/* Profile hero */}
+          <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 shadow-card">
+            <svg className="absolute -right-10 -top-16 w-64 h-64 text-white pointer-events-none" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+              {[30, 52, 74, 96].map((r, i) => (
+                <circle key={r} cx="100" cy="100" r={r} stroke="currentColor" strokeOpacity={0.09 - i * 0.015} strokeWidth="1" />
+              ))}
+            </svg>
+            <div className="absolute -left-16 -bottom-20 w-52 h-52 rounded-full bg-primary-500/20 blur-3xl pointer-events-none" />
+            <div className="relative">
+              <div className="flex items-center gap-4">
+                <div className="relative shrink-0">
+                  <MemberAvatar name={m.name} src={m.photo_url} size={76} className="ring-4 ring-white/15" />
+                  <button
+                    type="button"
+                    onClick={() => setModal("photo")}
+                    aria-label="Change photo"
+                    className="tap-scale absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white text-navy-700 shadow-card flex items-center justify-center"
+                  >
+                    <Camera size={14} />
+                  </button>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusPill status={m.display_status} daysLeft={m.days_left} />
+                    {m.has_pt && <span className="text-[11px] font-semibold bg-violet-400/20 text-violet-200 px-2 py-0.5 rounded-full">PT</span>}
+                  </div>
+                  <p className="mt-2 font-display font-semibold text-[17px] leading-tight truncate">{m.plan_name || "No plan"}</p>
+                  {m.end_date && (
+                    <p className="mt-1 flex items-center gap-1.5 text-[12px] text-white/60">
+                      <CalendarDays size={13} /> {fmtDate(m.start_date)} → {fmtDate(m.end_date)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {hasPeriod && leftDays !== null && (
+                <div className="mt-4">
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${m.display_status === "expired" ? "bg-primary-400" : m.display_status === "expiring" ? "bg-amber-400" : "bg-emerald-400"}`}
+                      style={{ width: `${usedPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex justify-between text-[10.5px] text-white/45">
+                    <span>Started</span>
+                    <span>{totalDays} days</span>
+                    <span>Ends</span>
+                  </div>
+                </div>
+              )}
+
+              {(m.shift_name || m.status === "frozen") && (
+                <div className="mt-3 space-y-1.5">
+                  {m.shift_name && (
+                    <p className="flex items-center gap-1.5 text-[12px] text-white/70"><Clock size={13} /> Shift: {m.shift_name} ({shiftRange(m)})</p>
+                  )}
+                  {m.status === "frozen" && (
+                    <p className="text-[12px] text-sky-200 bg-sky-400/10 rounded-xl px-3 py-2">Frozen since {fmtDate(m.frozen_on)} until {fmtDate(m.freeze_until)}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="min-w-0 rounded-2xl bg-white/[0.07] ring-1 ring-inset ring-white/10 px-3 py-2.5">
+                  <p className="text-[10.5px] text-white/55">Days left</p>
+                  <p className="mt-1 font-display font-semibold text-[15px] tabular-nums truncate">{leftDays === null ? "–" : leftDays}</p>
+                </div>
+                <div className="min-w-0 rounded-2xl bg-white/[0.07] ring-1 ring-inset ring-white/10 px-3 py-2.5">
+                  <p className="text-[10.5px] text-white/55">Paid</p>
+                  <p className="mt-1 font-display font-semibold text-[15px] tabular-nums truncate">{inr(paidTotal)}</p>
+                </div>
+                <div className={`min-w-0 rounded-2xl px-3 py-2.5 ring-1 ring-inset ${hasDue ? "bg-primary-500/25 ring-primary-300/30" : "bg-white/[0.07] ring-white/10"}`}>
+                  <p className="text-[10.5px] text-white/55">Due</p>
+                  <p className="mt-1 font-display font-semibold text-[15px] tabular-nums truncate">{inr(m.balance_due)}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Main action */}
+          <button
+            type="button"
+            onClick={() => setModal("renew")}
+            disabled={m.status === "frozen"}
+            className="tap-scale w-full h-[54px] rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-white font-semibold text-[15px] shadow-card flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <RefreshCw size={18} /> Renew{rq ? ` ${inr(rq.total)}` : ""}
+          </button>
+
+          {/* Action grid */}
+          <section className="rounded-3xl bg-white border border-navy-100/70 shadow-card p-4">
+            <h2 className="font-display font-semibold text-[15px] text-navy-900 pb-3">Actions</h2>
+            <div className="grid grid-cols-4 gap-x-2 gap-y-4">
+              <ActionTile icon={Phone} label="Call" tone="emerald" href={callHref} />
+              <ActionTile icon={MessageSquare} label="Message" tone="sky" onClick={() => setMsg({ title: "Message", types: msgTypes })} />
+              <ActionTile icon={IndianRupee} label="Record payment" tone="amber" onClick={() => setModal("pay")} disabled={!hasDue} badge={hasDue} />
+              <ActionTile icon={Link2} label="Payment link" tone="violet" onClick={() => setModal("link")} disabled={!pr.razorpay && !pr.upi} />
+              {m.status === "frozen" ? (
+                <ActionTile icon={Snowflake} label="Unfreeze" tone="sky" onClick={() => act(() => gymService.unfreeze(vid, m.id), "Membership resumed")} />
+              ) : (
+                <ActionTile icon={Snowflake} label="Freeze" tone="sky" onClick={() => setModal("freeze")} disabled={!m.end_date || m.days_left < 0 || (plan && !plan.freeze_allowed)} />
+              )}
+              <ActionTile icon={Dumbbell} label="Workout" tone="red" onClick={() => setModal("workout")} />
+              <ActionTile icon={CreditCard} label="Card" tone="navy" onClick={() => setModal("card")} />
+              <ActionTile icon={Pencil} label="Edit details" tone="navy" onClick={() => setModal("edit")} />
+            </div>
+          </section>
+          {!pr.razorpay && !pr.upi && (
+            <p className="text-xs text-amber-700 bg-amber-50 rounded-2xl px-3.5 py-3 leading-snug">Add your UPI ID (Settings &gt; Payment) or connect Razorpay in Gym Settings to create payment links.</p>
+          )}
+
+          {/* Personal details */}
+          {hasDetails && (
+            <section className="rounded-3xl bg-white border border-navy-100/70 shadow-card p-4">
+              <h2 className="font-display font-semibold text-[15px] text-navy-900 pb-3">Details</h2>
+              <div className="space-y-3.5">
+                {m.goal && <InfoRow icon={Target} label="Goal" tone="emerald"><span className="capitalize">{m.goal.replace(/_/g, " ")}</span></InfoRow>}
+                {bodyText && <InfoRow icon={Ruler} label="Body" tone="sky">{bodyText}</InfoRow>}
+                {m.parent_name && <InfoRow icon={UserRound} label="Parent" tone="violet">{m.parent_name}</InfoRow>}
+                {m.address && <InfoRow icon={MapPin} label="Address" tone="amber">{m.address}</InfoRow>}
+                {m.health_notes && <InfoRow icon={HeartPulse} label="Health" tone="red">{m.health_notes}</InfoRow>}
+              </div>
+            </section>
+          )}
+
+          {/* Membership history */}
+          <section className="rounded-3xl bg-white border border-navy-100/70 shadow-card p-4">
+            <h2 className="font-display font-semibold text-[15px] text-navy-900 pb-3">Membership history</h2>
+            {memberships.length === 0 ? (
+              <p className="text-sm text-navy-400">No memberships yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {memberships.map((ms) => {
+                  const total = Number(ms.total_amount) || 0;
+                  const paid = Number(ms.amount_paid) || 0;
+                  const pct = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 100;
+                  return (
+                    <div key={ms.id} className="rounded-2xl bg-navy-50/60 p-3.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-display font-semibold text-[14px] text-navy-900 truncate">{ms.plan_name}</p>
+                          <span className="inline-block mt-1 text-[10.5px] font-medium uppercase tracking-wide text-navy-500 bg-white rounded-full px-2 py-0.5">{ms.kind}</span>
+                        </div>
+                        <p className="font-display font-bold text-[15px] text-navy-900 tabular-nums shrink-0">{inr(ms.total_amount)}</p>
+                      </div>
+                      <p className="mt-2 flex items-center gap-1.5 text-[12px] text-navy-500">
+                        <CalendarDays size={12} /> {fmtDate(ms.start_date)} → {fmtDate(ms.end_date)}{ms.freeze_days_used ? ` · ${ms.freeze_days_used}d frozen` : ""}
+                      </p>
+                      <div className="mt-2.5 h-1.5 rounded-full bg-white overflow-hidden">
+                        <div className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : "bg-amber-400"}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="mt-1.5 text-[11.5px] text-navy-500">Paid <b className="text-navy-800 tabular-nums">{inr(paid)}</b> of {inr(total)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Payments */}
+          <section className="rounded-3xl bg-white border border-navy-100/70 shadow-card p-4">
+            <h2 className="font-display font-semibold text-[15px] text-navy-900 pb-3">Payments</h2>
+            {payments.length === 0 ? (
+              <p className="text-sm text-navy-400">No payments yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {payments.map((p) => (
+                  <div key={p.id} className={`rounded-2xl p-3 ${p.status === "pending" ? "bg-amber-50" : "bg-navy-50/60"}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${p.status === "paid" ? "bg-emerald-100 text-emerald-600" : p.status === "pending" ? "bg-amber-100 text-amber-600" : "bg-navy-100 text-navy-400"}`}>
+                        {p.status === "paid" ? <Check size={18} strokeWidth={2.6} /> : p.status === "pending" ? <Clock size={18} /> : <X size={18} />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-display font-bold text-[15px] text-navy-900 tabular-nums">
+                          {inr(p.amount)} <span className="text-[10.5px] font-medium uppercase text-navy-400 ml-1">{p.mode}</span>
+                        </p>
+                        <p className="text-[12px] text-navy-500 mt-0.5 truncate">{p.status === "paid" ? `${fmtDate(p.paid_on)} · ${p.receipt_no}` : p.status}</p>
+                      </div>
+                    </div>
+                    {p.status === "paid" && (
+                      <div className="mt-2.5 flex gap-2">
+                        <button type="button" onClick={() => downloadReceipt(p)} className="tap-scale flex-1 h-10 rounded-xl bg-white border border-navy-100 text-[13px] font-medium text-navy-700 flex items-center justify-center gap-1.5">
+                          <Receipt size={14} /> Receipt
+                        </button>
+                        <button type="button" onClick={() => setMsg({ title: "Receipt message", params: { type: "receipt", payment_id: p.id } })} aria-label="Send receipt message" className="tap-scale w-10 h-10 rounded-xl bg-white border border-navy-100 text-navy-700 flex items-center justify-center">
+                          <MessageSquare size={15} />
+                        </button>
+                        {canDelete && (
+                          <button type="button" onClick={() => setPayEdit(p)} aria-label="Edit payment" className="tap-scale w-10 h-10 rounded-xl bg-white border border-navy-100 text-navy-700 flex items-center justify-center">
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {p.status === "pending" && (
+                      <div className="mt-2.5 flex gap-2">
+                        {!p.rzp_link_id && (
+                          <button type="button" onClick={() => act(() => gymService.confirmPayment(vid, p.id), "Confirmed")} className="tap-scale flex-1 h-10 rounded-xl bg-primary-600 text-white text-[13px] font-semibold">Confirm</button>
+                        )}
+                        <button type="button" onClick={() => act(() => gymService.cancelPayment(vid, p.id), "Cancelled")} className="tap-scale flex-1 h-10 rounded-xl bg-white border border-navy-200 text-[13px] font-medium text-navy-700">Cancel</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Workout plans */}
+          <section className="rounded-3xl bg-white border border-navy-100/70 shadow-card p-4">
+            <h2 className="font-display font-semibold text-[15px] text-navy-900 pb-3">Workout plans</h2>
+            {plans.length === 0 ? (
+              <p className="text-sm text-navy-400">No plan assigned yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {plans.map((p) => (
+                  <div key={p.id} className="rounded-2xl bg-navy-50/60 p-3">
+                    <Link to={`/dashboard/gym/workouts/${p.id}`} className="tap-scale flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center shrink-0"><Dumbbell size={18} /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-[13.5px] text-navy-900 truncate">{p.name}</p>
+                        <p className="text-[12px] text-navy-400 mt-0.5">Assigned {fmtDate(String(p.createdAt).slice(0, 10))}</p>
+                      </div>
+                      <ChevronRight size={16} className="text-navy-300 shrink-0" />
+                    </Link>
+                    <div className="mt-2.5 flex gap-2">
+                      <a href={`${API_BASE_URL}/public/gym/workout/${p.share_token}/pdf`} target="_blank" rel="noopener noreferrer" className="tap-scale flex-1 h-10 rounded-xl bg-white border border-navy-100 text-[13px] font-medium text-primary-600 flex items-center justify-center gap-1.5">
+                        <FileText size={14} /> Download PDF
+                      </a>
+                      <button type="button" onClick={() => setMsg({ title: "Workout plan message", params: { type: "workout", plan_id: p.id } })} aria-label="Send workout plan message" className="tap-scale w-10 h-10 rounded-xl bg-white border border-navy-100 text-navy-700 flex items-center justify-center">
+                        <MessageSquare size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Careful actions, kept away from the everyday buttons */}
+          <section className="rounded-3xl border border-primary-100 bg-primary-50/40 p-4">
+            <h2 className="font-display font-semibold text-[14px] text-primary-700 pb-3">Careful actions</h2>
+            <div className="space-y-2">
+              <button type="button" onClick={() => setModal("archive")} className="tap-scale w-full h-12 rounded-2xl bg-white border border-primary-100 text-primary-600 text-[13.5px] font-semibold flex items-center justify-center gap-2">
+                <Archive size={16} /> Archive member
+              </button>
+              {canDelete && (
+                <button type="button" onClick={() => setModal("delete")} className="tap-scale w-full h-12 rounded-2xl bg-white border border-primary-100 text-primary-600 text-[13.5px] font-semibold flex items-center justify-center gap-2">
+                  <Trash2 size={16} /> Delete member
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* ================= DESKTOP / TABLET (unchanged) ================= */}
+        <div className="hidden md:block">
         <Card className="mb-3">
           <div className="flex items-start gap-4">
             <div className="relative">
@@ -619,7 +902,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
             </div>
           )}
         </Card>
-  
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
           <Button onClick={() => setModal("renew")} disabled={m.status === "frozen"}><RefreshCw size={14} /> Renew{rq ? ` ${inr(rq.total)}` : ""}</Button>
           <Button variant="outline" onClick={() => setModal("pay")} disabled={!hasDue}><IndianRupee size={14} /> Record payment</Button>
@@ -635,7 +918,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
           {canDelete && <Button variant="outline" className="sm:col-span-2 text-red-600" onClick={() => setModal("delete")}><Trash2 size={14} /> Delete member</Button>}
         </div>
         {!pr.razorpay && !pr.upi && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">Add your UPI ID (Settings &gt; Payment) or connect Razorpay in Gym Settings to create payment links.</p>}
-  
+
         <div className="grid md:grid-cols-2 gap-3">
           <Card title="Membership history">
             <div className="divide-y text-sm">
@@ -685,6 +968,8 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
               </div>
             )}
           </Card>
+        </div>
+
         </div>
   
         {msg && <MessageModal key={msg.title} onClose={() => setMsg(null)} vid={vid} memberId={m.id} title={msg.title} types={msg.types} params={msg.params} />}

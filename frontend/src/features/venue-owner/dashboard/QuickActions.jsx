@@ -24,6 +24,16 @@ const SHORTCUTS = [
 
 const MAX_TILES = 8;
 
+// Soft gradients used on mobile only (desktop keeps the flat chip colours).
+const MOBILE_GRADIENTS = {
+  sky: "from-sky-50 to-sky-100",
+  emerald: "from-emerald-50 to-emerald-100",
+  violet: "from-violet-50 to-violet-100",
+  red: "from-primary-50 to-primary-100",
+  amber: "from-amber-50 to-amber-100",
+  navy: "from-navy-50 to-navy-100"
+};
+
 export default function QuickActions() {
   const visible = useVisibleNavItems(ownerSidebarItems);
 
@@ -38,7 +48,8 @@ export default function QuickActions() {
 
   return (
     <motion.section variants={fadeUp} aria-label="Shortcuts">
-      <Surface className="p-3 md:p-4">
+      <Surface className="p-4 md:p-4">
+        <h2 className="md:hidden px-0.5 pb-3 font-display font-semibold text-[15px] text-navy-900">Quick actions</h2>
         <motion.div
           variants={stagger}
           initial="hidden"
@@ -51,10 +62,10 @@ export default function QuickActions() {
               <motion.div key={item.path} variants={fadeUp}>
                 <Link
                   to={item.path}
-                  className="tap-scale group flex flex-col items-center gap-1.5 rounded-xl py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
+                  className="tap-scale group flex flex-col items-center gap-2 md:gap-1.5 rounded-xl py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
                 >
                   <span
-                    className={`w-12 h-12 md:w-[52px] md:h-[52px] rounded-2xl flex items-center justify-center transition-transform group-hover:-translate-y-0.5 ${TONES[tone].chip}`}
+                    className={`w-14 h-14 rounded-[20px] md:w-[52px] md:h-[52px] md:rounded-2xl flex items-center justify-center transition-transform group-hover:-translate-y-0.5 bg-gradient-to-br ${MOBILE_GRADIENTS[tone]} md:bg-none ring-1 ring-inset ring-black/5 md:ring-0 shadow-sm md:shadow-none ${TONES[tone].chip}`}
                   >
                     <Icon size={22} strokeWidth={2} />
                   </span>
