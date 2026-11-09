@@ -5,6 +5,7 @@
 export const PLATFORM_DEFAULT_COLOR = "#7c3aed";
 
 const GYM_SLUGS = ["gym-fitness"];
+const LIBRARY_SLUGS = ["study-library"];
 const SHOP_SLUGS = [
   "clothing-store", "footwear-store", "mobile-shop", "pharmacy",
   "kirana-store", "electronics-store", "stationery-store"
@@ -34,7 +35,14 @@ export const VERTICALS = {
     food: true,
     navLabels: { product_catalog: "Order Online", menu: "Menu" }
   },
+  library: {
+    key: "library",
+    accent: "#2563eb",
+    darkDefault: false,
+    navLabels: { packages: "Seat Plans", schedule: "Shifts", stats: "About" }
+  },
   venue: { key: "venue", accent: null, darkDefault: false, navLabels: {} }
+  
 };
 
 const categoriesOf = (venue) =>
@@ -48,6 +56,7 @@ export function isFoodVenue(venue) {
 export function getVertical(venue) {
   for (const c of categoriesOf(venue)) {
     if (GYM_SLUGS.includes(c)) return VERTICALS.gym;
+    if (LIBRARY_SLUGS.includes(c)) return VERTICALS.library;
     if (SHOP_SLUGS.includes(c)) return VERTICALS.shop;
     if (FOOD_SLUGS.includes(c)) return VERTICALS.food;
   }

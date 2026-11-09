@@ -313,6 +313,22 @@ const CATEGORY_ATTRIBUTES = {
     bool("trial_session", "Free trial session", { group: "Gym details", filterable: true }),
     bool("diet_plans", "Diet plans offered", { group: "Gym details" })
   ],
+  "study-library": [
+    sel("library_type", "Who can join", ["Co-ed", "Boys only", "Girls only"], {
+      group: "Library details", required: true, filterable: true
+    }),
+    num("total_seats", "Total seats", { group: "Library details", min: 1, max: 5000 }),
+    text("opening_hours", "Opening hours", { group: "Library details", placeholder: "e.g. 6:00 AM to 11:00 PM" }),
+    bool("open_24x7", "Open 24x7", { group: "Library details", filterable: true }),
+    multi("seat_types", "Seat types", ["Open desk", "Table with partition", "Individual cabin", "Reclining chair"], { group: "Library details" }),
+    tags("exams_focus", "Exams / courses students prepare for", { group: "Library details", max: 8, placeholder: "e.g. UPSC, NEET, CA" }),
+    bool("trial_day", "Free trial day", { group: "Library details", filterable: true }),
+    bool("books_lending", "Books available to borrow", { group: "Library details" }),
+    multi("facilities", "Facilities", [
+      "AC", "WiFi", "Power backup", "Lockers", "CCTV", "Drinking water", "Charging points",
+      "Silent zone", "Newspapers & magazines", "Tea / coffee", "Washroom", "Parking"
+    ], { group: "Facilities", filterable: true })
+  ],
   "salon-spa": [
     multi("salon_for", "Services for", ["Men", "Women", "Kids", "Unisex"], {
       group: "Salon details", required: true, filterable: true
@@ -485,6 +501,7 @@ const CATEGORY_SUGGESTIONS = {
   "clothing-store": ["Men's wear", "Women's wear", "Kids wear", "Ethnic wear"],
   pharmacy: ["Prescription medicines", "OTC medicines", "Baby care", "Health supplements"],
   "gym-fitness": ["Weight training", "Cardio", "Personal training", "Zumba", "CrossFit"],
+  "study-library": ["Reading seat", "AC study room", "Individual cabin", "Locker", "Book lending"],
   "salon-spa": ["Haircut & styling", "Facial", "Hair colour", "Waxing", "Bridal makeup", "Spa & massage"],
   clinic: ["General physician", "Dental care", "Child specialist", "Skin care", "Physiotherapy"],
   "yoga-center": ["Hatha yoga", "Meditation", "Weight loss yoga", "Therapy yoga"],

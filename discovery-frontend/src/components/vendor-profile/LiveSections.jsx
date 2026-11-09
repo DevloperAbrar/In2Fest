@@ -59,6 +59,41 @@ function GymPlans({ plans }) {
   );
 }
 
+/* ------------------------------ Library shifts ------------------------------ */
+const t12 = (t) => {
+  const m = /^(\d{2}):(\d{2})$/.exec(String(t || ""));
+  if (!m) return "";
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`;
+};
+
+function LibraryShifts({ live }) {
+  const badge = (s) =>
+    s.availability === "full" ? ["Full", "bg-red-50 text-red-600"]
+      : s.availability === "few" ? [`Only ${s.free} seats left`, "bg-amber-50 text-amber-700"]
+        : ["Seats available", "bg-green-50 text-green-700"];
+  return (
+    <Card title="Shifts & monthly fees" subtitle={`${live.total_seats} seats across ${live.halls} ${live.halls > 1 ? "halls" : "hall"}. Availability is live from the library.`}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {live.shifts.map((s) => {
+          const [label, cls] = badge(s);
+          return (
+            <div key={s.id} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-sm font-semibold text-gray-800">{s.name}</p>
+              <p className="text-xs text-gray-500 mb-2">{t12(s.start_time)} - {t12(s.end_time)}</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-navy-800">{rupee(s.price)}</span>
+                <span className="text-xs text-gray-500">/ month</span>
+              </div>
+              <span className={`inline-block mt-3 text-[11px] font-medium px-2 py-0.5 rounded-full ${cls}`}>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 /* ------------------------------ Food menu ------------------------------ */
 const DOT = { veg: ["border-green-600", "bg-green-600"], nonveg: ["border-red-600", "bg-red-600"], egg: ["border-amber-500", "bg-amber-500"] };
 
@@ -220,6 +255,7 @@ export default function LiveSections({ live, schema, attrs }) {
     <>
       {live?.type === "gym_plans" && hasRows(live.plans) && <GymPlans plans={live.plans} />}
       {live?.type === "food_menu" && hasRows(live.items) && <FoodMenu categories={live.categories || []} items={live.items} />}
+      {live?.type === "library_shifts" && hasRows(live.shifts) && <LibraryShifts live={live} />}
       {catalogs.map((a) => (
         <Card key={a.key} title={a.label}>
           {a.display === "table"

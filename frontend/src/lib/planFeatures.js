@@ -11,11 +11,13 @@ export const PLAN_FEATURES = [
   { key: "gym", label: "Gym Management", group: "gym", hint: "Members, plans, payments, leads" },
   { key: "gym_pro", label: "Gym Pro", group: "gym", hint: "Workouts, payment links, member card" },
   { key: "food", label: "Restaurant Suite", group: "food", hint: "Menu, live orders, QR, setup" },
-  { key: "food_pro", label: "Restaurant Pro", group: "food", hint: "POS, stock, offers, customers, reports" }
+  { key: "food_pro", label: "Restaurant Pro", group: "food", hint: "POS, stock, offers, customers, reports" },
+  { key: "library", label: "Library Management", group: "library", hint: "Halls, shifts, students, attendance, books" }
 ];
 
 export const PLAN_FEATURE_GROUPS = [
   { key: "common", label: "Common" },
   { key: "gym", label: "Gym & Fitness" },
-  { key: "food", label: "Restaurant & Food" }
+  { key: "food", label: "Restaurant & Food" },
+  { key: "library", label: "Library & Study Rooms" }
 ];

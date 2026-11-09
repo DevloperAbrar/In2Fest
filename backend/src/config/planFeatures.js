@@ -10,7 +10,8 @@ const PLAN_FEATURES = [
   { key: "clients", label: "Clients" },
   { key: "billing", label: "Billing" },
   { key: "gym", label: "Gym Management" },
-  { key: "food", label: "Restaurant Suite" }
+  { key: "food", label: "Restaurant Suite" },
+  { key: "library", label: "Library Management" }
 ];
 
 module.exports = { PLAN_FEATURES };

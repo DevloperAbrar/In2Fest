@@ -3,6 +3,7 @@
 
 const { GymPlan } = require("../../database/models");
 const menuService = require("../food/food.menu.service");
+const libraryLive = require("../library/library.live.service");
 
 const num = (v) => Number(v) || 0;
 
@@ -76,6 +77,8 @@ async function getLiveData(venue, vertical, activeFeatures = []) {
   try {
     if (vertical?.key === "gym" && activeFeatures.includes("gym")) return await gymPlans(venue.id);
     if (vertical?.key === "food" && activeFeatures.includes("food")) return await foodMenu(venue.id);
+    if (vertical?.key === "food" && activeFeatures.includes("food")) return await foodMenu(venue.id);
+    if (vertical?.key === "library" && activeFeatures.includes("library")) return await libraryLive.shifts(venue.id);
   } catch (err) {
     // The profile page must never fail because of this extra section.
     console.error("[MARKETPLACE] live data failed:", err.message);

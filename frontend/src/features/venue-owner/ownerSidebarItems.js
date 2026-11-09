@@ -1,11 +1,12 @@
 import {
   LayoutDashboard, Globe, CalendarClock, MessageSquare, CalendarCheck,
-  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag, UtensilsCrossed, Briefcase
+  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag, UtensilsCrossed, Briefcase, Library
 } from "lucide-react";
 
 export const ownerSidebarItems = [
   { navKey: "dashboard",   path: "/dashboard",                     label: "Dashboard",           icon: LayoutDashboard, primaryNav: true },
   { navKey: "gym",         path: "/dashboard/gym",                 label: "Gym",                 icon: Dumbbell,        requiredFeature: "gym", categorySlugs: ["gym-fitness"], primaryNav: true },
+  { navKey: "library",     path: "/dashboard/library",             label: "Library",             icon: Library,         requiredFeature: "library", categorySlugs: ["study-library"], primaryNav: true },
   // Staff: gym category only, owner only (hidden for team members in useVisibleNavItems). No navKey on purpose,
   // so the backend vendor-segment list does not need to change.
   { path: "/dashboard/staff",   label: "Staff",               icon: Briefcase,       requiredFeature: "gym", categorySlugs: ["gym-fitness"] },

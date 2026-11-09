@@ -64,7 +64,7 @@ import GymStore from "../features/venue-owner/gym/GymStore.jsx";
 import StaffAttendance from "../features/venue-owner/staff/StaffAttendance.jsx";
 import StaffList from "../features/venue-owner/staff/StaffList.jsx";
 import StaffPayroll from "../features/venue-owner/staff/StaffPayroll.jsx";
-import StaffDetail from "../features/venue-owner/staff/StaffDetail.jsx";  
+import StaffDetail from "../features/venue-owner/staff/StaffDetail.jsx";
 import FoodDashboard from "../features/venue-owner/food/FoodDashboard.jsx";
 import FoodOrders from "../features/venue-owner/food/FoodOrders.jsx";
 import FoodPOS from "../features/venue-owner/food/FoodPOS.jsx";
@@ -75,6 +75,17 @@ import FoodSetup from "../features/venue-owner/food/FoodSetup.jsx";
 import FoodOffers from "../features/venue-owner/food/FoodOffers.jsx";
 
 import OrdersPage from "../features/venue-owner/orders/OrdersPage.jsx";
+
+import LibraryDashboard from "../features/venue-owner/library/LibraryDashboard.jsx";
+import LibraryStudents from "../features/venue-owner/library/LibraryStudents.jsx";
+import StudentDetail from "../features/venue-owner/library/StudentDetail.jsx";
+import LibraryHalls from "../features/venue-owner/library/LibraryHalls.jsx";
+import LibraryShifts from "../features/venue-owner/library/LibraryShifts.jsx";
+import LibraryAttendance from "../features/venue-owner/library/LibraryAttendance.jsx";
+import LibraryPayments from "../features/venue-owner/library/LibraryPayments.jsx";
+import LibrarySettings from "../features/venue-owner/library/LibrarySettings.jsx";
+import LibraryBooks from "../features/venue-owner/library/LibraryBooks.jsx";
+import LibraryReminders from "../features/venue-owner/library/LibraryReminders.jsx";
 
 export default function VenueOwnerRoutes() {
   return (
@@ -136,12 +147,22 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><WorkoutBuilder /></RequireFeature>} />
         <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
         <Route path="gym/messages" element={<RequireFeature feature="gym"><GymMessages /></RequireFeature>} />
-        <Route path="gym/store" element={<RequireFeature feature="gym"><GymStore /></RequireFeature>} /> 
+        <Route path="gym/store" element={<RequireFeature feature="gym"><GymStore /></RequireFeature>} />
         <Route path="gym/settings" element={<RequireOwner><RequireFeature feature="gym"><GymSettings /></RequireFeature></RequireOwner>} />
         <Route path="staff" element={<RequireFeature feature="gym"><StaffAttendance /></RequireFeature>} />
         <Route path="staff/members" element={<RequireFeature feature="gym"><StaffList /></RequireFeature>} />
         <Route path="staff/members/:id" element={<RequireFeature feature="gym"><StaffDetail /></RequireFeature>} />
         <Route path="staff/payroll" element={<RequireFeature feature="gym"><StaffPayroll /></RequireFeature>} />
+        <Route path="library" element={<RequireFeature feature="library"><LibraryDashboard /></RequireFeature>} />
+        <Route path="library/students" element={<RequireFeature feature="library"><LibraryStudents /></RequireFeature>} />
+        <Route path="library/students/:id" element={<RequireFeature feature="library"><StudentDetail /></RequireFeature>} />
+        <Route path="library/halls" element={<RequireFeature feature="library"><LibraryHalls /></RequireFeature>} />
+        <Route path="library/shifts" element={<RequireFeature feature="library"><LibraryShifts /></RequireFeature>} />
+        <Route path="library/attendance" element={<RequireFeature feature="library"><LibraryAttendance /></RequireFeature>} />
+        <Route path="library/payments" element={<RequireFeature feature="library"><LibraryPayments /></RequireFeature>} />
+        <Route path="library/books" element={<RequireFeature feature="library"><LibraryBooks /></RequireFeature>} />
+        <Route path="library/reminders" element={<RequireFeature feature="library"><LibraryReminders /></RequireFeature>} />
+        <Route path="library/settings" element={<RequireOwner><RequireFeature feature="library"><LibrarySettings /></RequireFeature></RequireOwner>} />
         <Route path="food" element={<RequireFeature feature="food"><FoodDashboard /></RequireFeature>} />
         <Route path="food/orders" element={<RequireFeature feature="food"><FoodOrders /></RequireFeature>} />
         <Route path="food/pos" element={<RequireFeature feature="food"><FoodPOS /></RequireFeature>} />

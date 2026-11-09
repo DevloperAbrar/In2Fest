@@ -5,6 +5,7 @@ const FOOD = ["restaurant", "bakery-sweets", "cloud-kitchen"];
 const SHOPS = ["kirana-store", "clothing-store", "electronics-store", "mobile-shop", "pharmacy", "stationery-store"];
 const EVENTS = ["marriage-hall", "banquet-hall", "party-lawn", "farmhouse"];
 const GENERAL = ["other-business"];
+const LIBRARY = ["study-library"];
 
 // key = attribute key, value "1" means yes/no attribute is true.
 const GROUPS = [
@@ -12,6 +13,13 @@ const GROUPS = [
     { key: "trial_session", value: "1", label: "Free trial" },
     { key: "gym_type", value: "Women only", label: "Women only" },
     { key: "diet_plans", value: "1", label: "Diet plans" }
+  ] },
+  { slugs: LIBRARY, items: [
+    { key: "trial_day", value: "1", label: "Free trial day" },
+    { key: "open_24x7", value: "1", label: "Open 24x7" },
+    { key: "library_type", value: "Girls only", label: "Girls only" },
+    { key: "facilities", value: "AC", label: "AC" },
+    { key: "facilities", value: "WiFi", label: "WiFi" }
   ] },
   { slugs: FOOD, items: [
     { key: "food_type", value: "Pure vegetarian", label: "Pure veg" },

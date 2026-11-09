@@ -4,7 +4,7 @@
 const MODULE_NAV = {
   website_builder: "website", marketplace_profile: "marketplace", reviews: "reviews",
   slots: "slots", inquiries: "inquiries", bookings: "bookings", clients: "clients",
-  billing: "billing", gym: "gym", food: "food"
+  billing: "billing", gym: "gym", food: "food", library: "library"
 };
 
 const ALWAYS_NAV = ["dashboard", "settings"];
@@ -78,6 +78,13 @@ const SEGMENTS = {
     categories: ["restaurant", "cloud-kitchen", "bakery-sweets", "food-court", "restaurant-franchise", "small-hotel"],
     modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "food"],
     nav: [...ALWAYS_NAV, "food", "inquiries", ...COMMON_NAV]
+  },
+  library: {
+    key: "library",
+    label: "Library & Study Rooms",
+    categories: ["study-library"],
+    modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "library"],
+    nav: [...ALWAYS_NAV, "library", "inquiries", "website", "marketplace", "reviews", "referrals"]
   }
 };
 

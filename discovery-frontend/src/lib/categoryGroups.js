@@ -1,4 +1,4 @@
-import { Building2, Camera, Palette, Wand2, PartyPopper, Flame, Route, Sparkles } from "lucide-react";
+import { Building2, Camera, Palette, Wand2, PartyPopper, Flame, Route, Sparkles, BookOpen } from "lucide-react";
 
 /**
  * Groups every vendor category (from useCategories / the live meta API)
@@ -55,6 +55,12 @@ export const CATEGORY_GROUPS = [
     title: "Planning & Travel",
     icon: Route,
     slugs: ["event-manager", "wedding-planner", "travel-transport"],
+  },
+  {
+    key: "library",
+    title: "Libraries & Study Rooms",
+    icon: BookOpen,
+    slugs: ["study-library"],
   },
 ];
 

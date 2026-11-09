@@ -277,6 +277,7 @@ const CATEGORY_SECTION_DEFAULTS = {
 
   // health & wellness
   "gym-fitness": ["stats", "courses", "packages", "schedule", "team", "results", "supplements", "hours", "faq", "cta_banner"],
+  "study-library": ["stats", "packages", "schedule", "video_tour", "hours", "faq", "cta_banner"],
   "salon-spa": ["menu", "portfolio", "team", "hours", "faq"],
   clinic: ["team", "hours", "cta_banner", "faq"],
   "yoga-center": ["courses", "packages", "schedule", "team", "hours", "faq"],
@@ -310,6 +311,12 @@ const CATEGORY_SECTION_TITLES = {
     team: "Meet Our Trainers",
     results: "Member Transformations",
     stats: "Our Numbers"
+  },
+  "study-library": {
+    packages: "Seat Plans & Fees",
+    schedule: "Shift Timings",
+    stats: "Our Numbers",
+    video_tour: "Take a Tour"
   },
   "yoga-center": { courses: "Our Classes", schedule: "Class Timetable", packages: "Membership Plans" },
   "marriage-hall": { video_tour: "Take a Virtual Tour" },

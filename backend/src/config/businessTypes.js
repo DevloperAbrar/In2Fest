@@ -186,6 +186,27 @@ const BUSINESS_TYPES = {
     })
   },
 
+  library: {
+    key: "library",
+    label: "Library & Study Rooms",
+    description: "Study libraries and reading rooms with seats, shifts, attendance and book lending",
+    icon: "library",
+    modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "library"],
+    terms: terms({
+      client: "Student", clients: "Students",
+      inquiry: "Enquiry", inquiries: "Enquiries",
+      booking: "Admission", bookings: "Admissions",
+      slot: "Shift", slots: "Shifts",
+      offering: "Plan", offerings: "Plans"
+    }),
+    billing: billing({
+      units: ["month", "quarter", "year", "day"],
+      defaultUnit: "month",
+      defaultGstRate: 0,
+      defaultTerms: "Fees once paid are non-refundable. The seat is reserved for the shift and period paid."
+    })
+  },
+
   general: {
     key: "general",
     label: "Other Business",

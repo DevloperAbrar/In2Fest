@@ -22,6 +22,7 @@ async function safe(promise, fallback) {
 function resolveSegment(venue) {
   const cats = [venue.business_category, ...(venue.secondary_categories || [])].filter(Boolean);
   if (cats.some((c) => GC.GYM_CATEGORY_SLUGS.includes(c))) return "gym";
+  if (cats.includes("study-library")) return "library";
   if (subtypeFor(venue)) return "food";
   if (typeof BT.getBusinessTypeKey === "function" && cats.some((c) => BT.getBusinessTypeKey(c) === "retail")) return "retail";
   return "bookings";
@@ -310,7 +311,61 @@ async function retailBlock(venueId) {
   };
 }
 
-const BLOCKS = { gym: gymBlock, food: foodBlock, retail: retailBlock };
+async function libraryBlock(venueId) {
+  const { today, monthStart, keys, from } = periods();
+  const in7 = U.addDays(today, 7);
+  const q = (sql) => sequelize.query(sql, { replacements: { v: venueId, today, in7, monthStart, from }, type: QueryTypes.SELECT });
+
+  const [trendRows, [life = {}], [s = {}], [att = {}]] = await Promise.all([
+    q(`SELECT to_char(paid_on, 'YYYY-MM') AS month, SUM(amount)::float AS total
+         FROM lib_payments WHERE venue_id = :v AND status = 'paid' AND paid_on >= :from GROUP BY 1`),
+    q(`SELECT COALESCE(SUM(amount), 0)::float AS total, COUNT(*)::int AS n
+         FROM lib_payments WHERE venue_id = :v AND status = 'paid'`),
+    q(`SELECT COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE status = 'active' AND end_date >= :today)::int AS active,
+         COUNT(*) FILTER (WHERE status = 'active' AND end_date BETWEEN :today AND :in7)::int AS expiring,
+         COUNT(*) FILTER (WHERE status = 'active' AND end_date < :today)::int AS expired,
+         COUNT(*) FILTER (WHERE balance_due > 0)::int AS dues_count,
+         COALESCE(SUM(balance_due), 0)::float AS dues_total,
+         COUNT(*) FILTER (WHERE joined_on >= :monthStart)::int AS new_this_month
+       FROM lib_students WHERE venue_id = :v AND is_archived = false AND status <> 'left'`),
+    q(`SELECT COUNT(*)::int AS present FROM lib_attendance WHERE venue_id = :v AND att_date = :today AND status = 'present'`)
+  ]);
+
+  const revenueTrend = fillTrend(keys, trendRows);
+  const avgPerPayment = num(life.n) > 0 ? Math.round(num(life.total) / num(life.n)) : 0;
+
+  return {
+    labels: { revenue: "This month's collection", empty: "Your first payment will show up here", pulseTitle: "Students at a glance" },
+    heroStats: [
+      { key: "active", label: "Active students", value: num(s.active), kind: "number" },
+      { key: "present", label: "Present today", value: num(att.present), kind: "number" },
+      { key: "expiring", label: "Expiring in 7 days", value: num(s.expiring), kind: "number" }
+    ],
+    tiles: [
+      { key: "lifetime", icon: "wallet", tone: "violet", label: "Lifetime collection", kind: "currency", value: num(life.total) },
+      { key: "students", icon: "users", tone: "emerald", label: "Active students", kind: "number", value: num(s.active), sublabel: `${num(s.new_this_month)} joined this month` },
+      { key: "dues", icon: "clock", tone: "sky", label: "Pending dues", kind: "currency", value: num(s.dues_total), sublabel: `${num(s.dues_count)} students` }
+    ],
+    pulse: [
+      { key: "expiring", label: "Expiring in 7 days", hint: "Fees ending this week", value: num(s.expiring), kind: "number", tone: "amber", to: "/dashboard/library/students" },
+      { key: "expired", label: "Expired", hint: "Waiting for renewal", value: num(s.expired), kind: "number", tone: "red", to: "/dashboard/library/students" },
+      { key: "dues", label: "Pending dues", hint: `${num(s.dues_count)} students`, value: num(s.dues_total), kind: "currency", tone: "violet", to: "/dashboard/library/payments" },
+      { key: "present", label: "Present today", hint: "Attendance marked", value: num(att.present), kind: "number", tone: "sky", to: "/dashboard/library/attendance" }
+    ],
+    legacy: {
+      monthlyBookings: num(s.new_this_month),
+      monthlyRevenue: revenueTrend[5].revenue,
+      totalPendingPayments: num(s.dues_total),
+      revenueTrend,
+      totalRevenueAllTime: num(life.total),
+      totalClients: num(s.total),
+      avgBookingValue: avgPerPayment
+    }
+  };
+}
+
+const BLOCKS = { gym: gymBlock, food: foodBlock, retail: retailBlock, library: libraryBlock };
 
 /* ───────────── handler ───────────── */
 
