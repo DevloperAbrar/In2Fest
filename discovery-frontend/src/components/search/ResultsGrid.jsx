@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, SearchX } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import VendorCard from "./VendorCard";
 
 const gridVariants = {
@@ -26,10 +26,10 @@ function VendorGrid({ vendors }) {
       variants={gridVariants}
       initial="hidden"
       animate="visible"
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+      className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5"
     >
       {vendors.map((v) => (
-        <motion.div key={v.id} variants={cardVariants}>
+        <motion.div key={v.id} variants={cardVariants} className="min-w-0">
           <VendorCard vendor={v} />
         </motion.div>
       ))}
@@ -37,51 +37,58 @@ function VendorGrid({ vendors }) {
   );
 }
 
+function GroupLabel({ children }) {
+  return (
+    <div className="flex items-center gap-3 mb-4">
+      <span className="w-2 h-2 rounded-full bg-accent-500" />
+      <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-navy-500 whitespace-nowrap">{children}</p>
+      <div className="h-px flex-1 bg-navy-100" />
+    </div>
+  );
+}
+
+function EmptyState({ onClearFilters }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="relative overflow-hidden flex flex-col items-center justify-center text-center py-16 px-6 bg-white border border-navy-100 rounded-3xl"
+    >
+      <svg width="150" height="90" viewBox="0 0 220 130" aria-hidden="true">
+        <path d="M10 110 a100 100 0 0 1 200 0" fill="none" stroke="#f5a623" strokeWidth="14" strokeLinecap="round" />
+        <path d="M42 110 a68 68 0 0 1 136 0" fill="none" stroke="#e8192c" strokeWidth="14" strokeLinecap="round" />
+        <path d="M74 110 a36 36 0 0 1 72 0" fill="none" stroke="#1a2035" strokeWidth="14" strokeLinecap="round" />
+      </svg>
+      <p className="mt-5 font-display font-extrabold text-xl text-navy-700">No businesses match these filters</p>
+      <p className="mt-2 text-sm text-navy-400 max-w-sm">
+        Try widening your budget, choosing a nearby city, or clearing a filter or two.
+      </p>
+      {onClearFilters && (
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="mt-6 rounded-full bg-accent-500 text-white text-sm font-extrabold px-7 py-3 shadow-[0_4px_0_0_#9e0f1b] hover:-translate-y-0.5 active:translate-y-1 active:shadow-none transition"
+        >
+          Clear all filters
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
+const pageBtn =
+  "w-10 h-10 flex items-center justify-center rounded-full border-2 border-navy-100 text-navy-500 disabled:opacity-30 hover:border-navy-700 hover:text-navy-700 transition-colors";
+
 /**
  * ResultsGrid
  *
- * `activeCategoryLabel` is only used to split/label the two sections below -
- * it never affects which vendors are shown or their order (that's already
- * decided server-side in search.service.js).
- *
- * When the current page of results has a mix of vendors whose PRIMARY
- * category matches what was searched and vendors who only offer it as a
- * secondary service (see category_match on each vendor, from the search
- * API), we show them as two clearly separated groups - specialists first,
- * "also offer this" after - the same way JustDial-style listings separate
- * a category's core businesses from allied/secondary ones. If there's no
- * such mix (no category filter, or every match is primary), this renders
- * exactly like a single plain grid, same as before.
+ * `activeCategoryLabel` only splits/labels the two groups below; it never
+ * changes which vendors show or their order (decided in search.service.js).
+ * Primary-category vendors come first, "also offer this" vendors after.
  */
 export default function ResultsGrid({ vendors = [], page, totalPages, onPageChange, onClearFilters, activeCategoryLabel }) {
-  if (!vendors.length) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex flex-col items-center justify-center text-center py-20 px-6 bg-white border border-gray-100 rounded-2xl"
-      >
-        <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mb-4">
-          <SearchX size={24} className="text-gray-300" />
-        </div>
-        <p className="font-display font-bold text-navy-900 mb-1.5">No vendors match these filters</p>
-        <p className="text-sm text-gray-500 max-w-sm mb-5">
-          Try widening your budget, choosing a nearby city, or clearing a filter or two.
-        </p>
-        {onClearFilters && (
-          <button
-            type="button"
-            onClick={onClearFilters}
-            className="text-sm font-semibold text-white px-5 py-2.5 rounded-xl shadow-sm"
-            style={{ background: "linear-gradient(135deg,#e8192c,#f5a623)" }}
-          >
-            Clear all filters
-          </button>
-        )}
-      </motion.div>
-    );
-  }
+  if (!vendors.length) return <EmptyState onClearFilters={onClearFilters} />;
 
   const pageWindow = getPageWindow(page, totalPages);
 
@@ -92,46 +99,34 @@ export default function ResultsGrid({ vendors = [], page, totalPages, onPageChan
   return (
     <div>
       {hasSecondaryMatches && primaryVendors.length > 0 && (
-        <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">
-          {activeCategoryLabel ? `${activeCategoryLabel} specialists` : "Best match"}
-        </p>
+        <GroupLabel>{activeCategoryLabel ? `${activeCategoryLabel} specialists` : "Best match"}</GroupLabel>
       )}
 
       {primaryVendors.length > 0 && <VendorGrid vendors={primaryVendors} />}
 
       {hasSecondaryMatches && secondaryVendors.length > 0 && (
-        <>
-          <div className="flex items-center gap-3 mt-8 mb-4">
-            <div className="h-px flex-1 bg-gray-100" />
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-400 whitespace-nowrap">
-              Also offer {activeCategoryLabel || "this service"}
-            </p>
-            <div className="h-px flex-1 bg-gray-100" />
-          </div>
+        <div className="mt-10">
+          <GroupLabel>Also offer {activeCategoryLabel || "this service"}</GroupLabel>
           <VendorGrid vendors={secondaryVendors} />
-        </>
+        </div>
       )}
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-1.5 mt-10">
+        <nav aria-label="Pagination" className="flex items-center justify-center gap-1.5 mt-12">
           <button
             type="button"
+            aria-label="Previous page"
             onClick={() => onPageChange(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-30 hover:bg-gray-50 transition-colors"
+            className={pageBtn}
           >
-            <ChevronLeft size={15} />
+            <ChevronLeft size={16} />
           </button>
 
           {pageWindow[0] > 1 && (
             <>
-              <button
-                onClick={() => onPageChange(1)}
-                className="w-9 h-9 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-              >
-                1
-              </button>
-              {pageWindow[0] > 2 && <span className="text-gray-300 px-1">…</span>}
+              <button onClick={() => onPageChange(1)} className="w-10 h-10 rounded-full text-sm font-bold text-navy-500 hover:bg-white">1</button>
+              {pageWindow[0] > 2 && <span className="text-navy-300 px-1">…</span>}
             </>
           )}
 
@@ -139,11 +134,11 @@ export default function ResultsGrid({ vendors = [], page, totalPages, onPageChan
             <button
               key={p}
               onClick={() => onPageChange(p)}
+              aria-current={p === page ? "page" : undefined}
               className={[
-                "w-9 h-9 rounded-lg text-sm font-semibold transition-colors",
-                p === page ? "text-white shadow-sm" : "text-gray-600 hover:bg-gray-50",
+                "w-10 h-10 rounded-full text-sm font-extrabold transition-colors",
+                p === page ? "bg-navy-700 text-white shadow-md" : "text-navy-500 hover:bg-white",
               ].join(" ")}
-              style={p === page ? { background: "linear-gradient(135deg,#e8192c,#f5a623)" } : undefined}
             >
               {p}
             </button>
@@ -151,13 +146,8 @@ export default function ResultsGrid({ vendors = [], page, totalPages, onPageChan
 
           {pageWindow[pageWindow.length - 1] < totalPages && (
             <>
-              {pageWindow[pageWindow.length - 1] < totalPages - 1 && (
-                <span className="text-gray-300 px-1">…</span>
-              )}
-              <button
-                onClick={() => onPageChange(totalPages)}
-                className="w-9 h-9 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-              >
+              {pageWindow[pageWindow.length - 1] < totalPages - 1 && <span className="text-navy-300 px-1">…</span>}
+              <button onClick={() => onPageChange(totalPages)} className="w-10 h-10 rounded-full text-sm font-bold text-navy-500 hover:bg-white">
                 {totalPages}
               </button>
             </>
@@ -165,13 +155,14 @@ export default function ResultsGrid({ vendors = [], page, totalPages, onPageChan
 
           <button
             type="button"
+            aria-label="Next page"
             onClick={() => onPageChange(Math.min(totalPages, page + 1))}
             disabled={page === totalPages}
-            className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-30 hover:bg-gray-50 transition-colors"
+            className={pageBtn}
           >
-            <ChevronRight size={15} />
+            <ChevronRight size={16} />
           </button>
-        </div>
+        </nav>
       )}
     </div>
   );

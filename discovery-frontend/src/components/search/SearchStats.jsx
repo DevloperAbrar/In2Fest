@@ -11,13 +11,8 @@ function formatINR(n) {
 }
 
 /**
- * SearchStats
- *
- * A lightweight, purely client-side insight strip computed from the vendors
- * already on the current results page - zero extra API calls, so it stays
- * cheap no matter how big the catalogue gets. Gives people the kind of
- * "at a glance" summary WeddingWire/Zola show above results, without the
- * cost of a dedicated analytics endpoint.
+ * Lightweight insight strip computed from the vendors already on the page.
+ * Zero extra API calls. Only real numbers, nothing is invented.
  */
 export default function SearchStats({ vendors = [], total = 0 }) {
   const stats = useMemo(() => {
@@ -41,10 +36,10 @@ export default function SearchStats({ vendors = [], total = 0 }) {
   if (!stats) return null;
 
   const items = [
-    { icon: Users2, label: "Vendors found", value: total.toLocaleString("en-IN") },
-    stats.avgRating && { icon: Star, label: "Avg. rating on this page", value: `${stats.avgRating} ★` },
-    stats.minPrice && { icon: Wallet, label: "Starting from", value: formatINR(stats.minPrice) },
-    stats.verifiedCount > 0 && { icon: ShieldCheck, label: "Verified on this page", value: stats.verifiedCount },
+    { icon: Users2, label: "Businesses found", value: total.toLocaleString("en-IN"), bg: "#FFE6D6", fg: "#e8192c" },
+    stats.avgRating && { icon: Star, label: "Avg. rating on this page", value: `${stats.avgRating} ★`, bg: "#FFF0C2", fg: "#d38a10" },
+    stats.minPrice && { icon: Wallet, label: "Starting from", value: formatINR(stats.minPrice), bg: "#DDF3E8", fg: "#0f8a5f" },
+    stats.verifiedCount > 0 && { icon: ShieldCheck, label: "Verified on this page", value: stats.verifiedCount, bg: "#E0EAFF", fg: "#3a5bd9" },
   ].filter(Boolean);
 
   return (
@@ -52,19 +47,16 @@ export default function SearchStats({ vendors = [], total = 0 }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className="grid grid-cols-2 sm:grid-cols-4 gap-2.5"
+      className="grid grid-cols-2 lg:grid-cols-4 gap-3"
     >
       {items.map((item, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-2.5 bg-white border border-gray-100 rounded-xl px-3.5 py-2.5"
-        >
-          <div className="w-8 h-8 rounded-lg bg-navy-50 flex items-center justify-center flex-shrink-0">
-            <item.icon size={15} className="text-navy-600" />
+        <div key={i} className="flex items-center gap-3 bg-white border border-navy-100 rounded-2xl px-3.5 py-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>
+            <item.icon size={18} style={{ color: item.fg }} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-navy-900 leading-tight truncate">{item.value}</p>
-            <p className="text-[11px] text-gray-400 leading-tight truncate">{item.label}</p>
+            <p className="text-base font-display font-extrabold text-navy-700 leading-tight truncate">{item.value}</p>
+            <p className="text-[11px] text-navy-400 leading-tight truncate">{item.label}</p>
           </div>
         </div>
       ))}

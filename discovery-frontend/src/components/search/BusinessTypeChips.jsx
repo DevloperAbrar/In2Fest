@@ -35,7 +35,7 @@ export default function BusinessTypeChips({ city, category, active, onSelect }) 
 
   return (
     <div className="mb-3">
-      <p className="text-xs text-gray-400 mb-2">What are you looking for?</p>
+      <p className="text-[11px] font-extrabold tracking-[0.16em] uppercase text-navy-400 mb-2">What are you looking for?</p>
       <div className="flex flex-wrap gap-2">
         {items.map((t) => {
           const on = active === t.slug;
@@ -44,9 +44,12 @@ export default function BusinessTypeChips({ city, category, active, onSelect }) 
               key={t.slug}
               type="button"
               onClick={() => onSelect(on ? undefined : t.slug)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-navy-700 text-white border-navy-700" : "bg-white text-gray-600 border-gray-200 hover:border-navy-300"}`}
+              aria-pressed={on}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border-2 transition-colors ${
+                on ? "bg-navy-700 text-white border-navy-700" : "bg-white text-navy-500 border-navy-100 hover:border-navy-300"
+              }`}
             >
-              {t.label} <span className={on ? "text-white/70" : "text-gray-400"}>({t.count})</span>
+              {t.label} <span className={on ? "text-white/70" : "text-navy-300"}>({t.count})</span>
             </button>
           );
         })}

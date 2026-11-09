@@ -2,163 +2,117 @@ import React, { useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  Building2,
-  Camera,
-  CalendarCheck2,
-  Globe2,
-  IndianRupee,
-  Music,
-  MessageCircle,
-  ReceiptText,
-  ShieldCheck,
-  Star,
+  Dumbbell,
+  BookOpen,
   UtensilsCrossed,
-  Users,
+  Store,
+  HeartPulse,
+  PartyPopper,
+  MessageCircle,
+  IndianRupee,
+  ShieldCheck,
+  Check,
+  LayoutDashboard,
+  Globe2,
+  MapPin,
+  Star,
 } from "lucide-react";
 import GoogleLoginButton from "./GoogleLoginButton.jsx";
 import { showError } from "../../components/common/Toast";
 import logo from "../../assets/logo.png";
 import InstallLink from "../install/InstallLink.jsx";
 
-/*
-  Photos are picked up automatically from  src/assets/login/
-  Put these 4 files in that folder (jpg / jpeg / png / webp all work):
-    venue.jpg        -> Venues tile
-    photography.jpg  -> Photographers tile
-    catering.jpg     -> Catering tile
-    music.jpg        -> Music & Entertainment tile
-  If a file is missing, that tile shows a branded gradient instead,
-  so the page never breaks.
-*/
-const loginImages = import.meta.glob(
-  "../../assets/login/*.{jpg,jpeg,png,webp}",
-  { eager: true, import: "default" }
-);
+const EASE = [0.22, 1, 0.36, 1];
+const NAVY = "#1a2035";
+const RED = "#e8192c";
+const GOLD = "#f5a623";
+const CREAM = "#FFF6E8";
 
-function pickImage(name) {
-  const hit = Object.entries(loginImages).find(([path]) =>
-    new RegExp(`/${name}\\.(jpe?g|png|webp)$`, "i").test(path)
-  );
-  return hit ? hit[1] : null;
-}
-
+// Same business types as the public site, so the look works for every category.
 const TILES = [
-  {
-    key: "venue",
-    label: "Venues",
-    shortLabel: "Venues",
-    icon: Building2,
-    gradient: "from-navy-700 to-primary-700",
-    img: pickImage("venue"),
-  },
-  {
-    key: "photography",
-    label: "Photographers",
-    shortLabel: "Photographers",
-    icon: Camera,
-    gradient: "from-primary-600 to-gold-500",
-    img: pickImage("photography"),
-  },
-  {
-    key: "catering",
-    label: "Catering",
-    shortLabel: "Catering",
-    icon: UtensilsCrossed,
-    gradient: "from-gold-500 to-primary-500",
-    img: pickImage("catering"),
-  },
-  {
-    key: "music",
-    label: "Music & Entertainment",
-    shortLabel: "Music & DJs",
-    icon: Music,
-    gradient: "from-navy-600 to-navy-900",
-    img: pickImage("music"),
-  },
+  { key: "gym", label: "Gyms", icon: Dumbbell, bg: "#FFE6D6", ink: "#e8192c" },
+  { key: "library", label: "Library", icon: BookOpen, bg: "#DDF3E8", ink: "#0f8a5f" },
+  { key: "food", label: "Restaurants", icon: UtensilsCrossed, bg: "#FFF0C2", ink: "#d38a10" },
+  { key: "shop", label: "Shops", icon: Store, bg: "#FFE0E3", ink: "#e8192c" },
+  { key: "clinic", label: "Clinics", icon: HeartPulse, bg: "#E0EAFF", ink: "#3a5bd9" },
+  { key: "events", label: "Events", icon: PartyPopper, bg: "#FFF0C2", ink: "#d38a10" },
 ];
 
 const FEATURES = [
+  { icon: LayoutDashboard, label: "Business dashboard" },
   { icon: Globe2, label: "Your own website" },
-  { icon: CalendarCheck2, label: "Smart calendar" },
-  { icon: ReceiptText, label: "Billing" },
+  { icon: MapPin, label: "Free listing" },
+  { icon: MessageCircle, label: "WhatsApp enquiries" },
   { icon: Star, label: "Reviews" },
-  { icon: Users, label: "Client management" },
 ];
 
-const AVATARS = [
-  { initials: "RS", bg: "bg-primary-500" },
-  { initials: "AK", bg: "bg-navy-700" },
-  { initials: "MP", bg: "bg-gold-500" },
-  { initials: "SJ", bg: "bg-primary-700" },
-];
+const TRUST = ["Free to start", "No commission", "Secure Google sign-in"];
 
-const EASE = [0.22, 1, 0.36, 1];
+/* The arch from the In2Fest logo, used as a brand motif. */
+function Arches({ className = "", width = 220, colors = [GOLD, RED, "#ffffff"] }) {
+  return (
+    <svg className={className} width={width} height={width / 2} viewBox="0 0 220 110" aria-hidden="true">
+      <path d="M10 110 a100 100 0 0 1 200 0" fill="none" stroke={colors[0]} strokeWidth="18" strokeLinecap="round" />
+      <path d="M42 110 a68 68 0 0 1 136 0" fill="none" stroke={colors[1]} strokeWidth="18" strokeLinecap="round" />
+      <path d="M74 110 a36 36 0 0 1 72 0" fill="none" stroke={colors[2]} strokeWidth="18" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-/* One photo tile - falls back to a branded gradient + icon if no photo */
-function Tile({ tile, className = "", style, delay = 0, compact = false }) {
+/* Sticker-style word, same language as the public site hero. */
+function Sticker({ children, bg, fg, shadow, rotate = 0, delay = 0, reduce, className = "" }) {
+  const motionProps = reduce
+    ? { style: { transform: `rotate(${rotate}deg)` } }
+    : {
+        initial: { opacity: 0, scale: 0.7, rotate: 0 },
+        animate: { opacity: 1, scale: 1, rotate },
+        transition: { type: "spring", stiffness: 180, damping: 14, delay },
+      };
+  return (
+    <motion.span
+      {...motionProps}
+      className={`inline-block rounded-2xl font-display font-extrabold ${className}`}
+      style={{ ...(motionProps.style || {}), background: bg, color: fg, boxShadow: `0 6px 0 -2px ${shadow}` }}
+    >
+      {children}
+    </motion.span>
+  );
+}
+
+/* Pastel business-type tile (desktop panel). */
+function Tile({ tile, i, reduce }) {
   const Icon = tile.icon;
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={reduce ? false : { opacity: 0, y: 22 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay, ease: EASE }}
-      style={style}
-      className={`relative min-h-0 overflow-hidden bg-gradient-to-br ${tile.gradient} ${
-        compact ? "rounded-xl" : "rounded-2xl"
-      } ${className}`}
+      transition={{ duration: 0.5, delay: 0.1 + i * 0.07, ease: EASE }}
+      className="group relative min-h-0 rounded-[1.6rem] flex flex-col items-center justify-center gap-2 transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_18px_30px_-18px_rgba(0,0,0,0.6)]"
+      style={{ background: tile.bg }}
     >
-      {tile.img ? (
-        <img
-          src={tile.img}
-          alt={tile.label}
-          loading="eager"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <Icon
-          size={compact ? 36 : 72}
-          strokeWidth={1.2}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/25"
-        />
-      )}
-      <div
-        className={`absolute inset-x-0 ${
-          compact
-            ? "top-0 h-1/2 bg-gradient-to-b from-navy-900/55"
-            : "bottom-0 h-1/2 bg-gradient-to-t from-navy-900/70"
-        } to-transparent`}
-      />
-      <span
-        className={`absolute inline-flex items-center text-white bg-white/15 backdrop-blur-md border border-white/25 rounded-full font-semibold ${
-          compact
-            ? "top-2 left-2 gap-1 text-[10px] px-2 py-0.5 bg-navy-900/35"
-            : "bottom-3 left-3 gap-1.5 text-[11px] px-2.5 py-1"
-        }`}
-      >
-        <Icon size={compact ? 10 : 12} />
-        {compact ? tile.shortLabel : tile.label}
+      <span className="w-14 h-14 xl:w-16 xl:h-16 rounded-full bg-white shadow-[0_10px_20px_-8px_rgba(26,32,53,0.35)] flex items-center justify-center transition duration-300 group-hover:scale-110 group-hover:-rotate-6">
+        <Icon size={26} strokeWidth={2.2} style={{ color: tile.ink }} />
+      </span>
+      <span className="text-[11px] xl:text-xs font-extrabold tracking-wide uppercase" style={{ color: NAVY }}>
+        {tile.label}
       </span>
     </motion.div>
   );
 }
 
-/* A floating white card that gently bobs up and down */
+/* Floating white card that gently bobs. Illustration only, labelled "Sample". */
 function FloatCard({ className = "", delay = 0, reduce, children }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.96 }}
+      initial={reduce ? false : { opacity: 0, y: 20, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, delay, ease: EASE }}
       className={`absolute z-10 ${className}`}
     >
       <motion.div
         animate={reduce ? undefined : { y: [0, -6, 0] }}
-        transition={{
-          duration: 5 + delay * 2,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        className="bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_12px_40px_-12px_rgba(11,14,28,0.5)] border border-white/60"
+        transition={{ duration: 5 + delay * 2, repeat: Infinity, ease: "easeInOut" }}
+        className="bg-white rounded-2xl shadow-[0_18px_40px_-14px_rgba(11,14,28,0.6)] border border-white/70"
       >
         {children}
       </motion.div>
@@ -179,117 +133,83 @@ export default function LoginPage() {
     }
   }, [searchParams, setSearchParams]);
 
+  const year = new Date().getFullYear();
+
   return (
-    <div className="min-h-screen bg-paper font-sans lg:grid lg:grid-cols-[5fr_6fr]">
-      {/* ───────────── LEFT: sign-in (also the whole page on mobile/tablet) ───────────── */}
-      <div className="relative flex flex-col min-h-screen px-5 sm:px-12 xl:px-20 py-6 sm:py-8">
-        <Link to="/" className="w-fit">
+    /* 100dvh + overflow-hidden: the whole page fits one screen on phones and desktops, no scrolling */
+    <div
+      className="h-[100dvh] overflow-hidden font-sans lg:grid lg:grid-cols-[5fr_6fr]"
+      style={{ background: CREAM }}
+    >
+      {/* ───────────── LEFT: sign-in (the whole page on phones and tablets) ───────────── */}
+      <div className="relative flex h-full flex-col overflow-hidden px-5 sm:px-12 xl:px-20 pt-5 sm:pt-8">
+        {/* small brand shapes (desktop only) */}
+        <svg className="absolute right-10 top-24 hidden lg:block" width="26" height="26" viewBox="0 0 28 28" aria-hidden="true">
+          <rect x="11" y="0" width="6" height="28" rx="3" fill={GOLD} />
+          <rect x="0" y="11" width="28" height="6" rx="3" fill={GOLD} />
+        </svg>
+
+        <Link to="/" className="w-fit flex-shrink-0" aria-label="In2Fest home">
           <img src={logo} alt="In2Fest" className="h-7 sm:h-8 w-auto" />
         </Link>
 
-        <div className="flex-1 flex items-center">
+        <div className="flex-1 min-h-0 flex items-center">
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
+            initial={reduce ? false : { opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: EASE }}
-            className="w-full max-w-md mx-auto lg:mx-0 py-6 sm:py-10"
+            className="w-full max-w-md mx-auto lg:mx-0"
           >
-            {/* ── Mobile / tablet hero: same photo mosaic, compact ── */}
-            <div className="lg:hidden mb-8">
-              <div className="rounded-3xl bg-navy-900 p-2.5 shadow-card">
-                <div className="relative">
-                  <div className="grid grid-cols-2 grid-rows-5 gap-2 h-64 sm:h-72">
-                    <Tile tile={TILES[0]} compact delay={0.1} className="col-start-1 row-start-1 row-span-3" />
-                    <Tile tile={TILES[1]} compact delay={0.18} className="col-start-2 row-start-1 row-span-2" />
-                    <Tile tile={TILES[2]} compact delay={0.25} className="col-start-1 row-start-4 row-span-2" />
-                    <Tile tile={TILES[3]} compact delay={0.32} className="col-start-2 row-start-3 row-span-3" />
-                  </div>
-
-                  {/* two small floating chips straddling the bottom edge */}
-                  <FloatCard className="-bottom-4 left-2" delay={0.5} reduce={reduce}>
-                    <div className="flex items-center gap-2 p-2 pr-3">
-                      <span className="w-7 h-7 rounded-full bg-gold-100 flex items-center justify-center shrink-0">
-                        <IndianRupee size={14} className="text-gold-600" />
-                      </span>
-                      <div>
-                        <p className="text-[10px] text-navy-400 leading-none">
-                          Payment received
-                        </p>
-                        <p className="text-xs font-semibold text-navy-900 mt-0.5">
-                          ₹45,000
-                        </p>
-                      </div>
-                    </div>
-                  </FloatCard>
-
-                  <FloatCard className="-bottom-4 right-2" delay={0.7} reduce={reduce}>
-                    <div className="p-2 px-3">
-                      <div className="flex gap-0.5">
-                        {[0, 1, 2, 3, 4].map((i) => (
-                          <Star key={i} size={11} className="fill-gold-500 text-gold-500" />
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-navy-400 mt-1 leading-none">
-                        New review
-                      </p>
-                    </div>
-                  </FloatCard>
-                </div>
-
-                <div className="px-2 pt-8 pb-4">
-                  <h2 className="font-display text-xl sm:text-2xl font-bold text-white leading-snug tracking-tight">
-                    <span className="whitespace-nowrap">Get found. Get booked.</span>{" "}
-                    <span className="text-gold-400 whitespace-nowrap">Get paid.</span>
-                  </h2>
-                </div>
-              </div>
+            {/* Tagline stickers: phones and tablets only (desktop shows them on the right panel) */}
+            <div className="lg:hidden flex flex-wrap items-center gap-2.5 mb-5 sm:mb-6">
+              <Sticker bg={NAVY} fg="#fff" shadow="#0b0e1c" rotate={-2} delay={0.1} reduce={reduce} className="text-xl sm:text-2xl px-3 py-0.5">Run it.</Sticker>
+              <Sticker bg={RED} fg="#fff" shadow="#9e0f1b" rotate={2} delay={0.2} reduce={reduce} className="text-xl sm:text-2xl px-3 py-0.5">Get it.</Sticker>
+              <Sticker bg={GOLD} fg={NAVY} shadow="#d38a10" rotate={-1.5} delay={0.3} reduce={reduce} className="text-xl sm:text-2xl px-3 py-0.5">Found it.</Sticker>
             </div>
 
-            <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary-600 bg-primary-50 rounded-full px-3 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary-500" />
-              For every event business
+            <span className="inline-flex items-center gap-2 text-xs font-bold text-navy-600 bg-white rounded-full px-3.5 py-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: RED }} />
+              For every local business
             </span>
 
-            <h1 className="mt-5 font-display text-3xl sm:text-[34px] font-bold text-navy-900 tracking-tight leading-tight">
+            <h1
+              className="mt-4 sm:mt-5 font-display font-extrabold text-3xl sm:text-[40px] leading-[1.05]"
+              style={{ color: NAVY, letterSpacing: "-0.03em" }}
+            >
               Welcome back
             </h1>
-            <p className="mt-2.5 text-[15px] text-navy-400 leading-relaxed">
-              Sign in to manage your bookings, website, billing and client
-              inquiries - all from one dashboard.
+            <p className="mt-2.5 text-sm sm:text-[15px] text-navy-400 leading-relaxed [@media(max-height:640px)]:hidden">
+              Sign in to manage your business, website and customers, all from one dashboard.
             </p>
 
-            <div className="mt-8">
+            <div className="mt-6 sm:mt-8">
               <GoogleLoginButton />
             </div>
 
-            <div className="mt-6 flex items-start gap-2 text-xs text-navy-400">
+            <div className="mt-5 flex items-start gap-2 text-xs text-navy-400">
               <ShieldCheck size={15} className="text-navy-300 shrink-0 mt-px" />
               Secure sign-in with your Google account. We never post anything.
             </div>
 
-            <InstallLink className="mt-4" />
+            <InstallLink className="mt-3" />
 
-            {/* Social proof */}
-            <div className="mt-10 pt-8 border-t border-navy-100 flex items-center gap-4">
-              <div className="flex -space-x-1.5 shrink-0">
-                {AVATARS.map((a) => (
-                  <span
-                    key={a.initials}
-                    className={`w-9 h-9 rounded-full ${a.bg} text-white text-[11px] font-semibold flex items-center justify-center ring-[3px] ring-paper`}
-                  >
-                    {a.initials}
+            {/* Real facts only, no made-up user counts */}
+            <ul className="mt-6 sm:mt-8 pt-5 sm:pt-6 border-t border-navy-100 flex flex-wrap gap-x-5 gap-y-2">
+              {TRUST.map((t) => (
+                <li key={t} className="inline-flex items-center gap-1.5 text-xs font-bold text-navy-500">
+                  <span className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                    <Check size={10} strokeWidth={3.5} className="text-white" />
                   </span>
-                ))}
-              </div>
-              <p className="text-[13px] text-navy-500 leading-snug">
-                Trusted by event businesses across India
-              </p>
-            </div>
+                  {t}
+                </li>
+              ))}
+            </ul>
           </motion.div>
         </div>
 
-        <p className="text-xs text-navy-300 text-center lg:text-left">
-          © {new Date().getFullYear()}{" "}
+        {/* Desktop footer */}
+        <p className="hidden lg:block flex-shrink-0 pb-6 text-xs text-navy-300">
+          © {year}{" "}
           <a
             href="https://campussafar.com"
             target="_blank"
@@ -300,98 +220,81 @@ export default function LoginPage() {
           </a>
           . In2Fest™ is a trademark.
         </p>
+
+        {/* Phone / tablet footer: navy strip with the logo arches, respects the iPhone home bar */}
+        <div
+          className="lg:hidden relative flex-shrink-0 -mx-5 sm:-mx-12 mt-3 overflow-hidden px-5 sm:px-12 pt-3"
+          style={{ background: NAVY, paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <Arches className="absolute -right-6 -bottom-5 opacity-90" width={120} />
+          <p className="relative max-w-[70%] text-[10px] leading-snug text-white/60">
+            © {year} Campussafar Technologies Private Limited®. In2Fest™ is a trademark.
+          </p>
+        </div>
       </div>
 
-      {/* ───────────── RIGHT: category mosaic (desktop only) ───────────── */}
-      <div className="hidden lg:block p-4 pl-0">
-        <div className="relative h-full min-h-[calc(100vh-2rem)] rounded-[2rem] overflow-hidden bg-navy-900 flex flex-col p-5 xl:p-6">
-          {/* soft brand glows */}
-          <div className="pointer-events-none absolute -top-24 -right-24 w-80 h-80 rounded-full bg-primary-600/25 blur-[100px]" />
-          <div className="pointer-events-none absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-gold-500/20 blur-[100px]" />
+      {/* ───────────── RIGHT: brand panel (desktop only) ───────────── */}
+      <div className="hidden lg:block h-full p-4 pl-0">
+        <div
+          className="relative h-full rounded-[2rem] overflow-hidden flex flex-col p-5 xl:p-7"
+          style={{ background: NAVY }}
+        >
+          <Arches className="absolute -right-12 -top-8 rotate-180 opacity-25" width={300} colors={["#ffffff", "#ffffff", "#ffffff"]} />
+          <div className="pointer-events-none absolute -bottom-24 -left-24 w-80 h-80 rounded-full blur-[110px]" style={{ background: "rgba(245,166,35,0.18)" }} />
 
-          {/* Mosaic + floating cards */}
+          {/* Business-type tiles + floating sample cards */}
           <div className="relative flex-1 min-h-0">
-            <div className="absolute inset-0 flex gap-3">
-              <div className="flex-1 flex flex-col gap-3 min-h-0">
-                <Tile tile={TILES[0]} delay={0.1} className="basis-0" style={{ flexGrow: 3 }} />
-                <Tile tile={TILES[2]} delay={0.25} className="basis-0" style={{ flexGrow: 2 }} />
-              </div>
-              <div className="flex-1 flex flex-col gap-3 min-h-0">
-                <Tile tile={TILES[1]} delay={0.18} className="basis-0" style={{ flexGrow: 2 }} />
-                <Tile tile={TILES[3]} delay={0.32} className="basis-0" style={{ flexGrow: 3 }} />
-              </div>
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-2 gap-3">
+              {TILES.map((t, i) => <Tile key={t.key} tile={t} i={i} reduce={reduce} />)}
             </div>
 
-            {/* Card: new inquiry */}
-            <FloatCard className="top-6 left-5" delay={0.5} reduce={reduce}>
-              <div className="flex items-center gap-3 p-3.5 pr-5">
+            <FloatCard className="left-4 top-[36%]" delay={0.6} reduce={reduce}>
+              <div className="flex items-center gap-3 p-3 pr-5">
                 <span className="w-10 h-10 rounded-full bg-[#25D366]/15 flex items-center justify-center">
                   <MessageCircle size={19} className="text-[#1da851]" />
                 </span>
                 <div>
-                  <p className="text-[11px] text-navy-400 leading-none">New inquiry</p>
-                  <p className="text-sm font-semibold text-navy-900 mt-1">
-                    Corporate event · 120 guests
-                  </p>
+                  <p className="text-[11px] text-navy-400 leading-none">New enquiry · Sample</p>
+                  <p className="text-sm font-extrabold mt-1" style={{ color: NAVY }}>From your listing</p>
                 </div>
               </div>
             </FloatCard>
 
-            {/* Card: review */}
-            <FloatCard className="top-[44%] right-5" delay={0.7} reduce={reduce}>
-              <div className="p-3.5 pr-5">
-                <div className="flex gap-0.5">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <Star key={i} size={13} className="fill-gold-500 text-gold-500" />
-                  ))}
-                </div>
-                <p className="text-sm font-semibold text-navy-900 mt-1.5">
-                  “Super smooth booking!”
-                </p>
-                <p className="text-[11px] text-navy-400 mt-0.5">New 5-star review</p>
-              </div>
-            </FloatCard>
-
-            {/* Card: payment (sits above the Catering label) */}
-            <FloatCard className="bottom-20 left-5" delay={0.9} reduce={reduce}>
-              <div className="flex items-center gap-3 p-3.5 pr-5">
-                <span className="w-10 h-10 rounded-full bg-gold-100 flex items-center justify-center">
-                  <IndianRupee size={18} className="text-gold-600" />
+            <FloatCard className="right-4 bottom-[8%]" delay={0.85} reduce={reduce}>
+              <div className="flex items-center gap-3 p-3 pr-5">
+                <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "#FFF0C2" }}>
+                  <IndianRupee size={18} style={{ color: "#d38a10" }} />
                 </span>
                 <div>
-                  <p className="text-[11px] text-navy-400 leading-none">Payment received</p>
-                  <p className="text-sm font-semibold text-navy-900 mt-1">₹45,000</p>
+                  <p className="text-[11px] text-navy-400 leading-none">Fee received · Sample</p>
+                  <p className="text-sm font-extrabold mt-1" style={{ color: NAVY }}>Monthly plan</p>
                 </div>
               </div>
             </FloatCard>
           </div>
 
-          {/* Headline + feature chips */}
-          <div className="relative pt-7 px-1">
-            <motion.h2
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3, ease: EASE }}
-              className="font-display text-3xl xl:text-4xl font-bold text-white leading-tight tracking-tight"
-            >
-              <span className="whitespace-nowrap">Get found. Get booked.</span>{" "}
-              <span className="text-gold-400 whitespace-nowrap">Get paid.</span>
-            </motion.h2>
-            <p className="mt-3 text-sm text-white/70 max-w-lg leading-relaxed">
-              Website, bookings, billing, reviews and clients - one platform for
-              every kind of event business.
+          {/* Tagline + feature chips */}
+          <div className="relative flex-shrink-0 pt-6 xl:pt-7">
+            <h2 className="font-display font-extrabold text-white flex flex-wrap items-center gap-x-3 gap-y-2" style={{ fontSize: "clamp(1.9rem, 3.4vw, 3.1rem)", letterSpacing: "-0.03em", lineHeight: 1 }}>
+              <Sticker bg="#ffffff" fg={NAVY} shadow="rgba(255,255,255,0.35)" rotate={-2} delay={0.3} reduce={reduce} className="px-3.5 py-0.5">Run it.</Sticker>
+              <Sticker bg={RED} fg="#fff" shadow="#9e0f1b" rotate={2} delay={0.4} reduce={reduce} className="px-3.5 py-0.5">Get it.</Sticker>
+              <Sticker bg={GOLD} fg={NAVY} shadow="#d38a10" rotate={-1.5} delay={0.5} reduce={reduce} className="px-3.5 py-0.5">Found it.</Sticker>
+            </h2>
+            <p className="mt-4 text-sm text-white/70 max-w-lg leading-relaxed">
+              Software to run your business, a website of your own, and customers who find you.
+              One platform for gyms, libraries, restaurants, shops, clinics and events.
             </p>
 
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               {FEATURES.map(({ icon: Icon, label }, i) => (
                 <motion.span
                   key={label}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={reduce ? false : { opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.5 + i * 0.07, ease: EASE }}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-3 py-1.5"
+                  transition={{ duration: 0.4, delay: 0.55 + i * 0.07, ease: EASE }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-white/10 border border-white/20 rounded-full px-3 py-1.5"
                 >
-                  <Icon size={13} className="text-gold-400" />
+                  <Icon size={13} style={{ color: GOLD }} />
                   {label}
                 </motion.span>
               ))}

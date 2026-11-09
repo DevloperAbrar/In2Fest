@@ -12,10 +12,8 @@ function formatINR(n) {
 }
 
 /**
- * Renders every "real" active filter as a removable pill, plus a single
- * "Clear all" action. Keeps people oriented on what's currently narrowing
- * their results - the #1 complaint about buried sidebar filters is that
- * users forget they turned one on and can't work out why results look thin.
+ * Every active filter as a removable pill plus a single "Clear all".
+ * Keeps people oriented on what is narrowing their results.
  */
 export default function ActiveFiltersBar({ filters, onRemove, onClearAll }) {
   const { categories } = useCategories();
@@ -50,10 +48,11 @@ export default function ActiveFiltersBar({ filters, onRemove, onClearAll }) {
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.15 }}
             onClick={() => onRemove(chip.keys || [chip.key])}
-            className="flex items-center gap-1.5 bg-navy-50 border border-navy-100 text-navy-700 text-xs font-medium pl-3 pr-2 py-1.5 rounded-full hover:bg-navy-100 transition-colors"
+            aria-label={`Remove filter ${chip.label}`}
+            className="flex items-center gap-1.5 bg-white border-2 border-navy-100 text-navy-700 text-xs font-bold pl-3 pr-2 py-1 rounded-full hover:border-accent-500 hover:text-accent-600 transition-colors"
           >
             {chip.label}
-            <X size={12} className="text-navy-400" />
+            <X size={12} className="text-navy-300" />
           </motion.button>
         ))}
       </AnimatePresence>
@@ -61,7 +60,7 @@ export default function ActiveFiltersBar({ filters, onRemove, onClearAll }) {
       <button
         type="button"
         onClick={onClearAll}
-        className="flex items-center gap-1 text-xs font-semibold text-accent-600 hover:text-accent-700 px-2 py-1.5"
+        className="flex items-center gap-1 text-xs font-extrabold text-accent-500 hover:text-accent-600 px-2 py-1.5"
       >
         <RotateCcw size={12} /> Clear all
       </button>

@@ -204,6 +204,10 @@ function vendorSummary(venue, cityRow, matchedCategory) {
     badge_verified_business: venue.badge_verified_business,
     badge_documents_verified: venue.badge_documents_verified,
     badge_premium_partner: venue.badge_premium_partner,
+    // Contact + marketing fields for the listing card
+    specialty_tagline: venue.specialty_tagline,
+    whatsapp_number: venue.whatsapp_number,
+    external_website: venue.external_website,
     marketplace_services: cardServices(venue),
     business_types: types.map((t) => t.label),
     business_type_slugs: types.map((t) => t.slug),

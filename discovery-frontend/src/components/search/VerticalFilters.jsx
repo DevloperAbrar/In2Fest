@@ -72,20 +72,26 @@ export default function VerticalFilters({ category, filters, onChange }) {
   };
 
   return (
-    <div className="flex flex-wrap gap-2 mb-3">
-      {group.items.map((item) => {
-        const on = filters[`f_${item.key}`] === item.value;
-        return (
-          <button
-            key={`${item.key}:${item.value}`}
-            type="button"
-            onClick={() => toggle(item)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "bg-navy-700 text-white border-navy-700" : "bg-white text-gray-600 border-gray-200 hover:border-navy-300"}`}
-          >
-            {item.label}
-          </button>
-        );
-      })}
+    <div className="mb-3">
+      <p className="text-[11px] font-extrabold tracking-[0.16em] uppercase text-navy-400 mb-2">Quick filters</p>
+      <div className="flex flex-wrap gap-2">
+        {group.items.map((item) => {
+          const on = filters[`f_${item.key}`] === item.value;
+          return (
+            <button
+              key={`${item.key}:${item.value}`}
+              type="button"
+              onClick={() => toggle(item)}
+              aria-pressed={on}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border-2 transition-colors ${
+                on ? "bg-navy-700 text-white border-navy-700" : "bg-white text-navy-500 border-navy-100 hover:border-navy-300"
+              }`}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -14,6 +14,9 @@ const SearchPage = lazy(() => import("./pages/SearchPage"));
 const CategoriesIndexPage = lazy(() => import("./pages/CategoriesIndexPage"));
 const CitiesIndexPage = lazy(() => import("./pages/CitiesIndexPage"));
 const ForVendorsPage = lazy(() => import("./pages/ForVendorsPage"));
+const RunItPage = lazy(() => import("./pages/RunItPage"));
+const GetItPage = lazy(() => import("./pages/GetItPage"));
+const FoundItPage = lazy(() => import("./pages/FoundItPage"));
 const CityOrStatePage = lazy(() => import("./pages/CityOrStatePage"));
 const CityCategoryPage = lazy(() => import("./pages/CityCategoryPage"));
 const ThirdSegmentResolver = lazy(() => import("./pages/ThirdSegmentResolver"));
@@ -42,6 +45,9 @@ export default function App() {
               <Route path="/categories" element={<CategoriesIndexPage />} />
               <Route path="/cities" element={<CitiesIndexPage />} />
               <Route path="/for-vendors" element={<ForVendorsPage />} />
+              <Route path="/for-vendors/run-it" element={<RunItPage />} />
+              <Route path="/for-vendors/get-it" element={<GetItPage />} />
+              <Route path="/for-vendors/found-it" element={<FoundItPage />} />
               <Route path="/get-website" element={<GetYourWebsite />} />
               <Route path="/register-free" element={<RegisterFreePage />} />
               <Route path="/join" element={<JoinIn2FestPage />} />
