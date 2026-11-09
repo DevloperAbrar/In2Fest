@@ -27,6 +27,7 @@ import CityManager from "../features/superadmin/discovery/CityManager.jsx";
 import CityRequests from "../features/superadmin/discovery/CityRequests.jsx";
 import CategoryManager from "../features/superadmin/discovery/CategoryManager.jsx";
 import MarketplaceAnalytics from "../features/superadmin/discovery/MarketplaceAnalytics.jsx";
+import ContactMessages from "../features/superadmin/discovery/ContactMessages.jsx";
 
 export default function SuperAdminRoutes() {
   return (
@@ -48,6 +49,7 @@ export default function SuperAdminRoutes() {
       <Route path="analytics" element={<AdminAnalytics />} />
       <Route path="settings" element={<PlatformSettings />} />
       <Route path="announcements" element={<AnnouncementManager />} />
+      <Route path="contact-messages" element={<ContactMessages />} />
 
       <Route path="discovery/featured-vendors" element={<FeaturedVendors />} />
       <Route path="discovery/reviews" element={<ReviewModeration />} />

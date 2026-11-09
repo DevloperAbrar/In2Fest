@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, CreditCard, MessageCircle, BarChart3, Settings, ListTree, Star,
   Store, ShieldCheck, MapPin, LineChart, Layers, BellRing, Megaphone, Users, LogIn, Layers3,
-  Funnel, Database, PlayCircle
+  Funnel, Database, PlayCircle, Inbox
 } from "lucide-react";
 
 // Items with a `section` key render as a group heading in the Sidebar (no link).
@@ -31,6 +31,7 @@ export const adminSidebarItems = [
   { path: "/admin/discovery/analytics", label: "Marketplace Analytics", icon: LineChart },
 
   { section: "Communication" },
+  { path: "/admin/contact-messages", label: "Contact Messages", icon: Inbox },
   { path: "/admin/whatsapp", label: "WhatsApp Center", icon: MessageCircle },
   { path: "/admin/announcements", label: "Announcements", icon: Megaphone },
 

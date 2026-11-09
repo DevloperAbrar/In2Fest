@@ -31,6 +31,7 @@ const ReviewRequest = require("./reviewRequest.model")(sequelize, DataTypes);
 const PublicUser = require("./publicUser.model")(sequelize, DataTypes);
 const SavedVendor = require("./savedVendor.model")(sequelize, DataTypes);
 const CityRequest = require("./cityRequest.model")(sequelize, DataTypes);
+const ContactMessage = require("./contactMessage.model")(sequelize, DataTypes);
 
 const Announcement = require("./announcement.model")(sequelize, DataTypes);
 
@@ -184,7 +185,7 @@ module.exports = {
   WhatsappTemplate, WhatsappMessage, TeamMember,
   City, Category, VenueServiceArea,
   VendorListing, Review, ReviewRequest,
-  PublicUser, SavedVendor, CityRequest,
+  PublicUser, SavedVendor, CityRequest, ContactMessage,
   Announcement, LoginEvent,
   Referral, ReferralCreditLedger,
   GymSettings, GymPlan, GymMember, GymMembership, GymPayment,

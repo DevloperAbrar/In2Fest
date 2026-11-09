@@ -118,6 +118,21 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS login_events_created_idx ON login_events (created_at)`,
   `CREATE INDEX IF NOT EXISTS login_events_actor_idx ON login_events (actor_type, actor_id, created_at)`,
 
+  // ---- Contact Us messages (public form -> Super Admin inbox) ----
+  `CREATE TABLE IF NOT EXISTS contact_messages (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     name VARCHAR(100) NOT NULL,
+     email VARCHAR(150) NOT NULL,
+     phone VARCHAR(20),
+     topic VARCHAR(30) NOT NULL DEFAULT 'general',
+     message TEXT NOT NULL,
+     status VARCHAR(20) NOT NULL DEFAULT 'new',
+     read_at TIMESTAMPTZ,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS contact_messages_status_created_idx ON contact_messages (status, created_at DESC)`,
+
   // ---- Restaurant suite: give "food" to every existing plan that already has billing ----
   `UPDATE plans
       SET features = COALESCE(features, '[]'::jsonb) || '["food"]'::jsonb

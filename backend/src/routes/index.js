@@ -32,6 +32,8 @@ const adminOverviewRoutes = require("../modules/admin-overview/adminOverview.rou
 const demoRoutes = require("../modules/demo/demo.routes");
 
 const announcementRoutes = require("../modules/announcements/announcement.routes");
+const contactPublicRoutes = require("../modules/contact/contact.public.routes");
+const contactAdminRoutes = require("../modules/contact/contact.admin.routes");
 
 const router = express.Router();
 
@@ -96,5 +98,7 @@ router.use("/reviews", reviewRoutes);
 router.use("/admin/discovery", adminDiscoveryRoutes);
 router.use("/admin/overview", adminOverviewRoutes);
 router.use("/announcements", announcementRoutes);
+router.use("/contact", contactPublicRoutes);
+router.use("/admin/contact-messages", contactAdminRoutes);
 
 module.exports = router;
