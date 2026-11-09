@@ -232,7 +232,7 @@ function FilterBody({ filters, update, categories, venueCategories, vendorCatego
  * Same body powers both so behaviour never drifts between breakpoints.
  */
 export default function FilterSidebar({ filters, onChange, mobileOpen, onMobileClose }) {
-  const { categories, venueCategories, vendorCategories } = useCategories();
+  const { liveCategories: categories, venueCategories, vendorCategories } = useCategories();
   const count = activeFilterCount(filters);
 
   const update = (key, value) => {

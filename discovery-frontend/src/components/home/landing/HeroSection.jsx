@@ -15,14 +15,11 @@ const EASE = [0.22, 1, 0.36, 1];
 // Search uses keywords (not category slugs) so the tiles work for every city
 // and every admin-managed category.
 const TILES = [
-  { key: "gym", label: "Gyms", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
+  { key: "gym", label: "Gym & Fitness", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
   { key: "library", label: "Library", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
-  { key: "food", label: "Restaurants", q: "restaurant", icon: UtensilsCrossed, bg: "#FFF0C2", fg: "#d38a10" },
   { key: "shop", label: "Shops", q: "shop", icon: Store, bg: "#FFE0E3", fg: "#e8192c" },
-  { key: "clinic", label: "Clinics", q: "clinic", icon: HeartPulse, bg: "#E0EAFF", fg: "#3a5bd9" },
-  { key: "salon", label: "Salon & Spa", q: "salon", icon: Scissors, bg: "#FFE6D6", fg: "#e8192c" },
-  { key: "coaching", label: "Coaching", q: "coaching", icon: GraduationCap, bg: "#DDF3E8", fg: "#0f8a5f" },
-  { key: "events", label: "Events", q: "event", icon: PartyPopper, bg: "#FFF0C2", fg: "#d38a10" },
+  { key: "food", label: "Restaurants", q: "restaurant", icon: UtensilsCrossed, bg: "#FFF0C2", fg: "#d38a10" },
+  { key: "events", label: "Events", q: "event", icon: PartyPopper, bg: "#E0EAFF", fg: "#3a5bd9" },
 ];
 
 function Tile({ t, i, reduce }) {
@@ -199,7 +196,7 @@ export default function HeroSection() {
 
         <div className="mt-6 pb-16 md:pb-24">
           <p className="text-xs font-bold tracking-[0.18em] uppercase text-navy-400">Or browse by category</p>
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-x-3 gap-y-1">
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-5 gap-x-3 gap-y-1">
             {TILES.map((t, i) => <Tile key={t.key} t={t} i={i} reduce={reduce} />)}
           </div>
           <Link to="/categories" className="inline-flex items-center gap-1.5 mt-7 text-sm font-extrabold text-accent-500 hover:underline">

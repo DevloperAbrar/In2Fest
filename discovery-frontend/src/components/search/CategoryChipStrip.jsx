@@ -1,14 +1,11 @@
-import React, { useRef } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, Clock } from "lucide-react";
 import resolveCategoryIcon from "./categoryIcon";
 import useCategories from "./useCategories";
+import { SOON_GROUP } from "../../lib/launchConfig";
 
-// Pastel tints rotate across the live, admin-managed categories.
-const TINTS = ["#FFE6D6", "#DDF3E8", "#FFF0C2", "#FFE0E3", "#E0EAFF"];
-const INKS = ["#e8192c", "#0f8a5f", "#d38a10", "#e8192c", "#3a5bd9"];
-
-function Tile({ label, Icon, tint, ink, active, onClick }) {
+function Tile({ label, Icon, tint, ink, active, onClick, soon = false, badge }) {
   return (
     <motion.button
       type="button"
@@ -19,10 +16,22 @@ function Tile({ label, Icon, tint, ink, active, onClick }) {
         "group relative flex-shrink-0 w-[98px] flex flex-col items-center gap-2 rounded-[1.4rem] px-2 py-3 border-2 transition-all duration-300",
         active
           ? "border-navy-700 bg-navy-700 -translate-y-0.5 shadow-[0_16px_26px_-14px_rgba(26,32,53,0.75)]"
+          : soon
+          ? "border-dashed border-navy-100 hover:border-navy-300"
           : "border-transparent hover:-translate-y-1 hover:shadow-[0_16px_26px_-18px_rgba(26,32,53,0.55)]",
       ].join(" ")}
       style={active ? undefined : { background: tint }}
     >
+      {soon && !active && (
+        <span className="absolute -top-2 right-2 rounded-full bg-white border border-navy-100 px-1.5 py-px text-[9px] font-extrabold uppercase tracking-wide text-navy-400">
+          Soon
+        </span>
+      )}
+      {badge != null && !active && (
+        <span className="absolute -top-2 right-2 rounded-full bg-navy-700 px-1.5 py-px text-[10px] font-extrabold text-white">
+          {badge}
+        </span>
+      )}
       <span
         className={[
           "w-12 h-12 rounded-2xl flex items-center justify-center transition duration-300 group-hover:scale-110 group-hover:-rotate-6",
@@ -34,7 +43,7 @@ function Tile({ label, Icon, tint, ink, active, onClick }) {
       <span
         className={[
           "text-[11px] font-extrabold leading-tight text-center line-clamp-2 min-h-[2.1em]",
-          active ? "text-white" : "text-navy-700",
+          active ? "text-white" : soon ? "text-navy-400" : "text-navy-700",
         ].join(" ")}
       >
         {label}
@@ -43,14 +52,37 @@ function Tile({ label, Icon, tint, ink, active, onClick }) {
   );
 }
 
+// Small coloured label that sits in front of each live group in the strip.
+function GroupMarker({ group }) {
+  return (
+    <div className="flex-shrink-0 self-center flex flex-col items-center gap-1 px-1.5" aria-hidden="true">
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: group.ink }} />
+      <span
+        className="text-[10px] font-extrabold uppercase tracking-[0.14em] [writing-mode:vertical-rl] rotate-180"
+        style={{ color: group.ink }}
+      >
+        {group.shortLabel}
+      </span>
+    </div>
+  );
+}
+
 /**
- * Horizontal quick-pick strip of every live category (super-admin managed).
- * One click sets/clears the `category` filter. Supports mouse wheel,
- * click-and-drag and arrow buttons.
+ * Horizontal quick-pick strip.
+ * Live categories come first, grouped and ordered by launch priority
+ * (Gym, Library, Shops, Food, Events). Categories we have not launched yet are
+ * tucked behind a single "Launching soon" tile so the strip stays short.
+ * Supports mouse wheel, click-and-drag and arrow buttons.
  */
 export default function CategoryChipStrip({ activeSlug, onSelect }) {
   const scrollerRef = useRef(null);
-  const { categories, loading } = useCategories();
+  const { categories, liveGroups, soonCategories, loading } = useCategories();
+  const [showSoon, setShowSoon] = useState(false);
+
+  const activeIsSoon = soonCategories.some((c) => c.slug === activeSlug);
+  useEffect(() => {
+    if (activeIsSoon) setShowSoon(true);
+  }, [activeIsSoon]);
 
   const scrollBy = (dx) => scrollerRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
@@ -102,6 +134,8 @@ export default function CategoryChipStrip({ activeSlug, onSelect }) {
     );
   }
 
+  const toggle = (slug) => onSelect(activeSlug === slug ? "" : slug);
+
   return (
     <div className="relative group/strip">
       <button
@@ -129,20 +163,54 @@ export default function CategoryChipStrip({ activeSlug, onSelect }) {
         onMouseUp={endDrag}
         onMouseLeave={endDrag}
         onClickCapture={onClickCapture}
-        className="flex items-stretch gap-3 overflow-x-auto no-scrollbar py-2 px-1 scroll-smooth cursor-grab select-none"
+        className="flex items-stretch gap-3 overflow-x-auto no-scrollbar py-3 px-1 scroll-smooth cursor-grab select-none"
       >
         <Tile label="All categories" Icon={LayoutGrid} tint="#ffffff" ink="#1a2035" active={!activeSlug} onClick={() => onSelect("")} />
-        {categories.map((cat, i) => (
-          <Tile
-            key={cat.slug}
-            label={cat.label}
-            Icon={resolveCategoryIcon(cat.icon)}
-            tint={TINTS[i % TINTS.length]}
-            ink={INKS[i % INKS.length]}
-            active={activeSlug === cat.slug}
-            onClick={() => onSelect(activeSlug === cat.slug ? "" : cat.slug)}
-          />
+
+        {liveGroups.map(({ group, items }) => (
+          <Fragment key={group.key}>
+            <GroupMarker group={group} />
+            {items.map((cat) => (
+              <Tile
+                key={cat.slug}
+                label={cat.label}
+                Icon={resolveCategoryIcon(cat.icon)}
+                tint={group.tint}
+                ink={group.ink}
+                active={activeSlug === cat.slug}
+                onClick={() => toggle(cat.slug)}
+              />
+            ))}
+          </Fragment>
         ))}
+
+        {soonCategories.length > 0 && (
+          <>
+            <GroupMarker group={SOON_GROUP} />
+            <Tile
+              label={showSoon ? "Hide upcoming" : "Launching soon"}
+              Icon={Clock}
+              tint={SOON_GROUP.tint}
+              ink={SOON_GROUP.ink}
+              badge={showSoon ? undefined : soonCategories.length}
+              active={false}
+              onClick={() => setShowSoon((v) => !v)}
+            />
+            {showSoon &&
+              soonCategories.map((cat) => (
+                <Tile
+                  key={cat.slug}
+                  soon
+                  label={cat.label}
+                  Icon={resolveCategoryIcon(cat.icon)}
+                  tint={SOON_GROUP.tint}
+                  ink={SOON_GROUP.ink}
+                  active={activeSlug === cat.slug}
+                  onClick={() => toggle(cat.slug)}
+                />
+              ))}
+          </>
+        )}
       </div>
     </div>
   );

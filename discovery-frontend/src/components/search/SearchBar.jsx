@@ -88,7 +88,7 @@ export default function SearchBar({ large = false }) {
         <Search size={large ? 20 : 18} className="text-navy-300 flex-shrink-0" />
         <input
           className="flex-1 min-w-0 outline-none text-sm md:text-base bg-transparent text-navy-700 placeholder-navy-300 py-2"
-          placeholder="Search gym, library, restaurant, clinic in your city"
+          placeholder="Search gym, library, shop, restaurant, event in your city"
           aria-label="Search for a business"
           value={q}
           onChange={(e) => { typed.current = true; setQ(e.target.value); }}

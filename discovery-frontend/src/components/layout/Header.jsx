@@ -19,17 +19,21 @@ const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
 const EASE = [0.22, 1, 0.36, 1];
 
 // Business types. Search uses keywords so it works for every city/category.
+// Live business types, in launch priority order. Search uses keywords so it works for every city/category.
 const BUSINESS_TYPES = [
-  { key: "gym", label: "Gyms", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
-  { key: "library", label: "Library", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
-  { key: "food", label: "Restaurants", q: "restaurant", icon: UtensilsCrossed, bg: "#FFF0C2", fg: "#d38a10" },
-  { key: "shop", label: "Shops", q: "shop", icon: Store, bg: "#FFE0E3", fg: "#e8192c" },
-  { key: "clinic", label: "Clinics", q: "clinic", icon: HeartPulse, bg: "#E0EAFF", fg: "#3a5bd9" },
-  { key: "salon", label: "Salon & Spa", q: "salon", icon: Scissors, bg: "#FFE6D6", fg: "#e8192c" },
-  { key: "coaching", label: "Coaching", q: "coaching", icon: GraduationCap, bg: "#DDF3E8", fg: "#0f8a5f" },
-  { key: "events", label: "Events", q: "event", icon: PartyPopper, bg: "#FFF0C2", fg: "#d38a10" },
+  { key: "gym", label: "Gym, Sports & Fitness", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
+  { key: "library", label: "Libraries & Study Rooms", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
+  { key: "shop", label: "Shops & Retail", q: "shop", icon: Store, bg: "#FFE0E3", fg: "#e8192c" },
+  { key: "food", label: "Food & Restaurants", q: "restaurant", icon: UtensilsCrossed, bg: "#FFF0C2", fg: "#d38a10" },
+  { key: "events", label: "Events & Weddings", q: "event", icon: PartyPopper, bg: "#E0EAFF", fg: "#3a5bd9" },
 ];
 
+// Not live yet. Shown as "Launching soon" in the menu.
+const SOON_TYPES = [
+  { key: "clinic", label: "Clinics", slug: "clinic", icon: HeartPulse },
+  { key: "salon", label: "Salon & Spa", slug: "salon-spa", icon: Scissors },
+  { key: "coaching", label: "Coaching", slug: "coaching-institute", icon: GraduationCap },
+];
 // Run it / Get it / Found it  (the three things the platform does)
 const SOLUTIONS = [
   { to: "/for-vendors/run-it", word: "Run it.", desc: "Software for members, bookings and billing", icon: LayoutDashboard, bg: "#1a2035", fg: "#ffffff" },
@@ -275,6 +279,26 @@ export default function Header() {
                             </Link>
                           );
                         })}
+                                            <div className="mt-2 rounded-2xl border border-dashed border-navy-100 px-3 py-2.5">
+                        <p className="text-[11px] font-extrabold tracking-[0.16em] uppercase text-navy-300 mb-2">
+                          Launching soon
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {SOON_TYPES.map((s) => {
+                            const SoonIcon = s.icon;
+                            return (
+                              <Link
+                                key={s.key}
+                                to={`/search?category=${s.slug}`}
+                                onClick={() => setOpenId(null)}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-[#F3F1EC] px-3 py-1 text-xs font-bold text-navy-400 hover:text-navy-700 transition-colors"
+                              >
+                                <SoonIcon size={13} /> {s.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
                       </div>
                       <div className="mt-2 flex items-center justify-between rounded-2xl bg-[#FFF6E8] px-4 py-3">
                         <Link to="/categories" onClick={() => setOpenId(null)} className="text-sm font-extrabold text-accent-500 hover:underline">

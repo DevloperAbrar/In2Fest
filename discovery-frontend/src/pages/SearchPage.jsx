@@ -25,7 +25,7 @@ const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
 ];
 
-const POPULAR = ["Gym", "Library", "Restaurant", "Salon", "Clinic", "Coaching"];
+const POPULAR = ["Gym", "Library", "Shops", "Restaurant", "Events"];
 
 // Filter keys that mean "this 0-result page is a genuine filter-combo miss,
 // not an empty category" - if any of these are set alongside category, we

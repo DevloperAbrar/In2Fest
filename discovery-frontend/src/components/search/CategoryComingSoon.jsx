@@ -21,7 +21,13 @@ export default function CategoryComingSoon({ category, categories = [], onSelect
 
   // A handful of other live categories to nudge people toward, so the
   // dead end always has an obvious next click.
-  const suggestions = categories.filter((c) => c.slug !== category?.slug).slice(0, 6);
+  // One live category per group (categories arrive sorted by launch priority).
+  const seenGroups = new Set();
+  const suggestions = categories.filter((c) => {
+    if (!c.isLive || c.slug === category?.slug || seenGroups.has(c.groupKey)) return false;
+    seenGroups.add(c.groupKey);
+    return true;
+  });
 
   return (
     <motion.div

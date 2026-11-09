@@ -50,15 +50,13 @@ const SOCIAL_LINKS = [
 ];
 
 // Generic business types, same keyword search as the home page tiles.
+// Live business types only, in launch priority order.
 const BROWSE = [
-  ["Gyms", "gym"],
+  ["Gyms, sports & fitness", "gym"],
   ["Libraries & study rooms", "library"],
-  ["Restaurants", "restaurant"],
-  ["Shops", "shop"],
-  ["Clinics", "clinic"],
-  ["Salon & spa", "salon"],
-  ["Coaching classes", "coaching"],
-  ["Event venues", "event"],
+  ["Shops & retail", "shop"],
+  ["Restaurants & food", "restaurant"],
+  ["Event venues & vendors", "event"],
 ];
 
 function Arches({ className = "", width = 260 }) {
