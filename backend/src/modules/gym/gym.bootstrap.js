@@ -23,6 +23,10 @@ async function ensureGymSchema() {
   const order = ["GymSettings", "GymPlan", "GymMember", "GymMembership", "GymPayment", "GymExercise", "GymWorkoutPlan", "GymLead"];
   for (const name of order) await models[name].sync();
 
+  // A family can share one mobile number (e.g. father enrolls two children), so the
+  // one-member-per-phone index is removed. Safe to run on every start.
+  await models.sequelize.query(`DROP INDEX IF EXISTS gym_members_venue_phone_active_uq`);
+
   // Optional member profile fields. Safe to run on every start.
   await models.sequelize.query(
     `ALTER TABLE gym_members

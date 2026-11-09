@@ -150,7 +150,6 @@ async function getDetail(ctx, id) {
 async function enroll(ctx, b) {
   const { venue, settings, user } = ctx;
   const fields = memberFields(b, true);
-  await assertPhoneFree(venue.id, fields.phone);
   const plan = await core.loadPlan(venue.id, b.plan_id);
   if (!plan.is_active) throw new AppError("This plan is inactive", 409);
   const start = b.start_date ? core.checkDate(b.start_date, "Start date") : U.todayIST();
@@ -287,7 +286,6 @@ async function updateMember(venueId, id, b, ctx) {
   return sequelize.transaction(async (tx) => {
     const member = await core.findMember(venueId, id, tx);
     if (b.membership || b.plan_change) await member.reload({ transaction: tx, lock: tx.LOCK.UPDATE });
-    if (fields.phone) await assertPhoneFree(venueId, fields.phone, id);
     if (b.plan_change) {
       if (!ctx) throw new AppError("Plan change is not available here", 400);
       await applyPlanChange(tx, ctx, member, b.plan_change, b.membership);

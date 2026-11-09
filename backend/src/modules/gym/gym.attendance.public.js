@@ -73,7 +73,10 @@ async function submit(req, res, next) {
       case "bad_id":
       case "no_member":
         return send(res, 422, page("Mark attendance", formHtml(actionOf(req), venue, settings, {
-          error: "We could not find this ID. Please check and try again. / यह आईडी नहीं मिली, कृपया दोबारा जांचें।", id: String(body.id || "").slice(0, 20)
+          error: out.shared_phone
+            ? "This mobile number is used by more than one member. Please enter your Member ID (example: M0012). / यह नंबर एक से ज़्यादा मेंबर का है, कृपया अपना मेंबर आईडी डालें।"
+            : "We could not find this ID. Please check and try again. / यह आईडी नहीं मिली, कृपया दोबारा जांचें।",
+          id: String(body.id || "").slice(0, 20)
         })));
       case "frozen":
         return result(403, "info", "❄", `Hi ${first}`, "Your membership is frozen right now. Please contact the gym.<br>आपकी मेंबरशिप अभी फ्रीज़ है, कृपया जिम से संपर्क करें।");

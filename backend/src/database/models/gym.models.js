@@ -79,8 +79,7 @@ module.exports = (sequelize, DataTypes) => {
             { fields: ["venue_id", "status"] },
             { fields: ["venue_id", "end_date"] },
             { unique: true, fields: ["venue_id", "seq"], name: "gym_members_venue_seq_uq" },
-            { unique: true, fields: ["portal_token"], name: "gym_members_portal_token_uq" },
-            { unique: true, fields: ["venue_id", "phone"], where: { is_archived: false }, name: "gym_members_venue_phone_active_uq" }
+            { unique: true, fields: ["portal_token"], name: "gym_members_portal_token_uq" }
         ]
     });
 

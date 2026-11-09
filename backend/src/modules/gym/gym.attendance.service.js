@@ -439,9 +439,15 @@ async function checkIn(token, input) {
 
   const key = normalizeId(input && input.id);
   if (!key) return { ...base, code: "bad_id" };
-  const member = await GymMember.findOne({
-    where: { venue_id: venue.id, is_archived: false, ...(key.phone ? { phone: key.phone } : { member_code: key.code }) }
-  });
+  let member;
+  if (key.phone) {
+    const matches = await GymMember.findAll({ where: { venue_id: venue.id, is_archived: false, phone: key.phone }, limit: 2 });
+    // same mobile on more than one member: do not guess, ask for the Member ID
+    if (matches.length > 1) return { ...base, code: "bad_id", shared_phone: true };
+    member = matches[0] || null;
+  } else {
+    member = await GymMember.findOne({ where: { venue_id: venue.id, is_archived: false, member_code: key.code } });
+  }
   if (!member) return { ...base, code: "no_member" };
   if (settings.require_phone && !key.phone) {
     const last4 = String((input && input.last4) || "").replace(/\D/g, "");

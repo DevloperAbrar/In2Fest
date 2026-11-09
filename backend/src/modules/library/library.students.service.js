@@ -142,7 +142,7 @@ async function enroll(ctx, b) {
 
   return sequelize.transaction(async (tx) => {
     const codeNo = await core.nextSeq(tx, venue.id, "lib_students", "code_no");
-    await assertPhoneFree(venue.id, f.phone, null, tx);
+ 
     const pick = await core.resolveSeat(tx, venue.id, b, null);
 
     const student = await LibStudent.create({
@@ -286,7 +286,6 @@ async function removePermanent(venueId, id, confirm) {
 async function update(ctx, id, b) {
   const s = await core.findStudent(ctx.venue.id, id);
   const f = studentFields(b, false);
-  if (f.phone && f.phone !== s.phone) await assertPhoneFree(ctx.venue.id, f.phone, s.id);
   await s.update(f);
   return core.present(s);
 }

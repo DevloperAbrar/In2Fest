@@ -228,7 +228,7 @@ const SYNC_ORDER = [LibSettings, LibHall, LibShift, LibStudent, LibAllocation, L
 const RAW_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS lib_alloc_seat_uq ON lib_allocations (hall_id, seat_no, shift_id) WHERE status = 'active'`,
   `CREATE UNIQUE INDEX IF NOT EXISTS lib_alloc_student_uq ON lib_allocations (student_id) WHERE status = 'active'`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS lib_students_phone_uq ON lib_students (venue_id, phone) WHERE is_archived = false`,
+  `DROP INDEX IF EXISTS lib_students_phone_uq`,
   `CREATE UNIQUE INDEX IF NOT EXISTS lib_pay_receipt_uq ON lib_payments (venue_id, receipt_seq)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS lib_loan_open_uq ON lib_book_loans (book_id, student_id) WHERE status = 'issued'`,
   `CREATE TABLE IF NOT EXISTS lib_migrations (key VARCHAR(60) PRIMARY KEY, ran_at TIMESTAMPTZ NOT NULL DEFAULT now())`

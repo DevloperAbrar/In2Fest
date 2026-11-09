@@ -89,7 +89,12 @@ function resultHtml(out, action) {
     case "outside_shift":
       return page("Outside shift", `<div class="icon warn">!</div><h1>This is not your shift time</h1><p class="sub">Your shift: ${out.shift ? U.esc(`${out.shift.name} ${core.fmt12(out.shift.start_time)} - ${core.fmt12(out.shift.end_time)}`) : ""}<br>आपकी शिफ्ट का समय अभी नहीं है।</p>${who}`);
     default:
-      return page("Try again", formHtml(action, v, out.settings, { error: out.code === "bad_id" ? "Enter a valid Student ID or mobile number." : "No student found with these details. Check and try again.", id: out.id || "" }));
+      return page("Try again", formHtml(action, v, out.settings, {
+        error: out.shared_phone
+          ? "This mobile number is used by more than one student. Please enter your Student ID (example: S0012). / यह नंबर एक से ज़्यादा स्टूडेंट का है, कृपया अपना स्टूडेंट आईडी डालें।"
+          : out.code === "bad_id" ? "Enter a valid Student ID or mobile number." : "No student found with these details. Check and try again.",
+        id: out.id || ""
+      }));
   }
 }
 

@@ -209,9 +209,15 @@ async function checkIn(token, input, rot = {}) {
 
   const key = normalizeId(input && input.id);
   if (!key) return { ...base, code: "bad_id" };
-  const student = await LibStudent.findOne({
-    where: { venue_id: venue.id, is_archived: false, ...(key.phone ? { phone: key.phone } : { student_code: key.code }) }
-  });
+  let student;
+  if (key.phone) {
+    const matches = await LibStudent.findAll({ where: { venue_id: venue.id, is_archived: false, phone: key.phone }, limit: 2 });
+    // same mobile on more than one student: do not guess, ask for the Student ID
+    if (matches.length > 1) return { ...base, code: "bad_id", shared_phone: true };
+    student = matches[0] || null;
+  } else {
+    student = await LibStudent.findOne({ where: { venue_id: venue.id, is_archived: false, student_code: key.code } });
+  }
   if (!student) return { ...base, code: "no_student" };
   if (settings.require_phone && !key.phone) {
     const last4 = String((input && input.last4) || "").replace(/\D/g, "");
