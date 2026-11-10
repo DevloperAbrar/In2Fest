@@ -47,6 +47,39 @@ function daysLeft(dateStr) {
 // GST Breakdown box shown in confirm dialog
 function GstBreakdown({ quote }) {
   if (!quote) return null;
+
+  // GST-inclusive plan: show the price the vendor sees, and the GST that is inside it.
+  if (quote.gst_inclusive) {
+    const creditWithGst = Number(quote.credit_used || 0) * (1 + Number(quote.gst_rate) / 100);
+    return (
+      <div className="mt-3 bg-navy-50 rounded-xl p-3 text-sm space-y-1">
+        <div className="flex justify-between text-navy-700">
+          <span>Plan price (GST included)</span>
+          <span>{formatCurrency(quote.gross_plan_price)}</span>
+        </div>
+        {quote.gross_discount_amount > 0 && (
+          <div className="flex justify-between text-red-600">
+            <span>Discount ({quote.offer_percent}%)</span>
+            <span>- {formatCurrency(quote.gross_discount_amount)}</span>
+          </div>
+        )}
+        {quote.credit_used > 0 && (
+          <div className="flex justify-between text-emerald-600">
+            <span>Referral credit</span>
+            <span>- {formatCurrency(creditWithGst)}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-bold text-navy-900 border-t border-navy-200 pt-1 mt-1">
+          <span>Total payable</span>
+          <span>{formatCurrency(quote.total_payable)}</span>
+        </div>
+        <p className="text-xs text-navy-400">
+          Includes GST {quote.gst_rate}%: {formatCurrency(quote.gst_amount)}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 bg-navy-50 rounded-xl p-3 text-sm space-y-1">
       <div className="flex justify-between text-navy-700">
@@ -55,18 +88,18 @@ function GstBreakdown({ quote }) {
       </div>
       {quote.discount_amount > 0 && (
         <div className="flex justify-between text-red-600">
-          <span>— Discount ({quote.offer_percent}%)</span>
-          <span>− {formatCurrency(quote.discount_amount)}</span>
+          <span>Discount ({quote.offer_percent}%)</span>
+          <span>- {formatCurrency(quote.discount_amount)}</span>
         </div>
       )}
       {quote.credit_used > 0 && (
         <div className="flex justify-between text-emerald-600">
-          <span>— Referral credit</span>
-          <span>− {formatCurrency(quote.credit_used)}</span>
+          <span>Referral credit</span>
+          <span>- {formatCurrency(quote.credit_used)}</span>
         </div>
       )}
       <div className="flex justify-between text-navy-700 border-t border-navy-200 pt-1 mt-1">
-        <span>= Taxable amount</span>
+        <span>Taxable amount</span>
         <span>{formatCurrency(quote.taxable_amount)}</span>
       </div>
       <div className="flex justify-between text-navy-500">
@@ -74,7 +107,7 @@ function GstBreakdown({ quote }) {
         <span>+ {formatCurrency(quote.gst_amount)}</span>
       </div>
       <div className="flex justify-between font-bold text-navy-900 border-t border-navy-200 pt-1 mt-1">
-        <span>= Total payable</span>
+        <span>Total payable</span>
         <span>{formatCurrency(quote.total_payable)}</span>
       </div>
     </div>
@@ -388,7 +421,7 @@ export default function SubscriptionDetails() {
                     {!price.isFree && <span className="text-sm text-navy-400">{price.cycleLabel}</span>}
                   </div>
                   {paidSwitch && (
-                    <p className="text-xs text-navy-400 mt-0.5">+ 18% GST</p>
+                    <p className="text-xs text-navy-400 mt-0.5">{price.gstLabel}</p>
                   )}
                   {paidSwitch && cycle === "yearly" && (
                     <p className="text-xs text-navy-500 mt-0.5">≈ {formatCurrency(price.perMonth)}/mo</p>
@@ -615,7 +648,7 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial, isFree, onRenew }
   const isYearly = subscription.billing_cycle === "yearly";
   const isExpired = subscription.status === "expired";
   const isExpiringSoon = subscription.status === "expiring_soon";
-  const canRenew = !isFree && !isTrial && (isExpired || isExpiringSoon || subscription.status === "active");
+  const canRenew = !isFree && (isTrial || isExpired || isExpiringSoon || subscription.status === "active");
 
   return (
     <div className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4 md:p-5 mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -635,9 +668,11 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial, isFree, onRenew }
           )}
         </div>
         <p className="text-sm text-navy-500">
-          {formatCurrency(subscription.locked_price)}
+          {plan?.gst_inclusive
+            ? formatCurrency(Math.round(Number(subscription.locked_price) * 1.18))
+            : formatCurrency(subscription.locked_price)}
           {isYearly ? "/yr" : t("settings.subscription.perMonth")}
-          {" + 18% GST"}
+          {plan?.gst_inclusive ? " (GST included)" : " + 18% GST"}
           {isTrial && trialDays !== null && (
             <span className="ml-2 text-gold-600 font-medium">
               {trialDays === 1
@@ -663,7 +698,7 @@ function CurrentPlanBanner({ subscription, trialDays, isTrial, isFree, onRenew }
             onClick={onRenew}
           >
             <RefreshCw size={12} />
-            {isExpired ? "Renew Now" : "Renew Early"}
+            {isExpired ? "Renew Now" : isTrial ? "Pay & Activate" : "Renew Early"}
           </Button>
         )}
       </div>

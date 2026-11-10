@@ -165,7 +165,10 @@ const SCHEMA_STATEMENTS = [
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS demo_accounts_venue_uq ON demo_accounts (venue_id)`
+  `CREATE UNIQUE INDEX IF NOT EXISTS demo_accounts_venue_uq ON demo_accounts (venue_id)`,
+
+  // ---- Plans: price can be entered GST-inclusive. Default false keeps every old plan exactly as before. ----
+  `ALTER TABLE plans ADD COLUMN IF NOT EXISTS gst_inclusive BOOLEAN NOT NULL DEFAULT false`
 ];
 
 const ENUM_STATEMENTS = [

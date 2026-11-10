@@ -8,6 +8,10 @@ function withPricing(plan) {
   return { ...json, pricing: getPlanPricing(json) };
 }
 
+function toBool(value) {
+  return value === true || value === "true";
+}
+
 function toEndOfDay(value) {
   if (!value) return null;
   const str = String(value);
@@ -62,6 +66,7 @@ async function createPlan(payload) {
     features: payload.features || [],
     trial_days: payload.trial_days || 0,
     is_active: payload.is_active !== undefined ? payload.is_active : true,
+    gst_inclusive: toBool(payload.gst_inclusive),
     ...sanitizePricingFields(payload)
   });
   return withPricing(plan);
@@ -89,6 +94,22 @@ async function updatePlan(id, updates) {
     if (updates[field] !== undefined) plan[field] = updates[field];
   });
   Object.assign(plan, sanitizePricingFields(updates));
+
+  // Switching between "GST included" and "GST extra" changes what renewing vendors pay,
+  // so it is only allowed while nobody is subscribed to this plan.
+  if (updates.gst_inclusive !== undefined) {
+    const next = toBool(updates.gst_inclusive);
+    if (next !== !!plan.gst_inclusive) {
+      const subscriberCount = await Subscription.count({ where: { plan_id: id } });
+      if (subscriberCount > 0) {
+        throw new AppError(
+          `This plan has ${subscriberCount} vendor(s) on it, so the GST setting can't be changed. Create a new plan and deactivate this one.`,
+          409
+        );
+      }
+      plan.gst_inclusive = next;
+    }
+  }
 
   await plan.save();
   return withPricing(plan);

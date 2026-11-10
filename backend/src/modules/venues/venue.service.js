@@ -7,7 +7,7 @@ const { SECTION_TYPES } = require("../../config/sectionLibrary");
 const { AppError } = require("../../middleware/error.middleware");
 const { uploadToR2 } = require("../../middleware/upload.middleware");
 const sharp = require("sharp");
-const { createFreeSubscription, adminAssignPlan } = require("../subscriptions/subscription.service");
+const { createFreeSubscription, createSubscription, adminAssignPlan } = require("../subscriptions/subscription.service");
 const { sanitizeBusinessHours, sanitizeServices, sanitizeNavConfig } = require("../../utils/venueContentSanitizer");
 const otherBiz = require("../../config/otherBusinessTaxonomy");
 const { getBusinessTypeKey: bizTypeKey } = require("../../config/businessTypes");
@@ -53,14 +53,21 @@ async function compressBuffer(buffer, mimetype, options = {}) {
 /**
  * Gives a new venue its starting subscription.
  * - Free plan (or no plan chosen): subscription is created right away.
- * - Paid plan: nothing is created here. The subscription is created only after
+ * - Paid plan WITH trial days (for example 5): the trial starts right away, no payment yet.
+ *   The vendor pays from Settings > Subscription before the trial ends.
+ * - Paid plan with no trial: nothing is created here. The subscription is created only after
  *   Cashfree confirms payment (payment.controller.verifyPayment).
  */
-async function assignInitialSubscription(venueId, planId) {
+async function assignInitialSubscription(venueId, planId, billingCycle) {
   if (planId) {
     const plan = await Plan.findByPk(planId);
     if (!plan || !plan.is_active) throw new AppError("Plan not found", 404);
-    if (Number(plan.monthly_price) > 0) return null;
+    if (Number(plan.monthly_price) > 0) {
+      if (Number(plan.trial_days) > 0) {
+        return createSubscription(venueId, plan.id, { billingCycle });
+      }
+      return null;
+    }
   }
   return createFreeSubscription(venueId, planId || null);
 }
@@ -100,7 +107,7 @@ async function createVenue(payload) {
     }
     // Venue exists but has no subscription (earlier attempt failed or payment was abandoned).
     // Free plan: create the subscription now. Paid plan: frontend resumes payment.
-    await assignInitialSubscription(existingVenue.id, payload.plan_id);
+    await assignInitialSubscription(existingVenue.id, payload.plan_id, payload.billing_cycle);
     return existingVenue;
   }
 
@@ -136,7 +143,7 @@ async function createVenue(payload) {
   venue.page_sections = buildDefaultSections(payload.business_category);
   await venue.save();
 
-  await assignInitialSubscription(venue.id, payload.plan_id);
+  await assignInitialSubscription(venue.id, payload.plan_id, payload.billing_cycle);
 
   // Apply referral if code was sent from frontend (stored in localStorage)
   if (payload.referral_code) {

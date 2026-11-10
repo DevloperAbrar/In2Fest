@@ -1,6 +1,6 @@
 const dayjs = require("dayjs");
 const { Subscription, Plan, Venue, Payment } = require("../../database/models");
-const { getAmountForCycle, normalizeCycle } = require("../plans/planPricing");
+const { getLockedPriceForCycle, normalizeCycle } = require("../plans/planPricing");
 const { AppError } = require("../../middleware/error.middleware");
 
 const MANUAL_METHODS = ["upi_manual", "cash_manual", "bank_transfer"];
@@ -28,7 +28,7 @@ async function createSubscription(venueId, planId, options = {}) {
     {
       venue_id: venueId,
       plan_id: plan.id,
-      locked_price: getAmountForCycle(plan, cycle),
+      locked_price: getLockedPriceForCycle(plan, cycle),
       billing_cycle: cycle,
       status: hasTrial ? "trial" : "active",
       trial_ends_at: hasTrial ? now.add(plan.trial_days, "day").toDate() : null,
@@ -117,6 +117,8 @@ async function renewSubscription(venueId, options = {}) {
   subscription.billing_cycle = cycle;
   if (options.amount !== undefined) subscription.locked_price = options.amount;
   subscription.status = "active";
+  // Paying ends the trial. Without this, an old trial date stays on a paid subscription.
+  subscription.trial_ends_at = null;
   subscription.current_period_start = extendFrom.toDate();
   subscription.current_period_end = newEnd.toDate();
   await subscription.save({ transaction });
@@ -169,7 +171,7 @@ async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
   const cycle = normalizeCycle(options.billingCycle);
 
   subscription.plan_id = plan.id;
-  subscription.locked_price = options.amount !== undefined ? options.amount : getAmountForCycle(plan, cycle);
+  subscription.locked_price = options.amount !== undefined ? options.amount : getLockedPriceForCycle(plan, cycle);
   subscription.billing_cycle = cycle;
   subscription.status = "active";
   subscription.trial_ends_at = null;
@@ -202,7 +204,7 @@ async function adminAssignPlan(venueId, planId, options = {}) {
 
   const isFree = Number(plan.monthly_price) <= 0;
   const cycle = isFree ? "monthly" : normalizeCycle(options.billingCycle);
-  const listedPrice = isFree ? 0 : getAmountForCycle(plan, cycle);
+  const listedPrice = isFree ? 0 : getLockedPriceForCycle(plan, cycle);
 
   const wantsPayment = !isFree && options.paymentReceived === true;
   let receivedAmount = 0;
@@ -310,17 +312,23 @@ async function recalculateAllStatuses() {
 
   for (const sub of subscriptions) {
     const periodEnd = dayjs(sub.current_period_end);
-    const daysLeft = periodEnd.diff(now, "day");
-
     let newStatus = sub.status;
-    if (daysLeft < 0) {
-      newStatus = "expired";
-    } else if (daysLeft <= 7) {
-      newStatus = "expiring_soon";
-    } else if (sub.status === "trial" && daysLeft > 7) {
-      newStatus = "trial";
+
+    if (sub.status === "trial") {
+      // A trial stays "trial" until it ends, then it expires.
+      // It must never turn into "expiring_soon", otherwise a 5-day trial would
+      // lose its trial status on the first cron run and reminders would stop.
+      newStatus = periodEnd.isBefore(now) ? "expired" : "trial";
     } else {
-      newStatus = "active";
+      // Paid and free subscriptions: logic unchanged.
+      const daysLeft = periodEnd.diff(now, "day");
+      if (daysLeft < 0) {
+        newStatus = "expired";
+      } else if (daysLeft <= 7) {
+        newStatus = "expiring_soon";
+      } else {
+        newStatus = "active";
+      }
     }
 
     if (newStatus !== sub.status) {

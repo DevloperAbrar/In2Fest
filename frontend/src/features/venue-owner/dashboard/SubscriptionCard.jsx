@@ -65,7 +65,7 @@ export default function SubscriptionCard({ venue }) {
           to="/dashboard/settings/subscription"
           className="tap-scale mt-auto pt-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary-600"
         >
-          <Sparkles size={14} /> {sub.status === "trial" ? "Upgrade now" : "Renew now"}
+          <Sparkles size={14} /> {sub.status === "trial" ? "Pay & activate" : "Renew now"}
         </Link>
       )}
     </Surface>

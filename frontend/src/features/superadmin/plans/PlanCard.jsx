@@ -53,7 +53,9 @@ export default function PlanCard({ plan, onEdit, onDelete }) {
         </p>
       )}
 
-      <p className="text-xs text-gray-400 mb-3">{plan.trial_days} day trial</p>
+      <p className="text-xs text-gray-400 mb-3">
+        {plan.trial_days} day trial{!isFree && ` · ${monthly.gstLabel}`}
+      </p>
       <Badge status={plan.is_active ? "active" : "expired"}>{plan.is_active ? "Active" : "Inactive"}</Badge>
       <ul className="mt-4 space-y-2">
         {(plan.features || []).map((f, i) => (

@@ -19,6 +19,9 @@ module.exports = (sequelize, DataTypes) => {
     },
     offer_name: { type: DataTypes.STRING, allowNull: true }, // e.g. "Diwali Sale"
     offer_ends_at: { type: DataTypes.DATE, allowNull: true }, // NULL = no expiry
+    // true  = the prices above already include GST (vendor pays exactly the shown price).
+    // false = GST is added on top at checkout (all old plans).
+    gst_inclusive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     features: { type: DataTypes.JSONB, defaultValue: [] },
     trial_days: { type: DataTypes.INTEGER, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true }

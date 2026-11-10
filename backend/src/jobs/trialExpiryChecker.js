@@ -1,12 +1,15 @@
 const cron = require("node-cron");
 const dayjs = require("dayjs");
-const { Subscription, Venue, Plan } = require("../database/models");
+const { Subscription, Venue } = require("../database/models");
 const subscriptionService = require("../modules/subscriptions/subscription.service");
 const { sendWhatsApp } = require("../modules/whatsapp/whatsapp.service");
 
+// With a 5-day trial: reminder on day 2 (3 days left) and day 4 (1 day left).
+const TRIAL_REMINDER_DAYS = [3, 1];
+
 /**
  * Runs daily at 9 AM: recalculates subscription statuses and sends
- * automated trial/expiry reminders per the spec's trigger rules.
+ * automated trial/expiry reminders.
  */
 function startTrialExpiryChecker() {
   cron.schedule("0 9 * * *", async () => {
@@ -14,21 +17,23 @@ function startTrialExpiryChecker() {
 
     await subscriptionService.recalculateAllStatuses();
 
-    // 3 days before trial expiry -> reminder
-    const threeDaysFromNow = dayjs().add(3, "day").format("YYYY-MM-DD");
-    const expiringTrials = await Subscription.findAll({
+    const trials = await Subscription.findAll({
       where: { status: "trial" },
       include: [{ model: Venue, attributes: ["id", "hall_name", "phone"] }]
     });
 
-    for (const sub of expiringTrials) {
-      const trialEndDate = dayjs(sub.trial_ends_at).format("YYYY-MM-DD");
-      if (trialEndDate === threeDaysFromNow) {
+    const today = dayjs().startOf("day");
+    for (const sub of trials) {
+      const endsAt = sub.trial_ends_at || sub.current_period_end;
+      if (!endsAt || !sub.Venue) continue;
+
+      const daysLeft = dayjs(endsAt).startOf("day").diff(today, "day");
+      if (TRIAL_REMINDER_DAYS.includes(daysLeft)) {
         await sendWhatsApp({
           venueId: sub.venue_id,
           recipientPhone: sub.Venue.phone,
           triggerType: "trial_expiry",
-          variables: { daysLeft: "3" }
+          variables: { daysLeft: String(daysLeft) }
         });
       }
     }
@@ -41,6 +46,7 @@ function startTrialExpiryChecker() {
     });
 
     for (const sub of expiredSubs) {
+      if (!sub.Venue) continue;
       const expiredDate = dayjs(sub.current_period_end).format("YYYY-MM-DD");
       if (expiredDate === oneDayAgo) {
         await sendWhatsApp({

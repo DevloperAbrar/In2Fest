@@ -11,8 +11,9 @@ import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import api from "../../../services/api";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { useFetch } from "../../../hooks/useFetch";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 import EmptyState from "../../../components/common/EmptyState";
-import { PLAN_FEATURES } from "../../../lib/planFeatures";
+import { PLAN_FEATURES, getAssignableFeatures, getRelevantFeatures } from "../../../lib/planFeatures";
 import { Pencil, Trash2, X, Check, Link2, Copy } from "lucide-react";
 
 const emptyPermissions = PLAN_FEATURES.reduce((acc, f) => {
@@ -20,11 +21,24 @@ const emptyPermissions = PLAN_FEATURES.reduce((acc, f) => {
   return acc;
 }, {});
 
-function PermissionGrid({ permissions, onChange, disabled }) {
+// Shows only the features this vendor can really use (business type + plan).
+function PermissionGrid({ options, permissions, onChange, disabled, loading }) {
   const { t } = useTranslation();
+
+  if (loading) {
+    return <p className="text-xs text-gray-400">Loading access options...</p>;
+  }
+  if (options.length === 0) {
+    return (
+      <p className="text-xs text-gray-400">
+        No features are available for team access on your current plan.
+      </p>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-      {PLAN_FEATURES.map((f) => (
+      {options.map((f) => (
         <label key={f.key} className="flex items-center gap-2 text-sm text-gray-700">
           <input
             type="checkbox"
@@ -43,6 +57,7 @@ function PermissionGrid({ permissions, onChange, disabled }) {
 export default function TeamMembers() {
   const { t } = useTranslation();
   const { venue } = useVenue();
+  const { profile, loading: profileLoading } = useBusinessProfile();
   const { data: members, loading, refetch } = useFetch(venue ? `/venues/${venue.id}/team-members` : null, { skip: !venue });
 
   const [newPermissions, setNewPermissions] = useState(emptyPermissions);
@@ -53,6 +68,11 @@ export default function TeamMembers() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm();
+
+  const modules = profile?.modules || null;
+  const planFeatures = venue?.subscription?.plan?.features || [];
+  const options = getAssignableFeatures({ modules, planFeatures }); // what the owner can tick
+  const relevant = getRelevantFeatures(modules); // what we may show as chips on existing members
 
   const teamLoginUrl = `${window.location.origin}/team-login`;
 
@@ -156,7 +176,12 @@ export default function TeamMembers() {
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500 mb-2">{t("settings.team.accessLabel")}</p>
-              <PermissionGrid permissions={newPermissions} onChange={(key, val) => setNewPermissions((p) => ({ ...p, [key]: val }))} />
+              <PermissionGrid
+                options={options}
+                loading={profileLoading}
+                permissions={newPermissions}
+                onChange={(key, val) => setNewPermissions((p) => ({ ...p, [key]: val }))}
+              />
             </div>
             <Button type="submit" loading={isSubmitting}>{t("settings.team.addBtn")}</Button>
           </form>
@@ -176,7 +201,12 @@ export default function TeamMembers() {
                   <Input label={t("settings.team.name")} value={editName} onChange={(e) => setEditName(e.target.value)} />
                   <div>
                     <p className="text-xs font-medium text-gray-500 mb-2">{t("settings.team.editAccessLabel")}</p>
-                    <PermissionGrid permissions={editPermissions} onChange={(key, val) => setEditPermissions((p) => ({ ...p, [key]: val }))} />
+                    <PermissionGrid
+                      options={options}
+                      loading={profileLoading}
+                      permissions={editPermissions}
+                      onChange={(key, val) => setEditPermissions((p) => ({ ...p, [key]: val }))}
+                    />
                   </div>
                   <div className="flex gap-2">
                     <Button onClick={() => saveEdit(member.id)} loading={savingEdit}>
@@ -198,12 +228,12 @@ export default function TeamMembers() {
                     </div>
                     <p className="text-sm text-gray-500">{member.email}</p>
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {PLAN_FEATURES.filter((f) => member.permissions?.[f.key]).map((f) => (
+                      {relevant.filter((f) => member.permissions?.[f.key]).map((f) => (
                         <span key={f.key} className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full">
                           {t(`common.features.${f.key}`, f.label)}
                         </span>
                       ))}
-                      {PLAN_FEATURES.every((f) => !member.permissions?.[f.key]) && (
+                      {relevant.every((f) => !member.permissions?.[f.key]) && (
                         <span className="text-xs text-gray-400">{t("settings.team.noAccess")}</span>
                       )}
                     </div>

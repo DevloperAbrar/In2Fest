@@ -4,6 +4,7 @@ const env = require("../../config/env");
 const { TeamMember, Venue } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { PLAN_FEATURES } = require("../../config/planFeatures");
+const { assignableKeysForVenue } = require("../../config/teamPermissions");
 const demoRegistry = require("../demo/demo.registry");
 
 const DEFAULT_PERMISSIONS = PLAN_FEATURES.reduce((acc, f) => {
@@ -17,6 +18,31 @@ function generateTeamMemberToken(teamMember) {
     env.jwt.secret,
     { expiresIn: env.jwt.expiresIn }
   );
+}
+
+/**
+ * Builds the permissions object to store.
+ * - Only keys that fit this venue's business type can be turned on.
+ * - Any key that does not fit (for example "food" on a gym) is forced to false,
+ *   even if it was saved earlier or sent by a modified client.
+ */
+async function scopePermissions(venueId, incoming, current = {}) {
+  const venue = await Venue.findByPk(venueId, {
+    attributes: ["id", "business_category", "secondary_categories"]
+  });
+  if (!venue) throw new AppError("Venue not found", 404);
+
+  const allowed = new Set(assignableKeysForVenue(venue));
+  const merged = { ...DEFAULT_PERMISSIONS, ...(current || {}) };
+
+  Object.keys(incoming || {}).forEach((key) => {
+    if (allowed.has(key)) merged[key] = incoming[key] === true;
+  });
+  Object.keys(merged).forEach((key) => {
+    if (!allowed.has(key)) merged[key] = false;
+  });
+
+  return merged;
 }
 
 async function createTeamMember(venueId, { name, email, password, permissions }) {
@@ -33,13 +59,14 @@ async function createTeamMember(venueId, { name, email, password, permissions })
   }
 
   const password_hash = await bcrypt.hash(password, 10);
+  const scoped = await scopePermissions(venueId, permissions);
 
   const teamMember = await TeamMember.create({
     venue_id: venueId,
     name,
     email,
     password_hash,
-    permissions: { ...DEFAULT_PERMISSIONS, ...(permissions || {}) }
+    permissions: scoped
   });
 
   const { password_hash: _omit, ...safe } = teamMember.toJSON();
@@ -62,7 +89,7 @@ async function updateTeamMember(venueId, teamMemberId, updates) {
   if (updates.name !== undefined) teamMember.name = updates.name;
   if (updates.is_active !== undefined) teamMember.is_active = updates.is_active;
   if (updates.permissions !== undefined) {
-    teamMember.permissions = { ...teamMember.permissions, ...updates.permissions };
+    teamMember.permissions = await scopePermissions(venueId, updates.permissions, teamMember.permissions || {});
   }
   if (updates.password) {
     if (updates.password.length < 6) {

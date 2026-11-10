@@ -67,7 +67,14 @@ async function createOrder(req, res, next) {
 
     const plan = await Plan.findByPk(resolvedPlanId);
     if (!plan) throw new AppError("Plan not found", 404);
-    if (!plan.is_active) throw new AppError("This plan is no longer available", 400);
+
+    // A hidden (inactive) plan can no longer be sold to new vendors,
+    // but vendors who are already on it must still be able to renew it.
+    if (!plan.is_active) {
+      const currentSub = await Subscription.findOne({ where: { venue_id: venueId } });
+      const isOwnCurrentPlan = !!currentSub && currentSub.plan_id === plan.id;
+      if (!isOwnCurrentPlan) throw new AppError("This plan is no longer available", 400);
+    }
 
     const venue = await loadOwnedVenue(venueId, req.user.id, {
       include: [{ model: User, as: "owner" }]

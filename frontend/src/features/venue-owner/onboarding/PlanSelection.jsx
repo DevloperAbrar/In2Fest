@@ -167,8 +167,8 @@ function PlanCard({ plan, previous, cycle, recommended, onChoose }) {
           {isFree
             ? "Free forever. No payment needed."
             : yearly
-            ? `About ${formatCurrency(Math.round(price.perMonth))}/month, billed yearly · + 18% GST`
-            : "Billed monthly · + 18% GST"}
+            ? `About ${formatCurrency(Math.round(price.perMonth))}/month, billed yearly · ${price.gstLabel}`
+            : `Billed monthly · ${price.gstLabel}`}
         </p>
         <div className="flex flex-wrap gap-1.5 mt-2.5 min-h-[22px]">
           {!isFree && yearly && price.savingsPercent > 0 && (
@@ -197,8 +197,17 @@ function PlanCard({ plan, previous, cycle, recommended, onChoose }) {
         onClick={() => onChoose(plan)}
         className={`mt-5 w-full rounded-full py-3 text-sm font-bold transition-all active:scale-[0.99] ${ctaClass}`}
       >
-        {isFree ? "Start with free listing" : `Choose ${plan.name}`}
+        {isFree
+          ? "Start with free listing"
+          : plan.trial_days > 0
+          ? `Start ${plan.trial_days}-day free trial`
+          : `Choose ${plan.name}`}
       </button>
+      {!isFree && plan.trial_days > 0 && (
+        <p className={`mt-2 text-center text-[11px] ${dark ? "text-white/50" : "text-gray-400"}`}>
+          No payment today. Pay after your trial to keep this plan.
+        </p>
+      )}
 
       <div className={`my-6 h-px ${dark ? "bg-white/10" : "bg-gray-100"}`} />
 

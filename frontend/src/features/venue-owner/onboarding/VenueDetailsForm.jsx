@@ -67,6 +67,10 @@ export default function VenueDetailsForm() {
   const planId = plan?.id;
   const billingCycle = location.state?.billingCycle === "yearly" ? "yearly" : "monthly";
   const needsPayment = !!plan && Number(plan.monthly_price) > 0;
+  // Paid plan with trial days: vendor starts free now and pays later from Settings > Subscription.
+  const trialDays = needsPayment ? Number(plan?.trial_days) || 0 : 0;
+  const hasTrial = trialDays > 0;
+  const paysNow = needsPayment && !hasTrial;
   const price = plan ? getCyclePricing(plan, billingCycle) : null;
   const hasWebsite = (plan?.features || []).includes("website_builder");
 
@@ -194,14 +198,19 @@ export default function VenueDetailsForm() {
         business_category: primaryCategory,
         secondary_categories: [],
         plan_id: planId,
+        billing_cycle: billingCycle,
         referral_code: referralCode || undefined
       });
       const venue = data.data;
 
-      if (needsPayment) {
+      if (paysNow) {
         startCashfreePayment(venue, null);
       } else {
-        showSuccess("You're live! Let's finish setting up your page.");
+        showSuccess(
+          hasTrial
+            ? `Your ${trialDays}-day free trial has started!`
+            : "You're live! Let's finish setting up your page."
+        );
         await refetchVenue();
         navigate("/dashboard");
       }
@@ -377,9 +386,18 @@ export default function VenueDetailsForm() {
                   className="w-full !rounded-full !py-3.5 !text-[15px] !font-bold"
                   loading={isSubmitting || payingNow}
                 >
-                  {!(isSubmitting || payingNow) && needsPayment && <Lock size={15} />}
-                  {needsPayment ? "Continue to payment" : "Create my page"}
+                  {!(isSubmitting || payingNow) && paysNow && <Lock size={15} />}
+                  {paysNow
+                    ? "Continue to payment"
+                    : hasTrial
+                    ? `Start ${trialDays}-day free trial`
+                    : "Create my page"}
                 </Button>
+                {hasTrial && (
+                  <p className="text-center text-xs text-gray-500 mt-3">
+                    No payment today. We remind you before the trial ends.
+                  </p>
+                )}
                 <p className="text-center text-[11px] text-gray-400 mt-3 leading-relaxed">
                   By continuing you agree to our{" "}
                   <a href={`${DISCOVERY_URL}/terms`} target="_blank" rel="noreferrer" className="underline hover:text-primary-600">
@@ -414,11 +432,18 @@ export default function VenueDetailsForm() {
 
               {needsPayment ? (
                 <div className="mt-4">
+                  {hasTrial && (
+                    <p className="inline-block text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-400/15 text-emerald-300 mb-2">
+                      {trialDays} days free
+                    </p>
+                  )}
                   <div className="flex items-baseline gap-1.5">
                     <span className="font-display font-bold text-3xl">{formatCurrency(price.final)}</span>
                     <span className="text-sm text-white/60">{price.cycleLabel}</span>
                   </div>
-                  <p className="text-xs text-white/60 mt-1">+ 18% GST, billed {billingCycle}</p>
+                  <p className="text-xs text-white/60 mt-1">
+                    {hasTrial ? "after your free trial" : "billed " + billingCycle} · {price.gstLabel}
+                  </p>
                 </div>
               ) : (
                 <p className="mt-4 text-sm text-white/70">Free forever. No payment needed.</p>
@@ -427,7 +452,7 @@ export default function VenueDetailsForm() {
               {needsPayment && (
                 <div className="flex items-center gap-2 mt-5 pt-4 border-t border-white/10 text-xs text-white/60">
                   <ShieldCheck size={14} className="text-emerald-400 flex-shrink-0" />
-                  Pay securely online in the next step
+                  {hasTrial ? "No payment needed to start" : "Pay securely online in the next step"}
                 </div>
               )}
             </div>
@@ -451,9 +476,15 @@ export default function VenueDetailsForm() {
               <p className="text-sm font-semibold text-navy-900 mb-3">What happens next</p>
               <ul className="space-y-2.5">
                 {[
-                  needsPayment ? "You complete the payment" : "Your page goes live instantly",
+                  paysNow
+                    ? "You complete the payment"
+                    : hasTrial
+                    ? `Your ${trialDays}-day free trial starts right away`
+                    : "Your page goes live instantly",
                   "Your dashboard opens, ready to use",
-                  "Add photos, timings and pricing at your pace",
+                  hasTrial
+                    ? "Pay from Settings → Subscription to keep your plan after the trial"
+                    : "Add photos, timings and pricing at your pace",
                 ].map((text) => (
                   <li key={text} className="flex items-start gap-2.5 text-[13px] text-gray-600 leading-snug">
                     <span className="mt-0.5 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
