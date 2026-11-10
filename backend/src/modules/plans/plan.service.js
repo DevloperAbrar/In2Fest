@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const { Plan, Subscription } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { getPlanPricing, MAX_DISCOUNT } = require("./planPricing");
@@ -58,6 +59,33 @@ function sanitizePricingFields(input) {
   return out;
 }
 
+// { [planId]: number of vendors subscribed to it }
+async function getSubscriberCounts() {
+  const rows = await Subscription.count({ group: ["plan_id"] });
+  const map = {};
+  (rows || []).forEach((row) => {
+    map[row.plan_id] = Number(row.count) || 0;
+  });
+  return map;
+}
+
+/**
+ * Hiding a plan only stops NEW vendors from picking it. The one thing we protect:
+ * free signups need at least one visible free plan, so the last one cannot be hidden.
+ */
+async function assertCanHide(plan) {
+  if (Number(plan.monthly_price) > 0) return;
+  const otherVisibleFree = await Plan.count({
+    where: { monthly_price: 0, is_active: true, id: { [Op.ne]: plan.id } }
+  });
+  if (otherVisibleFree === 0) {
+    throw new AppError(
+      "This is your only visible free plan. New vendors need one to start with, so create another free plan first or keep this one visible.",
+      409
+    );
+  }
+}
+
 async function createPlan(payload) {
   const plan = await Plan.create({
     name: payload.name,
@@ -65,17 +93,25 @@ async function createPlan(payload) {
     monthly_price: payload.monthly_price,
     features: payload.features || [],
     trial_days: payload.trial_days || 0,
-    is_active: payload.is_active !== undefined ? payload.is_active : true,
+    is_active: payload.is_active !== undefined ? toBool(payload.is_active) : true,
     gst_inclusive: toBool(payload.gst_inclusive),
     ...sanitizePricingFields(payload)
   });
   return withPricing(plan);
 }
 
+/**
+ * includeInactive = true  (super admin): all plans, hidden ones too, with subscriber_count.
+ * includeInactive = false (everyone else): visible plans only.
+ */
 async function getAllPlans(includeInactive = false) {
   const where = includeInactive ? {} : { is_active: true };
   const plans = await Plan.findAll({ where, order: [["monthly_price", "ASC"]] });
-  return plans.map(withPricing);
+
+  if (!includeInactive) return plans.map(withPricing);
+
+  const counts = await getSubscriberCounts();
+  return plans.map((plan) => ({ ...withPricing(plan), subscriber_count: counts[plan.id] || 0 }));
 }
 
 async function getPlanById(id) {
@@ -89,11 +125,18 @@ async function updatePlan(id, updates) {
 
   // Note: changing prices here does NOT affect existing subscribers.
   // Subscription.locked_price is what they actually pay  - see subscription.service.js
-  const allowedFields = ["name", "description", "monthly_price", "features", "trial_days", "is_active"];
+  const allowedFields = ["name", "description", "monthly_price", "features", "trial_days"];
   allowedFields.forEach((field) => {
     if (updates[field] !== undefined) plan[field] = updates[field];
   });
   Object.assign(plan, sanitizePricingFields(updates));
+
+  // Visible / hidden
+  if (updates.is_active !== undefined) {
+    const nextActive = toBool(updates.is_active);
+    if (!nextActive && plan.is_active) await assertCanHide(plan);
+    plan.is_active = nextActive;
+  }
 
   // Switching between "GST included" and "GST extra" changes what renewing vendors pay,
   // so it is only allowed while nobody is subscribed to this plan.
@@ -115,13 +158,34 @@ async function updatePlan(id, updates) {
   return withPricing(plan);
 }
 
+/**
+ * Hide (visible = false) or unhide (visible = true) a plan for NEW vendors.
+ * Vendors already on the plan keep their features, price and renewal.
+ */
+async function setPlanVisibility(id, visible) {
+  if (typeof visible !== "boolean") {
+    throw new AppError("visible must be true or false", 400);
+  }
+
+  const plan = await getPlanById(id);
+
+  if (!!plan.is_active !== visible) {
+    if (!visible) await assertCanHide(plan);
+    plan.is_active = visible;
+    await plan.save();
+  }
+
+  const subscriberCount = await Subscription.count({ where: { plan_id: id } });
+  return { ...withPricing(plan), subscriber_count: subscriberCount };
+}
+
 async function deletePlan(id) {
   const plan = await getPlanById(id);
 
   const subscriberCount = await Subscription.count({ where: { plan_id: id } });
   if (subscriberCount > 0) {
     throw new AppError(
-      `This plan has ${subscriberCount} vendor(s) subscribed to it and can't be deleted. Deactivate it instead so no new vendors can pick it.`,
+      `This plan has ${subscriberCount} vendor(s) subscribed to it and can't be deleted. Hide it instead so no new vendors can pick it.`,
       409
     );
   }
@@ -130,4 +194,12 @@ async function deletePlan(id) {
   return true;
 }
 
-module.exports = { createPlan, getAllPlans, getPlanById, updatePlan, deletePlan, withPricing };
+module.exports = {
+  createPlan,
+  getAllPlans,
+  getPlanById,
+  updatePlan,
+  setPlanVisibility,
+  deletePlan,
+  withPricing
+};

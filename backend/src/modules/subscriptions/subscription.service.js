@@ -14,7 +14,11 @@ async function createSubscription(venueId, planId, options = {}) {
   const transaction = options.transaction;
 
   const plan = await Plan.findByPk(planId, { transaction });
-  if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
+  // A hidden plan cannot be sold to new vendors. options.allowInactive is only passed by the
+  // payment-verify step, where the vendor has already paid for a plan that was visible at checkout.
+  if (!plan || (!plan.is_active && !options.allowInactive)) {
+    throw new AppError("Plan not found or inactive", 404);
+  }
 
   const existing = await Subscription.findOne({ where: { venue_id: venueId }, transaction });
   if (existing) throw new AppError("Venue already has a subscription", 400);
@@ -164,7 +168,10 @@ async function switchPlanAfterPayment(venueId, newPlanId, options = {}) {
   const transaction = options.transaction;
 
   const plan = await Plan.findByPk(newPlanId, { transaction });
-  if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
+  // Same rule as createSubscription: only the payment-verify step may pass allowInactive.
+  if (!plan || (!plan.is_active && !options.allowInactive)) {
+    throw new AppError("Plan not found or inactive", 404);
+  }
 
   const subscription = await getSubscriptionByVenue(venueId, { transaction });
   const now = dayjs();
@@ -200,7 +207,8 @@ async function adminAssignPlan(venueId, planId, options = {}) {
 
   if (!planId) throw new AppError("Please select a plan", 400);
   const plan = await Plan.findByPk(planId);
-  if (!plan || !plan.is_active) throw new AppError("Plan not found or inactive", 404);
+  // Admin may assign hidden plans on purpose (custom deals), so is_active is not checked here.
+  if (!plan) throw new AppError("Plan not found", 404);
 
   const isFree = Number(plan.monthly_price) <= 0;
   const cycle = isFree ? "monthly" : normalizeCycle(options.billingCycle);

@@ -81,4 +81,28 @@ async function authenticate(req, res, next) {
   }
 }
 
-module.exports = { authenticate, protect: authenticate };
+/**
+ * For PUBLIC endpoints that answer a little differently for a logged-in user
+ * (for example GET /plans, where super admin also sees hidden plans).
+ * It never blocks the request: no token, a bad token or an unknown user simply
+ * means the caller is treated as anonymous.
+ */
+async function optionalAuthenticate(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return next();
+
+    const decoded = jwt.verify(authHeader.split(" ")[1], env.jwt.secret);
+    if (decoded.role === "team_member") return next();
+
+    const user = await User.findByPk(decoded.id);
+    if (user && user.is_active) {
+      req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
+    }
+  } catch (_) {
+    // Public endpoint: ignore auth problems and continue as anonymous.
+  }
+  return next();
+}
+
+module.exports = { authenticate, optionalAuthenticate, protect: authenticate };

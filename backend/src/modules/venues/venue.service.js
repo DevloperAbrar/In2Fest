@@ -218,7 +218,8 @@ async function adminCreateVenue(payload, adminUser = null) {
   // Validate the plan first so we never create a half-set-up vendor.
   if (plan_id) {
     const plan = await Plan.findByPk(plan_id);
-    if (!plan || !plan.is_active) throw new AppError("Selected plan not found or inactive", 404);
+    // Admin can pick hidden plans too (custom deals).
+    if (!plan) throw new AppError("Selected plan not found", 404);
   }
 
   const owner = await findOrCreateOwnerByEmail(owner_email, owner_name);

@@ -246,7 +246,7 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
 
       <label className="flex items-center gap-2 text-sm text-gray-700">
         <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-        Active (visible to new vendors during signup)
+        Visible to new vendors (untick to hide it; vendors already on this plan are not affected)
       </label>
 
       <div className="space-y-4">

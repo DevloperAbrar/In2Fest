@@ -326,12 +326,16 @@ async function verifyPayment(req, res, next) {
             : await subscriptionService.switchPlanAfterPayment(venueId, resolvedPlanId, {
                 billingCycle: cycle,
                 amount: quote.taxable_amount,
+                // Money is already collected. If the plan was hidden while the vendor was on
+                // the Cashfree page, still activate it instead of failing after payment.
+                allowInactive: true,
                 transaction: t
               });
         } else {
           subscription = await subscriptionService.createSubscription(venueId, resolvedPlanId, {
             billingCycle: cycle,
             skipTrial: true,
+            allowInactive: true,
             transaction: t
           });
           subscription.locked_price = quote.taxable_amount;

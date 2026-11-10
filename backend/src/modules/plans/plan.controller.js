@@ -11,8 +11,15 @@ async function createPlan(req, res, next) {
 
 async function getAllPlans(req, res, next) {
   try {
-    const includeInactive = req.user && req.user.role === "super_admin";
-    const plans = await planService.getAllPlans(includeInactive);
+    const isAdmin = !!req.user && req.user.role === "super_admin";
+
+    // The answer depends on who asks, so a cache must never share it between callers.
+    res.set("Vary", "Authorization");
+    if (isAdmin) res.set("Cache-Control", "no-store");
+
+    // Super admin: every plan (including hidden ones) + subscriber counts.
+    // Everyone else: visible plans only.
+    const plans = await planService.getAllPlans(isAdmin);
     res.json({ success: true, data: plans });
   } catch (error) {
     next(error);
@@ -37,6 +44,23 @@ async function updatePlan(req, res, next) {
   }
 }
 
+// Body: { visible: true | false }
+async function setVisibility(req, res, next) {
+  try {
+    const raw = req.body ? req.body.visible : undefined;
+    const visible =
+      raw === true || raw === "true" ? true : raw === false || raw === "false" ? false : undefined;
+    const plan = await planService.setPlanVisibility(req.params.id, visible);
+    res.json({
+      success: true,
+      message: visible ? "Plan is now visible to new vendors" : "Plan is now hidden from new vendors",
+      data: plan
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function deletePlan(req, res, next) {
   try {
     await planService.deletePlan(req.params.id);
@@ -46,4 +70,4 @@ async function deletePlan(req, res, next) {
   }
 }
 
-module.exports = { createPlan, getAllPlans, getPlan, updatePlan, deletePlan };
+module.exports = { createPlan, getAllPlans, getPlan, updatePlan, setVisibility, deletePlan };
