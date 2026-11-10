@@ -42,7 +42,7 @@ export default function VendorCTAPrompt() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 60, opacity: 0 }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed z-40 bottom-16 md:bottom-6 inset-x-3 md:inset-x-auto md:right-6 md:w-96"
+          className="fixed z-40 bottom-36 lg:bottom-6 inset-x-3 md:inset-x-auto md:right-6 md:w-96"
         >
           <div className="relative bg-navy-900 text-white rounded-2xl shadow-2xl border border-gold-500/30 px-5 pt-5 pb-5 overflow-hidden">
             <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gold-500/20 blur-2xl pointer-events-none" />
