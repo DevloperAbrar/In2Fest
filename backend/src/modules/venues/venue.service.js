@@ -333,6 +333,98 @@ async function getVenuesByOwner(ownerId) {
   return venues;
 }
 
+/**
+ * Super Admin edit of a vendor's core details: business name, owner name, phone, city and
+ * main category. The subdomain never changes, so the website link stays the same.
+ * When the main category changes, the vendor's own data (members, products, website sections,
+ * labels they typed themselves) is NOT touched; only the category-driven behaviour changes.
+ */
+async function adminUpdateVenue(venueId, updates = {}, adminUser = null) {
+  const { City, Category } = require("../../database/models");
+
+  const venue = await Venue.findByPk(venueId);
+  if (!venue) throw new AppError("Venue not found", 404);
+
+  const patch = {};
+
+  if (updates.hall_name !== undefined) {
+    const name = String(updates.hall_name || "").trim();
+    if (name.length < 2 || name.length > 150) {
+      throw new AppError("Business name must be 2 to 150 characters", 400);
+    }
+    patch.hall_name = name;
+  }
+
+  if (updates.owner_name !== undefined) {
+    const owner = String(updates.owner_name || "").trim();
+    if (owner.length < 2 || owner.length > 100) {
+      throw new AppError("Owner name must be 2 to 100 characters", 400);
+    }
+    patch.owner_name = owner;
+  }
+
+  if (updates.phone !== undefined) {
+    const raw = String(updates.phone || "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 13) {
+      throw new AppError("Enter a valid phone number (10 to 13 digits)", 400);
+    }
+    patch.phone = raw;
+  }
+
+  if (updates.city !== undefined) {
+    const cityName = String(updates.city || "").trim();
+    if (!cityName) throw new AppError("City is required", 400);
+    // Must be a city from the cities list, otherwise the vendor would vanish from the marketplace.
+    const escaped = cityName.replace(/[\\%_]/g, "\\$&");
+    const city = await City.findOne({ where: { name: { [Op.iLike]: escaped } } });
+    if (!city) throw new AppError(`"${cityName}" is not in the cities list. Add the city first.`, 400);
+    patch.city = city.name;
+  }
+
+  let categoryChange = null;
+  if (updates.business_category !== undefined) {
+    const slug = String(updates.business_category || "").trim();
+    if (!slug) throw new AppError("Category is required", 400);
+
+    const category = await Category.findOne({ where: { slug, active: true }, attributes: ["slug", "name"] });
+    if (!category) throw new AppError("Selected category was not found or is not active", 400);
+
+    const oldSlug = venue.business_category;
+    if (slug !== oldSlug) {
+      patch.business_category = slug;
+
+      // The auto-filled venue type (old category slug) follows the new category.
+      // Labels the vendor typed themselves (for example "sport academy") are left alone.
+      const storedTypes = venue.getDataValue("venue_type");
+      if (Array.isArray(storedTypes) && storedTypes.length > 0) {
+        patch.venue_type = Array.from(new Set(storedTypes.map((t) => (t === oldSlug ? slug : t))));
+      }
+
+      // The new main category can not also be an extra category.
+      const secondary = Array.isArray(venue.secondary_categories) ? venue.secondary_categories : [];
+      patch.secondary_categories = secondary.filter((s) => s !== slug);
+
+      categoryChange = { from: oldSlug, to: slug };
+    }
+  }
+
+  if (Object.keys(patch).length === 0) return venue;
+
+  await venue.update(patch);
+
+  if (categoryChange) {
+    // Marketplace pages are cached per category; the change shows up as the cache expires.
+    console.log(
+      `[ADMIN-EDIT] ${adminUser ? adminUser.email : "admin"} changed category of venue=${venue.id} ` +
+      `${categoryChange.from} -> ${categoryChange.to} at=${new Date().toISOString()}`
+    );
+  }
+
+  await recalculateSetupChecklist(venue);
+  return getVenueById(venue.id);
+}
+
 async function updateVenue(venueId, ownerId, updates) {
   const venue = await Venue.findOne({ where: { id: venueId, owner_id: ownerId } });
   if (!venue) throw new AppError("Venue not found or access denied", 404);
@@ -765,6 +857,7 @@ module.exports = {
   getVenueById,
   getVenuesByOwner,
   updateVenue,
+  adminUpdateVenue,
   uploadHeroImage,
   addGalleryImages,
   deleteGalleryImage,

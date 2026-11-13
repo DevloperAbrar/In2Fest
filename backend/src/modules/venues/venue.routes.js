@@ -71,6 +71,7 @@ router.patch("/:id", authenticate, requireVenueOwnership, requireRole("venue_own
 // Super Admin only
 router.get("/", authenticate, requireRole("super_admin"), controller.listAllVenues);
 router.patch("/:id/status", authenticate, requireRole("super_admin"), controller.toggleVenueActive);
+router.patch("/:id/admin", authenticate, requireRole("super_admin"), controller.adminUpdateVenue);
 router.delete("/:id", authenticate, requireRole("super_admin"), controller.deleteVenue);
 
 module.exports = router;

@@ -18,5 +18,6 @@ export const venueService = {
 
   // Super Admin: onboard a vendor by email only, then impersonate them.
   adminCreate: (payload) => api.post("/venues/admin/create", payload),
+  adminUpdate: (id, payload) => api.patch(`/venues/${id}/admin`, payload),
   impersonate: (id) => api.post(`/venues/${id}/impersonate`)
 };

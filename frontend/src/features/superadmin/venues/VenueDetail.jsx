@@ -6,10 +6,13 @@ import { useFetch } from "../../../hooks/useFetch";
 import Card from "../../../components/common/Card";
 import Badge from "../../../components/common/Badge";
 import Button from "../../../components/common/Button";
+import Input from "../../../components/common/Input";
+import Select from "../../../components/common/Select";
 import Loader from "../../../components/common/Loader";
 import VenueActions from "./VenueActions.jsx";
 import PlanAssignFields, { EMPTY_ASSIGN, validateAssign } from "./PlanAssignFields.jsx";
 import { subscriptionService } from "../../../services/subscriptionService";
+import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatDate, formatCurrency } from "../../../lib/formatters";
 import { BASE_DOMAIN } from "../../../lib/constants";
@@ -88,29 +91,186 @@ function ChangePlanPanel({ venue, onDone, onCancel }) {
   );
 }
 
+// Edit business name, owner, phone, city and main category on the vendor's behalf.
+function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
+  const [form, setForm] = useState({
+    hall_name: venue.hall_name || "",
+    owner_name: venue.owner_name || "",
+    phone: venue.phone || "",
+    city: venue.city || "",
+    business_category: venue.business_category || ""
+  });
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const update = (field) => (e) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+    setErrors((er) => ({ ...er, [field]: undefined }));
+  };
+
+  // Keep the vendor's current city selectable even if it is missing from the cities list.
+  const cityNames = Array.from(new Set([venue.city, ...(cities || []).map((c) => c.name)].filter(Boolean)));
+
+  // Group categories by their business type so the long list is easy to scan.
+  const groupMap = new Map();
+  (categories || []).forEach((c) => {
+    const label = c.business_type_label || "Other";
+    if (!groupMap.has(label)) groupMap.set(label, []);
+    groupMap.get(label).push({ value: c.slug, label: c.name });
+  });
+  const groups = [...groupMap.entries()].map(([label, options]) => ({ label, options }));
+
+  const categoryChanged = form.business_category !== venue.business_category;
+
+  const validate = () => {
+    const next = {};
+    if (form.hall_name.trim().length < 2) next.hall_name = "Business name is required";
+    if (form.owner_name.trim().length < 2) next.owner_name = "Owner name is required";
+    const digits = form.phone.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 13) next.phone = "Enter a valid phone number";
+    if (!form.city) next.city = "Select a city";
+    if (!form.business_category) next.business_category = "Select a category";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const save = async () => {
+    if (!validate()) return;
+    if (
+      categoryChanged &&
+      !window.confirm(
+        "Changing the category changes the tools this vendor sees and their marketplace link. " +
+        "Their data is kept. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await venueService.adminUpdate(venue.id, form);
+      showSuccess("Vendor details updated");
+      onDone();
+    } catch (err) {
+      showError(err.response?.data?.message || "Failed to update vendor");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input label="Business / venue name" value={form.hall_name} onChange={update("hall_name")} error={errors.hall_name} />
+        <Input label="Owner name" value={form.owner_name} onChange={update("owner_name")} error={errors.owner_name} />
+        <Input label="Phone" value={form.phone} onChange={update("phone")} error={errors.phone} />
+        <Select
+          label="City"
+          value={form.city}
+          onChange={update("city")}
+          error={errors.city}
+          options={[{ value: "", label: "Select a city" }, ...cityNames.map((n) => ({ value: n, label: n }))]}
+        />
+      </div>
+
+      <Select
+        label="Main category"
+        value={form.business_category}
+        onChange={update("business_category")}
+        error={errors.business_category}
+        options={[{ value: "", label: "Select a category" }]}
+        groups={groups}
+      />
+
+      {categoryChanged && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          The marketplace link of this vendor will change to the new category
+          (/city/<strong>{form.business_category}</strong>/{venue.subdomain}). The old link will stop working.
+          The website link ({venue.subdomain}.{BASE_DOMAIN}) stays the same.
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <Button onClick={save} loading={saving}>Save changes</Button>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 export default function VenueDetail() {
   const { id } = useParams();
   const { data: venue, loading, refetch } = useFetch(`/venues/${id}`);
+  const { data: categories } = useFetch("/meta/categories");
+  const { data: cities } = useFetch("/meta/cities");
   const [changingPlan, setChangingPlan] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   if (loading) return <Loader fullScreen />;
   if (!venue) return null;
 
   const completion = venue.marketplace_completion;
 
+  // Categories this vendor is enrolled in: the main one first, then the extra ones.
+  const nameOf = (slug) => (categories || []).find((c) => c.slug === slug)?.name || slug;
+  const typeLabelOf = (slug) => (categories || []).find((c) => c.slug === slug)?.business_type_label;
+  const mainCategory = venue.business_category;
+  const extraCategories = Array.isArray(venue.secondary_categories) ? venue.secondary_categories : [];
+
   return (
     <DashboardLayout sidebarItems={adminSidebarItems} pageTitle={venue.hall_name}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2" title="Venue Details">
-          <dl className="grid grid-cols-2 gap-4 text-sm">
-            <div><dt className="text-gray-400">Owner</dt><dd>{venue.owner_name}</dd></div>
-            <div><dt className="text-gray-400">Phone</dt><dd>{venue.phone}</dd></div>
-            <div><dt className="text-gray-400">Email</dt><dd>{venue.owner?.email || "-"}</dd></div>
-            <div><dt className="text-gray-400">City</dt><dd>{venue.city}</dd></div>
-            <div><dt className="text-gray-400">Capacity</dt><dd>{venue.capacity}</dd></div>
-            <div><dt className="text-gray-400">Subdomain</dt><dd>{venue.subdomain}.{BASE_DOMAIN}</dd></div>
-            <div><dt className="text-gray-400">Live</dt><dd>{venue.is_live ? "Yes" : "No"}</dd></div>
-          </dl>
+          {!editing && (
+            <>
+              <dl className="grid grid-cols-2 gap-4 text-sm">
+                <div><dt className="text-gray-400">Business name</dt><dd>{venue.hall_name}</dd></div>
+                <div><dt className="text-gray-400">Owner</dt><dd>{venue.owner_name}</dd></div>
+                <div><dt className="text-gray-400">Phone</dt><dd>{venue.phone}</dd></div>
+                <div><dt className="text-gray-400">Email</dt><dd>{venue.owner?.email || "-"}</dd></div>
+                <div><dt className="text-gray-400">City</dt><dd>{venue.city}</dd></div>
+                <div><dt className="text-gray-400">Capacity</dt><dd>{venue.capacity}</dd></div>
+                <div><dt className="text-gray-400">Subdomain</dt><dd>{venue.subdomain}.{BASE_DOMAIN}</dd></div>
+                <div><dt className="text-gray-400">Live</dt><dd>{venue.is_live ? "Yes" : "No"}</dd></div>
+                <div className="col-span-2">
+                  <dt className="text-gray-400 mb-1">Enrolled category</dt>
+                  <dd className="flex flex-wrap items-center gap-2">
+                    {mainCategory ? (
+                      <span className="text-xs bg-primary-50 text-primary-700 px-2.5 py-1 rounded-full font-medium">
+                        {nameOf(mainCategory)} (main)
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">Not set</span>
+                    )}
+                    {extraCategories.map((slug) => (
+                      <span key={slug} className="text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full">
+                        {nameOf(slug)}
+                      </span>
+                    ))}
+                    {mainCategory && typeLabelOf(mainCategory) && (
+                      <span className="text-xs text-gray-400">· {typeLabelOf(mainCategory)}</span>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+              <Button variant="outline" className="mt-4" onClick={() => setEditing(true)}>
+                Edit details
+              </Button>
+            </>
+          )}
+
+          {editing && (
+            <EditDetailsPanel
+              venue={venue}
+              categories={categories}
+              cities={cities}
+              onCancel={() => setEditing(false)}
+              onDone={() => {
+                setEditing(false);
+                refetch();
+              }}
+            />
+          )}
         </Card>
 
         <Card title="Subscription">

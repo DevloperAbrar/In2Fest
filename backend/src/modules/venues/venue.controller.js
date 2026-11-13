@@ -59,6 +59,16 @@ async function updateVenue(req, res, next) {
   }
 }
 
+// Super Admin  - edit a vendor's name, phone, city and main category.
+async function adminUpdateVenue(req, res, next) {
+  try {
+    const venue = await venueService.adminUpdateVenue(req.params.id, req.body || {}, req.user);
+    res.json({ success: true, data: venue });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function uploadHeroImage(req, res, next) {
   try {
     if (!req.file) throw new AppError("No file uploaded", 400);
@@ -159,6 +169,7 @@ module.exports = {
   getMyVenues,
   getVenue,
   updateVenue,
+  adminUpdateVenue,
   uploadHeroImage,
   addGalleryImages,
   listAllVenues,
