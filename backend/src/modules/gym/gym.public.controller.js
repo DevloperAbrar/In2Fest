@@ -18,7 +18,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 async function gymVenue(id) {
   const venue = UUID_RE.test(String(id)) ? await Venue.findOne({ where: { id, is_active: true } }) : null;
   const cats = venue ? [venue.business_category, ...(venue.secondary_categories || [])] : [];
-  if (!venue || !cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c))) throw new AppError("Gym not found", 404);
+  if (!venue || (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").categoriesInSegment(cats, "gym"))) throw new AppError("Gym not found", 404);
   return venue;
 }
 

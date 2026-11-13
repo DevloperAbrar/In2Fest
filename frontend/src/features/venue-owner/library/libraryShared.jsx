@@ -5,6 +5,7 @@ import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useAuth } from "../../../context/AuthContext";
 import { useVenue } from "../../../context/VenueContext.jsx";
+import { hasScope, LIB_TAB_SCOPES } from "../../../lib/teamScopes";
 
 export { inr, fmtDate, todayISO, errMsg, downloadBlob, waUrl, Field, TextArea } from "../gym/gymShared.jsx";
 
@@ -74,8 +75,9 @@ const TABS = [
 const SETTINGS_TAB = { to: "/dashboard/library/settings", label: "Settings", icon: Settings };
 
 export function LibraryPage({ title, subtitle, actions, children }) {
-  const { isOwner } = useLib();
-  const tabs = isOwner ? [...TABS, SETTINGS_TAB] : TABS;
+   const { isOwner, user } = useLib();
+  const baseTabs = isOwner ? [...TABS, SETTINGS_TAB] : TABS;
+  const tabs = baseTabs.filter((tb) => tb === SETTINGS_TAB || hasScope(user, "library", LIB_TAB_SCOPES[tb.to] || []));
   return (
     <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Library">
       <div className="flex items-start justify-between gap-3 mb-4">

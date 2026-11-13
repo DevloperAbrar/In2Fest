@@ -3,13 +3,14 @@ import {
   Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag, UtensilsCrossed, Briefcase, Library
 } from "lucide-react";
 
+// segmentKey: also shown for Super-Admin-created categories whose functionality (segment) matches.
 export const ownerSidebarItems = [
   { navKey: "dashboard",   path: "/dashboard",                     label: "Dashboard",           icon: LayoutDashboard, primaryNav: true },
-  { navKey: "gym",         path: "/dashboard/gym",                 label: "Gym",                 icon: Dumbbell,        requiredFeature: "gym", categorySlugs: ["gym-fitness"], primaryNav: true },
-  { navKey: "library",     path: "/dashboard/library",             label: "Library",             icon: Library,         requiredFeature: "library", categorySlugs: ["study-library"], primaryNav: true },
+  { navKey: "gym",         path: "/dashboard/gym",                 label: "Gym",                 icon: Dumbbell,        requiredFeature: "gym", categorySlugs: ["gym-fitness"], segmentKey: "gym", primaryNav: true },
+  { navKey: "library",     path: "/dashboard/library",             label: "Library",             icon: Library,         requiredFeature: "library", categorySlugs: ["study-library"], segmentKey: "library", primaryNav: true },
   // Staff: gym category only, owner only (hidden for team members in useVisibleNavItems). No navKey on purpose,
   // so the backend vendor-segment list does not need to change.
-  { path: "/dashboard/staff",   label: "Staff",               icon: Briefcase,       requiredFeature: "gym", categorySlugs: ["gym-fitness"] },
+  { path: "/dashboard/staff",   label: "Staff",               icon: Briefcase,       requiredFeature: "gym", categorySlugs: ["gym-fitness"], segmentKey: "gym" },
   { navKey: "food",        path: "/dashboard/food",                label: "Restaurant",          icon: UtensilsCrossed, requiredFeature: "food", businessTypes: ["food"], primaryNav: true },
   { navKey: "orders",      path: "/dashboard/orders",              label: "Pickup Orders",       icon: ShoppingBag,     requiredFeature: "billing",            businessTypes: ["retail"], primaryNav: true },
   { navKey: "inquiries",   path: "/dashboard/inquiries",           label: "Inquiries",           icon: MessageSquare,   requiredFeature: "inquiries",          primaryNav: true },

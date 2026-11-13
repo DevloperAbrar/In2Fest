@@ -20,9 +20,10 @@ async function safe(promise, fallback) {
 }
 
 function resolveSegment(venue) {
+  const VS = require("../../config/vendorSegments");
   const cats = [venue.business_category, ...(venue.secondary_categories || [])].filter(Boolean);
-  if (cats.some((c) => GC.GYM_CATEGORY_SLUGS.includes(c))) return "gym";
-  if (cats.includes("study-library")) return "library";
+  if (cats.some((c) => GC.GYM_CATEGORY_SLUGS.includes(c)) || VS.categoriesInSegment(cats, "gym")) return "gym";
+  if (cats.includes("study-library") || VS.categoriesInSegment(cats, "library")) return "library";
   if (subtypeFor(venue)) return "food";
   if (typeof BT.getBusinessTypeKey === "function" && cats.some((c) => BT.getBusinessTypeKey(c) === "retail")) return "retail";
   return "bookings";
@@ -377,6 +378,19 @@ async function getOwnerOverview(req, res, next) {
     if (!venue) throw new AppError("Venue not found", 404);
 
     const segment = resolveSegment(venue);
+
+    // Team members limited to specific tasks (without "Reports") must not see revenue or profit.
+    if (require("../../config/teamPermissions").isRestrictedTeamMember(req.user)) {
+      return res.json({
+        success: true,
+        data: {
+          segment, restricted: true, labels: {}, heroStats: [], tiles: [], pulse: [],
+          monthlyBookings: 0, monthlyRevenue: 0, totalPendingPayments: 0, revenueTrend: [],
+          totalRevenueAllTime: 0, totalClients: 0, avgBookingValue: 0,
+          totalInquiries: 0, convertedInquiries: 0, conversionRate: 0, avgRating: 0, totalReviews: 0
+        }
+      });
+    }
 
     const [reviews, inq] = await Promise.all([
       safe(reviewStats(venue.id), { avgRating: 0, totalReviews: 0 }),

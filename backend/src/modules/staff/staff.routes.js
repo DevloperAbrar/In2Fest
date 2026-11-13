@@ -14,7 +14,7 @@ const router = express.Router({ mergeParams: true });
 function gymOnly(req, res, next) {
   const v = req.planVenue;
   const cats = v ? [v.business_category, ...(v.secondary_categories || [])] : [];
-  if (!cats.some((c) => GYM_CATEGORY_SLUGS.includes(c))) return next(new AppError("Staff management is available only for Gym & Fitness businesses", 403));
+  if (!cats.some((c) => GYM_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").categoriesInSegment(cats, "gym")) return next(new AppError("Staff management is available only for Gym & Fitness businesses", 403));
   req.staffVenue = v;
   return next();
 }

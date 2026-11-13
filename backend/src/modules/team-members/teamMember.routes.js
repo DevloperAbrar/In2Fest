@@ -13,6 +13,7 @@ router.use(authenticate, requireVenueOwnership, requireRole("venue_owner"));
 
 router.post("/", controller.create);
 router.get("/", controller.list);
+router.get("/options", controller.options);
 router.patch("/:teamMemberId", controller.update);
 router.delete("/:teamMemberId", controller.remove);
 

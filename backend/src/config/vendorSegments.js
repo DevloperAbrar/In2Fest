@@ -69,9 +69,6 @@ const SEGMENTS = {
     modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "clients", "billing"],
     nav: [...ALWAYS_NAV, "inquiries", "clients", "billing", ...COMMON_NAV]
   },
-  // Restaurants get only what they need: the Restaurant suite (orders, POS, menu, offers, stock,
-  // customers, setup as tabs inside one sidebar entry) plus inquiries, website, marketplace,
-  // reviews, referrals and analytics. No reservations or separate billing (POS handles billing).
   food: {
     key: "food",
     label: "Restaurants & Food Businesses",
@@ -85,22 +82,63 @@ const SEGMENTS = {
     categories: ["study-library"],
     modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "library"],
     nav: [...ALWAYS_NAV, "library", "inquiries", "website", "marketplace", "reviews", "referrals"]
+  },
+  // Generic events segment. No fixed categories: only categories created by Super Admin
+  // with the "events" functionality land here (through categories.segment).
+  events: {
+    key: "events",
+    label: "Events & Celebrations",
+    categories: [],
+    modules: [...EVENT_BASE, "slots"],
+    nav: [...ALWAYS_NAV, "inquiries", "bookings", "slots", "clients", "billing", ...COMMON_NAV]
   }
 };
 
 const SEGMENT_BY_CATEGORY = {};
 Object.values(SEGMENTS).forEach((seg) => seg.categories.forEach((slug) => { SEGMENT_BY_CATEGORY[slug] = seg; }));
 
+// Functionality a Super Admin can give a NEW category (stored in categories.segment).
+const ASSIGNABLE_SEGMENTS = ["gym", "shop", "food", "library", "events"];
+
+/* Runtime registry: slug -> segment key, loaded from categories.segment
+   (see utils/categoryTypeCache.js). Static segments above always win. */
+let dynamicSegments = new Map();
+
+function setDynamicCategorySegments(rows) {
+  const next = new Map();
+  (rows || []).forEach((row) => {
+    if (row && row.slug && row.segment && ASSIGNABLE_SEGMENTS.includes(row.segment)) {
+      next.set(row.slug, row.segment);
+    }
+  });
+  dynamicSegments = next;
+}
+
+function segmentForCategory(slug) {
+  if (!slug) return null;
+  if (SEGMENT_BY_CATEGORY[slug]) return SEGMENT_BY_CATEGORY[slug];
+  const key = dynamicSegments.get(slug);
+  return key ? SEGMENTS[key] : null;
+}
+
+// True when ANY of the slugs belongs to the given segment (static or admin-assigned).
+function categoriesInSegment(slugs, segmentKey) {
+  return (slugs || []).filter(Boolean).some((slug) => {
+    const seg = segmentForCategory(slug);
+    return Boolean(seg) && seg.key === segmentKey;
+  });
+}
+
 // Returns null for categories that are not in a segment (they keep the old business-type behaviour).
 // modulesForSlug(slug) supplies the modules of a secondary category that has no segment.
 function resolveSegment(primarySlug, secondarySlugs = [], modulesForSlug = () => []) {
-  const primary = SEGMENT_BY_CATEGORY[primarySlug];
+  const primary = segmentForCategory(primarySlug);
   if (!primary) return null;
 
   const modules = new Set(primary.modules);
   const nav = new Set(primary.nav);
   (secondarySlugs || []).forEach((slug) => {
-    const seg = SEGMENT_BY_CATEGORY[slug];
+    const seg = segmentForCategory(slug);
     if (seg) {
       seg.modules.forEach((m) => modules.add(m));
       seg.nav.forEach((n) => nav.add(n));
@@ -116,4 +154,12 @@ function resolveSegment(primarySlug, secondarySlugs = [], modulesForSlug = () =>
   return { segment: { key: primary.key, label: primary.label }, modules: [...modules], nav: [...nav] };
 }
 
-module.exports = { SEGMENTS, SEGMENT_BY_CATEGORY, resolveSegment };
+module.exports = {
+  SEGMENTS,
+  SEGMENT_BY_CATEGORY,
+  ASSIGNABLE_SEGMENTS,
+  setDynamicCategorySegments,
+  segmentForCategory,
+  categoriesInSegment,
+  resolveSegment
+};

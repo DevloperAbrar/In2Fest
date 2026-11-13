@@ -3,7 +3,7 @@ const { authenticate } = require("../../middleware/auth.middleware");
 const { requireRole } = require("../../middleware/role.middleware");
 const { requireVenueOwnership } = require("../../middleware/venueOwnership.middleware");
 const { requirePlanFeature } = require("../../middleware/planFeature.middleware");
-const { requireTeamPermission } = require("../../middleware/teamPermission.middleware");
+const { requireTeamPermission, requireTeamScope } = require("../../middleware/teamPermission.middleware");
 const { upload, uploadToR2 } = require("../../middleware/upload.middleware");
 const { AppError } = require("../../middleware/error.middleware");
 const { Venue } = require("../../database/models");
@@ -26,7 +26,7 @@ async function loadLibrary(req, res, next) {
     const venue = await Venue.findByPk(req.params.venueId);
     if (!venue) throw new AppError("Venue not found", 404);
     const cats = [venue.business_category, ...(venue.secondary_categories || [])];
-    if (!cats.some((c) => C.LIB_CATEGORY_SLUGS.includes(c))) throw new AppError("Library tools are available only for Library businesses", 403);
+    if (!cats.some((c) => C.LIB_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").categoriesInSegment(cats, "library")) throw new AppError("Library tools are available only for Library businesses", 403);
     req.libVenue = venue;
     req.libSettings = await insights.getSettings(venue.id);
     next();
@@ -38,7 +38,8 @@ router.use(
   requireVenueOwnership,
   requireRole("venue_owner", "team_member"),
   requirePlanFeature("library"),
-  requireTeamPermission("library"),
+    requireTeamPermission("library"),
+  requireTeamScope("library"),
   loadLibrary
 );
 

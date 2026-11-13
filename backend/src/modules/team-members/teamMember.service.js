@@ -12,6 +12,8 @@ const DEFAULT_PERMISSIONS = PLAN_FEATURES.reduce((acc, f) => {
   return acc;
 }, {});
 
+const { SCOPES, FEATURE_LABELS, scopeKeysFor } = require("../../config/teamPermissions");
+
 function generateTeamMemberToken(teamMember) {
   return jwt.sign(
     { id: teamMember.id, role: "team_member" },
@@ -23,8 +25,9 @@ function generateTeamMemberToken(teamMember) {
 /**
  * Builds the permissions object to store.
  * - Only keys that fit this venue's business type can be turned on.
- * - Any key that does not fit (for example "food" on a gym) is forced to false,
- *   even if it was saved earlier or sent by a modified client.
+ * - Any key that does not fit (for example "food" on a gym) is forced to false.
+ * - `scopes` (task-level limits per module) are kept only for modules that are allowed AND
+ *   turned on. Omit a module from `scopes` or send null to give full access to that module.
  */
 async function scopePermissions(venueId, incoming, current = {}) {
   const venue = await Venue.findByPk(venueId, {
@@ -33,16 +36,50 @@ async function scopePermissions(venueId, incoming, current = {}) {
   if (!venue) throw new AppError("Venue not found", 404);
 
   const allowed = new Set(assignableKeysForVenue(venue));
-  const merged = { ...DEFAULT_PERMISSIONS, ...(current || {}) };
+  const { scopes: currentScopes, ...currentFlags } = current || {};
+  const { scopes: incomingScopes, ...incomingFlags } = incoming || {};
+  const merged = { ...DEFAULT_PERMISSIONS, ...currentFlags };
 
-  Object.keys(incoming || {}).forEach((key) => {
-    if (allowed.has(key)) merged[key] = incoming[key] === true;
+  Object.keys(incomingFlags).forEach((key) => {
+    if (allowed.has(key)) merged[key] = incomingFlags[key] === true;
   });
   Object.keys(merged).forEach((key) => {
     if (!allowed.has(key)) merged[key] = false;
   });
 
+  const nextScopes = { ...(currentScopes && typeof currentScopes === "object" ? currentScopes : {}) };
+  const requested = incomingScopes && typeof incomingScopes === "object" ? incomingScopes : {};
+  Object.keys(SCOPES).forEach((moduleKey) => {
+    if (Object.prototype.hasOwnProperty.call(requested, moduleKey)) {
+      const value = requested[moduleKey];
+      if (Array.isArray(value)) {
+        const valid = scopeKeysFor(moduleKey);
+        nextScopes[moduleKey] = [...new Set(value.filter((k) => valid.includes(k)))];
+      } else {
+        delete nextScopes[moduleKey];
+      }
+    }
+    if (!allowed.has(moduleKey) || merged[moduleKey] !== true) delete nextScopes[moduleKey];
+  });
+  if (Object.keys(nextScopes).length) merged.scopes = nextScopes;
+
   return merged;
+}
+
+// What the "Add team member" form may show for this venue (follows its category functionality).
+async function getAssignableOptions(venueId) {
+  const venue = await Venue.findByPk(venueId, {
+    attributes: ["id", "business_category", "secondary_categories"]
+  });
+  if (!venue) throw new AppError("Venue not found", 404);
+
+  const labels = PLAN_FEATURES.reduce((acc, f) => ({ ...acc, [f.key]: f.label }), { ...FEATURE_LABELS });
+  const keys = assignableKeysForVenue(venue);
+
+  return {
+    modules: keys.map((key) => ({ key, label: labels[key] || key })),
+    scopes: keys.filter((k) => SCOPES[k]).reduce((acc, k) => ({ ...acc, [k]: SCOPES[k].options }), {})
+  };
 }
 
 async function createTeamMember(venueId, { name, email, password, permissions }) {
@@ -157,5 +194,6 @@ module.exports = {
   listTeamMembers,
   updateTeamMember,
   deleteTeamMember,
-  loginTeamMember
+  loginTeamMember,
+  getAssignableOptions
 };

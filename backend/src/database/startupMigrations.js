@@ -96,6 +96,8 @@ const SCHEMA_STATEMENTS = [
   // overwriting a value the Super Admin has already chosen.
   `ALTER TABLE categories
      ADD COLUMN IF NOT EXISTS business_type VARCHAR(30)`,
+  `ALTER TABLE categories
+     ADD COLUMN IF NOT EXISTS segment VARCHAR(20)`,
 
   // ---- category home page media ----
   `ALTER TABLE categories

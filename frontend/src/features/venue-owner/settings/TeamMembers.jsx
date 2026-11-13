@@ -21,10 +21,75 @@ const emptyPermissions = PLAN_FEATURES.reduce((acc, f) => {
   return acc;
 }, {});
 
-// Shows only the features this vendor can really use (business type + plan).
-function PermissionGrid({ options, permissions, onChange, disabled, loading }) {
-  const { t } = useTranslation();
+// Task picker shown under a ticked module (e.g. Gym Management -> Attendance, Members, Stock ...).
+// scopes[moduleKey] = null/undefined -> all tasks, array -> only these tasks.
+function TaskPicker({ moduleKey, moduleLabel, tasks, scopes, onScopeChange, disabled }) {
+  const current = scopes?.[moduleKey];
+  const limited = Array.isArray(current);
 
+  const toggleTask = (taskKey, checked) => {
+    const base = limited ? current : [];
+    const next = checked ? [...new Set([...base, taskKey])] : base.filter((k) => k !== taskKey);
+    onScopeChange(moduleKey, next);
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+      <p className="text-xs font-semibold text-gray-700 mb-2">{moduleLabel}: what work can they do?</p>
+      <div className="flex flex-wrap gap-4 mb-2">
+        <label className="flex items-center gap-1.5 text-sm text-gray-700">
+          <input
+            type="radio"
+            name={`scope-${moduleKey}`}
+            disabled={disabled}
+            checked={!limited}
+            onChange={() => onScopeChange(moduleKey, null)}
+          />
+          Everything in {moduleLabel}
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-gray-700">
+          <input
+            type="radio"
+            name={`scope-${moduleKey}`}
+            disabled={disabled}
+            checked={limited}
+            onChange={() => onScopeChange(moduleKey, [])}
+          />
+          Only selected work
+        </label>
+      </div>
+
+      {limited && (
+        <>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            {tasks.map((task) => (
+              <label key={task.key} className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300"
+                  disabled={disabled}
+                  checked={current.includes(task.key)}
+                  onChange={(e) => toggleTask(task.key, e.target.checked)}
+                />
+                {task.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            They will see only these tools. Dashboard, revenue and profit stay hidden unless you tick
+            "Reports &amp; revenue".
+          </p>
+          {current.length === 0 && (
+            <p className="text-xs text-amber-600 mt-1">Select at least one work, or they will see nothing.</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Shows only the features this vendor can really use (business type + plan).
+function PermissionGrid({ options, permissions, onChange, disabled, loading, taskOptions, onScopeChange, labelFor }) {
   if (loading) {
     return <p className="text-xs text-gray-400">Loading access options...</p>;
   }
@@ -36,22 +101,46 @@ function PermissionGrid({ options, permissions, onChange, disabled, loading }) {
     );
   }
 
+  const scopedModules = options.filter((f) => permissions[f.key] && taskOptions?.[f.key]?.length);
+
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-      {options.map((f) => (
-        <label key={f.key} className="flex items-center gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            className="rounded border-gray-300"
-            checked={!!permissions[f.key]}
-            disabled={disabled}
-            onChange={(e) => onChange(f.key, e.target.checked)}
-          />
-          {t(`common.features.${f.key}`, f.label)}
-        </label>
+    <div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+        {options.map((f) => (
+          <label key={f.key} className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="rounded border-gray-300"
+              checked={!!permissions[f.key]}
+              disabled={disabled}
+              onChange={(e) => onChange(f.key, e.target.checked)}
+            />
+            {labelFor(f)}
+          </label>
+        ))}
+      </div>
+
+      {scopedModules.map((f) => (
+        <TaskPicker
+          key={f.key}
+          moduleKey={f.key}
+          moduleLabel={labelFor(f)}
+          tasks={taskOptions[f.key]}
+          scopes={permissions.scopes}
+          onScopeChange={onScopeChange}
+          disabled={disabled}
+        />
       ))}
     </div>
   );
+}
+
+// "Attendance, Members" for a limited member, or "" when the member has full access to the module.
+function scopeSummary(member, moduleKey, taskOptions) {
+  const list = member.permissions?.scopes?.[moduleKey];
+  if (!Array.isArray(list)) return "";
+  const labels = (taskOptions?.[moduleKey] || []).filter((o) => list.includes(o.key)).map((o) => o.label);
+  return labels.length ? labels.join(", ") : "no work selected";
 }
 
 export default function TeamMembers() {
@@ -59,6 +148,9 @@ export default function TeamMembers() {
   const { venue } = useVenue();
   const { profile, loading: profileLoading } = useBusinessProfile();
   const { data: members, loading, refetch } = useFetch(venue ? `/venues/${venue.id}/team-members` : null, { skip: !venue });
+  // Task options per module (gym, library ...). If this call fails the page works as before.
+  const { data: accessOptions } = useFetch(venue ? `/venues/${venue.id}/team-members/options` : null, { skip: !venue });
+  const taskOptions = accessOptions?.scopes || {};
 
   const [newPermissions, setNewPermissions] = useState(emptyPermissions);
   const [editingId, setEditingId] = useState(null);
@@ -71,10 +163,20 @@ export default function TeamMembers() {
 
   const modules = profile?.modules || null;
   const planFeatures = venue?.subscription?.plan?.features || [];
-  const options = getAssignableFeatures({ modules, planFeatures }); // what the owner can tick
-  const relevant = getRelevantFeatures(modules); // what we may show as chips on existing members
+  // Pro add-ons (Gym Pro, Restaurant Pro) come from the plan, not from team permissions, so they are not listed.
+  const options = getAssignableFeatures({ modules, planFeatures }).filter((f) => !f.parent); // what the owner can tick
+  const relevant = getRelevantFeatures(modules).filter((f) => !f.parent); // chips on existing members
+
+  // "Gym Management" is shown as "Tools Management" for non-gym categories (Sport academy ...).
+  const venueCats = [venue?.business_category, ...(venue?.secondary_categories || [])].filter(Boolean);
+  const genericTools = profile?.segment?.key === "gym" && !venueCats.includes("gym-fitness");
+  const labelFor = (f) =>
+    f.key === "gym" && genericTools ? "Tools Management" : t(`common.features.${f.key}`, f.label);
 
   const teamLoginUrl = `${window.location.origin}/team-login`;
+
+  const setScope = (setter) => (moduleKey, value) =>
+    setter((p) => ({ ...p, scopes: { ...(p.scopes || {}), [moduleKey]: value } }));
 
   const copyToClipboard = async (text, successMsg) => {
     try {
@@ -86,6 +188,14 @@ export default function TeamMembers() {
   };
 
   const onSubmit = async (values) => {
+    // A module limited to "only selected work" with nothing ticked would lock the member out.
+    const emptyScope = Object.entries(newPermissions.scopes || {}).some(
+      ([key, list]) => newPermissions[key] && Array.isArray(list) && list.length === 0
+    );
+    if (emptyScope) {
+      showError("Select at least one work for the limited access, or choose 'Everything'.");
+      return;
+    }
     try {
       await api.post(`/venues/${venue.id}/team-members`, { ...values, permissions: newPermissions });
       showSuccess(t("settings.team.addSuccess"));
@@ -109,6 +219,13 @@ export default function TeamMembers() {
   };
 
   const saveEdit = async (memberId) => {
+    const emptyScope = Object.entries(editPermissions.scopes || {}).some(
+      ([key, list]) => editPermissions[key] && Array.isArray(list) && list.length === 0
+    );
+    if (emptyScope) {
+      showError("Select at least one work for the limited access, or choose 'Everything'.");
+      return;
+    }
     setSavingEdit(true);
     try {
       await api.patch(`/venues/${venue.id}/team-members/${memberId}`, {
@@ -180,6 +297,9 @@ export default function TeamMembers() {
                 options={options}
                 loading={profileLoading}
                 permissions={newPermissions}
+                taskOptions={taskOptions}
+                labelFor={labelFor}
+                onScopeChange={setScope(setNewPermissions)}
                 onChange={(key, val) => setNewPermissions((p) => ({ ...p, [key]: val }))}
               />
             </div>
@@ -205,6 +325,9 @@ export default function TeamMembers() {
                       options={options}
                       loading={profileLoading}
                       permissions={editPermissions}
+                      taskOptions={taskOptions}
+                      labelFor={labelFor}
+                      onScopeChange={setScope(setEditPermissions)}
                       onChange={(key, val) => setEditPermissions((p) => ({ ...p, [key]: val }))}
                     />
                   </div>
@@ -228,11 +351,15 @@ export default function TeamMembers() {
                     </div>
                     <p className="text-sm text-gray-500">{member.email}</p>
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {relevant.filter((f) => member.permissions?.[f.key]).map((f) => (
-                        <span key={f.key} className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full">
-                          {t(`common.features.${f.key}`, f.label)}
-                        </span>
-                      ))}
+                      {relevant.filter((f) => member.permissions?.[f.key]).map((f) => {
+                        const summary = scopeSummary(member, f.key, taskOptions);
+                        return (
+                          <span key={f.key} className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded-full">
+                            {labelFor(f)}
+                            {summary ? `: ${summary}` : ""}
+                          </span>
+                        );
+                      })}
                       {relevant.every((f) => !member.permissions?.[f.key]) && (
                         <span className="text-xs text-gray-400">{t("settings.team.noAccess")}</span>
                       )}

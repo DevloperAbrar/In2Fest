@@ -12,6 +12,7 @@ import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { isDemoMode } from "../../../lib/demoMode";
 import { TONES } from "./gymUi.jsx";
+import { hasScope, GYM_TAB_SCOPES } from "../../../lib/teamScopes";
 
 export const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 export const todayISO = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
@@ -181,7 +182,8 @@ export function GymTabs() {
   const { pathname } = useLocation();
   const reduce = useReducedMotion();
   const rowRef = useRef(null);
-  const tabs = user?.role !== "team_member" || user?.isDemo ? [...TAB_DEFS, SETTINGS_TAB] : TAB_DEFS;
+  const baseTabs = user?.role !== "team_member" || user?.isDemo ? [...TAB_DEFS, SETTINGS_TAB] : TAB_DEFS;
+  const tabs = baseTabs.filter((tb) => tb === SETTINGS_TAB || hasScope(user, "gym", GYM_TAB_SCOPES[tb.to] || []));
 
   // Keep the active tab in view on small screens.
   useEffect(() => {

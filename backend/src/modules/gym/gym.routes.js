@@ -3,7 +3,7 @@ const { authenticate } = require("../../middleware/auth.middleware");
 const { requireRole } = require("../../middleware/role.middleware");
 const { requireVenueOwnership } = require("../../middleware/venueOwnership.middleware");
 const { requirePlanFeature } = require("../../middleware/planFeature.middleware");
-const { requireTeamPermission } = require("../../middleware/teamPermission.middleware");
+const { requireTeamPermission, requireTeamScope } = require("../../middleware/teamPermission.middleware");
 const { demoContext, blockInDemo } = require("../../middleware/demo.middleware");
 const { upload, uploadToR2 } = require("../../middleware/upload.middleware");
 const { AppError } = require("../../middleware/error.middleware");
@@ -33,7 +33,7 @@ async function loadGym(req, res, next) {
     const venue = await Venue.findByPk(req.params.venueId);
     if (!venue) throw new AppError("Venue not found", 404);
     const cats = [venue.business_category, ...(venue.secondary_categories || [])];
-    if (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c))) throw new AppError("Gym tools are available only for Gym & Fitness businesses", 403);
+   if (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").categoriesInSegment(cats, "gym")) throw new AppError("Gym tools are available only for Gym & Fitness businesses", 403);
     req.gymVenue = venue;
     req.gymSettings = await insights.getSettings(venue.id);
     next();
@@ -47,6 +47,7 @@ router.use(
   demoContext,
   requirePlanFeature("gym"),
   requireTeamPermission("gym"),
+  requireTeamScope("gym"),
   loadGym
 );
 

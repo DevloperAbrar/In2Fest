@@ -3,6 +3,8 @@ const { Venue, City, Category, Inquiry, CityRequest } = require("../../database/
 const { AppError } = require("../../middleware/error.middleware");
 const { slugify } = require("../../utils/slugify");
 const { BUSINESS_TYPES } = require("../../config/businessTypes");
+const { CATEGORY_BUSINESS_TYPE } = require("../../config/businessTypes");
+const { SEGMENT_BY_CATEGORY, ASSIGNABLE_SEGMENTS } = require("../../config/vendorSegments");
 const { refreshCategoryTypes } = require("../../utils/categoryTypeCache");
 
 // ─── Featured vendors ────────────────────────────────────────────────────────
@@ -18,10 +20,30 @@ function resolveMaxSecondary(value, fallback = DEFAULT_MAX_SECONDARY) {
   return n;
 }
 
+// Business type -> functionality given automatically to a NEW category.
+const SEGMENT_FROM_TYPE = {
+  health_wellness: "gym",
+  retail: "shop",
+  food: "food",
+  library: "library",
+  events: "events"
+};
+
+function resolveSegmentValue(explicit, businessType) {
+  if (explicit !== undefined && explicit !== null && explicit !== "") {
+    if (explicit === "none") return null;
+    if (!ASSIGNABLE_SEGMENTS.includes(explicit)) {
+      throw new AppError(`Invalid functionality "${explicit}". Allowed: ${ASSIGNABLE_SEGMENTS.join(", ")}, none`, 400);
+    }
+    return explicit;
+  }
+  return SEGMENT_FROM_TYPE[businessType] || null;
+}
+
 async function createCategory(payload, imageUrl) {
   const {
     name, slug, icon, display_order, is_venue_type, business_type,
-    tagline, show_on_home, max_secondary_categories
+    tagline, show_on_home, max_secondary_categories, segment
   } = payload;
   if (!name || !name.trim()) throw new AppError("Category name is required", 400);
 
@@ -36,6 +58,7 @@ async function createCategory(payload, imageUrl) {
   if (existing) throw new AppError(`Slug "${autoSlug}" is already taken`, 409);
 
   const resolvedType = resolveBusinessType(business_type);
+  const resolvedSegment = resolveSegmentValue(segment, resolvedType);
   const resolvedMaxSecondary = resolveMaxSecondary(max_secondary_categories);
 
   // display_order: if not provided, put it at the end
@@ -51,6 +74,7 @@ async function createCategory(payload, imageUrl) {
     active: true,
     is_venue_type: asBool(is_venue_type, false),
     business_type: resolvedType,
+    segment: resolvedSegment,
     image_url: imageUrl || null,
     tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null,
     show_on_home: asBool(show_on_home, true),
@@ -68,7 +92,7 @@ async function updateCategory(categoryId, payload, imageUrl) {
   // Slug is immutable once set - changing it breaks every live URL for that category.
   const {
     name, icon, display_order, active, is_venue_type, business_type,
-    tagline, show_on_home, remove_image, max_secondary_categories
+    tagline, show_on_home, remove_image, max_secondary_categories, segment
   } = payload;
 
   const hasBusinessType = business_type !== undefined && business_type !== null && business_type !== "";
@@ -88,6 +112,21 @@ async function updateCategory(categoryId, payload, imageUrl) {
       max_secondary_categories: resolveMaxSecondary(max_secondary_categories, cat.max_secondary_categories)
     })
   };
+
+  // Functionality (segment):
+  //  - explicit `segment` from the admin API always wins;
+  //  - a category that already has a segment follows its business type when that changes;
+  //  - an OLDER custom category gets a segment only when the admin deliberately changes its
+  //    business type. Built-in categories and untouched old ones never change behaviour.
+  if (segment !== undefined && segment !== null && segment !== "") {
+    patch.segment = resolveSegmentValue(segment, patch.business_type || cat.business_type);
+  } else if (hasBusinessType) {
+    const changed = patch.business_type !== cat.business_type;
+    const isBuiltIn = Boolean(CATEGORY_BUSINESS_TYPE[cat.slug]) || Boolean(SEGMENT_BY_CATEGORY[cat.slug]);
+    if (cat.segment || (changed && !isBuiltIn)) {
+      patch.segment = SEGMENT_FROM_TYPE[patch.business_type] || null;
+    }
+  }
 
   if (imageUrl) patch.image_url = imageUrl;
   else if (asBool(remove_image, false)) patch.image_url = null;

@@ -15,6 +15,9 @@ module.exports = (sequelize, DataTypes) => {
     // Controlled by Super Admin. Drives the labels, questions and modules a vendor sees.
     // NULL is allowed on purpose: it is resolved to a default at read time.
     business_type: { type: DataTypes.STRING(30), allowNull: true },
+    // Functionality of a Super-Admin-created category: gym | shop | food | library | events.
+    // NULL for every older category, which keeps exactly the behaviour it had before.
+    segment: { type: DataTypes.STRING(20), allowNull: true },
     // Tile image shown on the discovery home page (uploaded by Super Admin to R2).
     image_url: { type: DataTypes.TEXT, allowNull: true },
     // Short line shown under the category name on the home page.

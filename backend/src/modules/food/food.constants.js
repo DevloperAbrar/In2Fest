@@ -21,7 +21,12 @@ const SUBTYPES = {
 function subtypeFor(venue) {
   const cats = [venue && venue.business_category, ...((venue && venue.secondary_categories) || [])];
   const slug = cats.find((c) => SUBTYPES[c]);
-  return slug ? { slug, ...SUBTYPES[slug] } : null;
+  if (slug) return { slug, ...SUBTYPES[slug] };
+
+  // A Super-Admin-created category with "food" functionality behaves like a Restaurant / Cafe.
+  const { categoriesInSegment } = require("../../config/vendorSegments");
+  const custom = cats.find((c) => c && categoriesInSegment([c], "food"));
+  return custom ? { slug: custom, ...SUBTYPES.restaurant } : null;
 }
 
 const ORDER_TYPES = ["dine_in", "takeaway"]; // pickup + table-QR dine-in only, no delivery

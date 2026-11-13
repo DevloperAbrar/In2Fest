@@ -87,11 +87,14 @@ import LibrarySettings from "../features/venue-owner/library/LibrarySettings.jsx
 import LibraryBooks from "../features/venue-owner/library/LibraryBooks.jsx";
 import LibraryReminders from "../features/venue-owner/library/LibraryReminders.jsx";
 
+import { HomeGate, ScopeGate } from "../components/layout/ScopeGate.jsx";
+
+
 export default function VenueOwnerRoutes() {
   return (
     <VenueProvider>
       <Routes>
-        <Route index element={<OwnerDashboard />} />
+        <Route index element={<HomeGate><OwnerDashboard /></HomeGate>} />
         <Route path="onboarding/plan" element={<RequireOwner><PlanSelection /></RequireOwner>} />
         <Route path="onboarding/details" element={<RequireOwner><VenueDetailsForm /></RequireOwner>} />
 
@@ -137,7 +140,7 @@ export default function VenueOwnerRoutes() {
         <Route path="settings/subscription" element={<RequireOwner><SubscriptionDetails /></RequireOwner>} />
         <Route path="reviews" element={<RequireFeature feature="reviews"><OwnerReviews /></RequireFeature>} />
 
-        <Route path="gym" element={<RequireFeature feature="gym"><GymDashboard /></RequireFeature>} />
+        <Route path="gym" element={<RequireFeature feature="gym"><ScopeGate module="gym"><GymDashboard /></ScopeGate></RequireFeature>} />
         <Route path="gym/members" element={<RequireFeature feature="gym"><GymMembers /></RequireFeature>} />
         <Route path="gym/members/:id" element={<RequireFeature feature="gym"><MemberDetail /></RequireFeature>} />
         <Route path="gym/plans" element={<RequireFeature feature="gym"><GymPlans /></RequireFeature>} />
@@ -153,7 +156,7 @@ export default function VenueOwnerRoutes() {
         <Route path="staff/members" element={<RequireFeature feature="gym"><StaffList /></RequireFeature>} />
         <Route path="staff/members/:id" element={<RequireFeature feature="gym"><StaffDetail /></RequireFeature>} />
         <Route path="staff/payroll" element={<RequireFeature feature="gym"><StaffPayroll /></RequireFeature>} />
-        <Route path="library" element={<RequireFeature feature="library"><LibraryDashboard /></RequireFeature>} />
+        <Route path="library" element={<RequireFeature feature="library"><ScopeGate module="library"><LibraryDashboard /></ScopeGate></RequireFeature>} />
         <Route path="library/students" element={<RequireFeature feature="library"><LibraryStudents /></RequireFeature>} />
         <Route path="library/students/:id" element={<RequireFeature feature="library"><StudentDetail /></RequireFeature>} />
         <Route path="library/halls" element={<RequireFeature feature="library"><LibraryHalls /></RequireFeature>} />

@@ -14,6 +14,13 @@ async function list(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function options(req, res, next) {
+  try {
+    const data = await service.getAssignableOptions(req.params.venueId);
+    res.json({ success: true, data });
+  } catch (error) { next(error); }
+}
+
 async function update(req, res, next) {
   try {
     const teamMember = await service.updateTeamMember(req.params.venueId, req.params.teamMemberId, req.body);
@@ -28,4 +35,4 @@ async function remove(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { create, list, update, remove };
+module.exports = { create, list, options, update, remove };
