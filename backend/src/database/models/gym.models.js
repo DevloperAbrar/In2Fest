@@ -12,6 +12,8 @@ module.exports = (sequelize, DataTypes) => {
     const GymSettings = sequelize.define("GymSettings", {
         venue_id: { type: UUID, primaryKey: true },
         receipt_prefix: { type: STRING(10), allowNull: false, defaultValue: "RCPT" },
+        // How NEW member IDs are made: "sequence" (M0001, M0002 ...) or "random" (M483920)
+        member_id_mode: { type: STRING(10), allowNull: false, defaultValue: "sequence" },
         message_templates: { type: JSONB, allowNull: false, defaultValue: {} },
         razorpay_key_id: STRING,
         razorpay_key_secret_enc: TEXT

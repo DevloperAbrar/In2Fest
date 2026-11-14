@@ -9,7 +9,7 @@ const { GymMessageLog } = require("./gym.message.models");
 const { GymSale } = require("./gym.store.models");
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { getR2Client } = require("../../config/r2");
- 
+
 
 /* ===================== PLANS ===================== */
 function planFields(b, creating) {
@@ -120,8 +120,8 @@ async function listMembers(venueId, q) {
   }
   const order =
     q.status === "expiring" ? [["end_date", "ASC"]] :
-    q.status === "expired" ? [["end_date", "DESC"]] :
-    q.status === "dues" ? [["balance_due", "DESC"]] : [["createdAt", "DESC"]];
+      q.status === "expired" ? [["end_date", "DESC"]] :
+        q.status === "dues" ? [["balance_due", "DESC"]] : [["createdAt", "DESC"]];
   const page = Math.max(parseInt(q.page, 10) || 1, 1);
   const limit = Math.min(parseInt(q.limit, 10) || 25, 100);
   const { rows, count } = await GymMember.findAndCountAll({ where: { [Op.and]: clauses }, order, limit, offset: (page - 1) * limit });
@@ -157,7 +157,8 @@ async function enroll(ctx, b) {
   let member, ms, payment;
   await sequelize.transaction(async (tx) => {
     const seq = await core.nextSeq(tx, venue.id, "gym_members", "seq");
-    member = await GymMember.create({ ...fields, venue_id: venue.id, seq, member_code: `M${String(seq).padStart(4, "0")}`, portal_token: U.token() }, { transaction: tx });
+    const member_code = await core.makeMemberCode(tx, venue.id, settings && settings.member_id_mode, seq);
+    member = await GymMember.create({ ...fields, venue_id: venue.id, seq, member_code, portal_token: U.token() }, { transaction: tx });
     ms = await core.createMembership(tx, { venueId: venue.id, member, plan, kind: "new", start, includePt: !!b.include_pt, extraDiscount: b.extra_discount, waiveJoining: !!b.waive_joining });
     await core.syncMemberFromMembership(tx, member, ms);
     if (b.payment && Number(b.payment.amount) > 0) {
@@ -169,7 +170,7 @@ async function enroll(ctx, b) {
       await GymLead.update({ status: "converted", converted_member_id: member.id }, { where: { id: b.lead_id, venue_id: venue.id }, transaction: tx });
     }
   });
- 
+
   return { member: core.present(member), membership: ms, payment };
 }
 
@@ -387,7 +388,7 @@ async function renew(ctx, id, b) {
     await member.reload({ transaction: tx });
     out = { member, ms, payment };
   });
- 
+
   return { member: core.present(out.member), membership: out.ms, payment: out.payment };
 }
 
@@ -435,25 +436,25 @@ async function unfreeze(venueId, id) {
 
 // CSV of whatever the current filter shows. The vendor downloads it and shares / prints it.
 async function exportMembers(venueId, q) {
-    const rows = [];
-    for (let page = 1; page <= 50; page++) {
-      const r = await listMembers(venueId, { ...q, page, limit: 100 });
-      rows.push(...r.items);
-      if (page >= r.pages) break;
-    }
-    const cell = (v) => {
-      const s = String(v ?? "");
-      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    // text fields: neutralise spreadsheet formulas ( =, +, -, @ at the start )
-    const text = (v) => cell(/^[=+\-@\t\r]/.test(String(v ?? "")) ? `'${v}` : v);
-    const head = ["Member ID", "Name", "Mobile", "Plan", "Start date", "End date", "Days left", "Status", "Balance due", "Total paid", "Goal", "Trainer"];
-    const lines = rows.map((m) => [
-      text(m.member_code), text(m.name), cell(m.phone), text(m.plan_name), cell(m.start_date), cell(m.end_date), cell(m.days_left),
-      cell(m.display_status), cell(m.balance_due), cell(m.total_paid), text(m.goal), text(m.trainer_name)
-    ].join(","));
-    return `\uFEFF${[head.join(","), ...lines].join("\r\n")}`; // BOM so Excel reads it as UTF-8
+  const rows = [];
+  for (let page = 1; page <= 50; page++) {
+    const r = await listMembers(venueId, { ...q, page, limit: 100 });
+    rows.push(...r.items);
+    if (page >= r.pages) break;
   }
+  const cell = (v) => {
+    const s = String(v ?? "");
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  // text fields: neutralise spreadsheet formulas ( =, +, -, @ at the start )
+  const text = (v) => cell(/^[=+\-@\t\r]/.test(String(v ?? "")) ? `'${v}` : v);
+  const head = ["Member ID", "Name", "Mobile", "Plan", "Start date", "End date", "Days left", "Status", "Balance due", "Total paid", "Goal", "Trainer"];
+  const lines = rows.map((m) => [
+    text(m.member_code), text(m.name), cell(m.phone), text(m.plan_name), cell(m.start_date), cell(m.end_date), cell(m.days_left),
+    cell(m.display_status), cell(m.balance_due), cell(m.total_paid), text(m.goal), text(m.trainer_name)
+  ].join(","));
+  return `\uFEFF${[head.join(","), ...lines].join("\r\n")}`; // BOM so Excel reads it as UTF-8
+}
 
 // Cron (daily, 00:10 IST)
 async function syncStatuses() {
@@ -472,6 +473,6 @@ async function syncStatuses() {
 }
 
 module.exports = {
-    listPlans, createPlan, updatePlan, deletePlan,
-    listMembers, exportMembers, getDetail, enroll, updateMember, archiveMember, deleteMember, setPhoto, renew, freeze, unfreeze, syncStatuses
-  };
+  listPlans, createPlan, updatePlan, deletePlan,
+  listMembers, exportMembers, getDetail, enroll, updateMember, archiveMember, deleteMember, setPhoto, renew, freeze, unfreeze, syncStatuses
+};

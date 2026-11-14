@@ -22,7 +22,7 @@ export default function GymSettings() {
 
   useEffect(() => {
     if (!data) return;
-    setF({ receipt_prefix: data.receipt_prefix, message_templates: { ...(data.message_templates || {}) } });
+    setF({ receipt_prefix: data.receipt_prefix, member_id_mode: data.member_id_mode || "sequence", message_templates: { ...(data.message_templates || {}) } });
   }, [data]);
 
   if (loading || !f) return <GymPage title="Gym settings"><Loader /></GymPage>;
@@ -30,8 +30,7 @@ export default function GymSettings() {
   const save = async (extra = {}) => {
     setBusy(true);
     try {
-      await gymService.saveSettings(vid, { receipt_prefix: f.receipt_prefix, message_templates: f.message_templates, ...extra });
-      showSuccess("Settings saved");
+      await gymService.saveSettings(vid, { receipt_prefix: f.receipt_prefix, member_id_mode: f.member_id_mode, message_templates: f.message_templates, ...extra }); showSuccess("Settings saved");
       setRz({ key_id: "", key_secret: "" });
       refetch();
     } catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
@@ -46,6 +45,34 @@ export default function GymSettings() {
 
       <Card title="Member card design" className="mb-4">
         <CardDesigner />
+      </Card>
+
+      <Card title="Member ID" className="mb-4">
+        <p className="text-sm text-gray-600 mb-3">How should new members get their ID? This applies to new members only. IDs already given do not change.</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {[
+            { value: "sequence", title: "In order (default)", example: "M0001, M0002, M0003 ...", note: "Easy to read and remember. Anyone can guess how many members you have." },
+            { value: "random", title: "Random", example: "M483920, M157204, M902615 ...", note: "No pattern, so nobody can tell how many members you have." }
+          ].map((o) => (
+            <label
+              key={o.value}
+              className={`cursor-pointer rounded-xl border-2 p-4 transition-colors ${f.member_id_mode === o.value ? "border-primary-600 bg-primary-50" : "border-gray-200 hover:border-gray-300"}`}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="member_id_mode"
+                  checked={f.member_id_mode === o.value}
+                  onChange={() => setF({ ...f, member_id_mode: o.value })}
+                />
+                <span className="font-semibold text-sm text-gray-800">{o.title}</span>
+              </div>
+              <p className="mt-2 text-sm font-mono text-gray-700">{o.example}</p>
+              <p className="mt-1 text-xs text-gray-500">{o.note}</p>
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-3">Click Save (top right) to apply. Check-in by QR or Member ID works with both types.</p>
       </Card>
 
       <Card title="Receipts" className="mb-4">

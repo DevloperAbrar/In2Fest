@@ -185,11 +185,12 @@ function prepare(raw, plans, today, withPayments) {
 }
 
 /* Creates the member (+ latest membership, + optional payment) in one transaction. */
-function writeNew(venue, p, today, receivedBy) {
+function writeNew(venue, p, today, receivedBy, settings) {
   return sequelize.transaction(async (tx) => {
     const seq = await core.nextSeq(tx, venue.id, "gym_members", "seq");
+    const member_code = await core.makeMemberCode(tx, venue.id, settings && settings.member_id_mode, seq);
     const base = {
-      ...p.fields, venue_id: venue.id, seq, member_code: `M${String(seq).padStart(4, "0")}`, portal_token: U.token(), is_archived: false
+      ...p.fields, venue_id: venue.id, seq, member_code, portal_token: U.token(), is_archived: false
     };
     const ms = p.ms;
     if (!ms) return GymMember.create({ ...base, joined_on: p.joined, status: "new" }, { transaction: tx });
@@ -283,8 +284,7 @@ async function process(ctx, body, commit) {
 
     if (!commit) { sum.created++; results.push({ ...base, status: "created", messages: [], warnings: p.warnings }); continue; }
     try {
-      const m = await writeNew(venue, p, today, user && user.name);
-      sum.created++;
+      const m = await writeNew(venue, p, today, user && user.name, ctx.settings);      sum.created++;
       results.push({ ...base, status: "created", member_code: m.member_code, messages: [], warnings: p.warnings });
     } catch (e) {
       sum.errors++;

@@ -22,39 +22,43 @@ function publicSettings(s) {
 
 
 async function updateSettings(venueId, b) {
-    const s = await getSettings(venueId);
-    const up = {};
-    if (b.receipt_prefix !== undefined) {
-      const p = String(b.receipt_prefix).replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 8);
-      if (!p) throw new AppError("Receipt prefix is invalid", 400);
-      up.receipt_prefix = p;
-    }
-    if (b.message_templates !== undefined) {
-      const t = {};
-      C.MESSAGE_KEYS.forEach((k) => {
-        const v = b.message_templates && b.message_templates[k];
-        if (typeof v === "string" && v.trim()) t[k] = v.trim().slice(0, 800);
-      });
-      up.message_templates = t;
-    }
-    if (b.razorpay_disconnect) {
-      up.razorpay_key_id = null;
-      up.razorpay_key_secret_enc = null;
-    } else if (b.razorpay_key_id || b.razorpay_key_secret) {
-      const id = String(b.razorpay_key_id || "").trim();
-      const secret = String(b.razorpay_key_secret || "").trim();
-      if (!/^rzp_(live|test)_[A-Za-z0-9]+$/.test(id) || secret.length < 10) throw new AppError("Enter a valid Razorpay Key ID and Key Secret", 400);
-      try {
-        await new Razorpay({ key_id: id, key_secret: secret }).paymentLink.all({ count: 1 });
-      } catch (e) {
-        throw new AppError(`Razorpay rejected these keys: ${(e && e.error && e.error.description) || e.message}`, 400);
-      }
-      up.razorpay_key_id = id;
-      up.razorpay_key_secret_enc = U.encrypt(secret);
-    }
-    await s.update(up);
-    return publicSettings(s);
+  const s = await getSettings(venueId);
+  const up = {};
+  if (b.receipt_prefix !== undefined) {
+    const p = String(b.receipt_prefix).replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 8);
+    if (!p) throw new AppError("Receipt prefix is invalid", 400);
+    up.receipt_prefix = p;
   }
+  if (b.member_id_mode !== undefined) {
+    if (!["sequence", "random"].includes(b.member_id_mode)) throw new AppError("Member ID type is invalid", 400);
+    up.member_id_mode = b.member_id_mode;
+  }
+  if (b.message_templates !== undefined) {
+    const t = {};
+    C.MESSAGE_KEYS.forEach((k) => {
+      const v = b.message_templates && b.message_templates[k];
+      if (typeof v === "string" && v.trim()) t[k] = v.trim().slice(0, 800);
+    });
+    up.message_templates = t;
+  }
+  if (b.razorpay_disconnect) {
+    up.razorpay_key_id = null;
+    up.razorpay_key_secret_enc = null;
+  } else if (b.razorpay_key_id || b.razorpay_key_secret) {
+    const id = String(b.razorpay_key_id || "").trim();
+    const secret = String(b.razorpay_key_secret || "").trim();
+    if (!/^rzp_(live|test)_[A-Za-z0-9]+$/.test(id) || secret.length < 10) throw new AppError("Enter a valid Razorpay Key ID and Key Secret", 400);
+    try {
+      await new Razorpay({ key_id: id, key_secret: secret }).paymentLink.all({ count: 1 });
+    } catch (e) {
+      throw new AppError(`Razorpay rejected these keys: ${(e && e.error && e.error.description) || e.message}`, 400);
+    }
+    up.razorpay_key_id = id;
+    up.razorpay_key_secret_enc = U.encrypt(secret);
+  }
+  await s.update(up);
+  return publicSettings(s);
+}
 
 async function dashboard(venueId) {
   const today = U.todayIST();

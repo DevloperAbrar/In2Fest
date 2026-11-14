@@ -36,6 +36,13 @@ async function ensureGymSchema() {
        ADD COLUMN IF NOT EXISTS parent_name VARCHAR(100)`
   );
 
+  // How new member IDs are generated ("sequence" or "random"). Existing gyms keep the sequence.
+  // Safe to run on every start.
+  await models.sequelize.query(
+    `ALTER TABLE gym_settings
+       ADD COLUMN IF NOT EXISTS member_id_mode VARCHAR(10) NOT NULL DEFAULT 'sequence'`
+  );
+
   await syncBuiltInExercises(models);
   await require("./gym.message.models").ensure();
   await require("./gym.store.models").ensure();

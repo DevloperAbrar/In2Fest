@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { sequelize, GymPlan, GymMember, GymMembership } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
@@ -10,6 +11,19 @@ async function nextSeq(tx, venueId, table, col) {
     replacements: { v: venueId }, transaction: tx
   });
   return Number(row.n);
+}
+
+// Member ID for a NEW member. "sequence" -> M0001, M0002 ... ; "random" -> M + 6 random digits.
+// Random IDs never start with 0 (so typing just the digits at check-in still finds the member)
+// and are checked for uniqueness inside the same transaction that holds nextSeq's lock.
+async function makeMemberCode(tx, venueId, mode, seq) {
+  if (mode !== "random") return `M${String(seq).padStart(4, "0")}`;
+  for (let i = 0; i < 25; i++) {
+    const code = `M${crypto.randomInt(100000, 1000000)}`;
+    const taken = await GymMember.count({ where: { venue_id: venueId, member_code: code }, transaction: tx });
+    if (!taken) return code;
+  }
+  throw new AppError("Could not create a unique Member ID. Please try again.", 500);
 }
 
 // Adds days_left + display_status (active | expiring | expired | frozen | new).
@@ -96,4 +110,4 @@ async function pickMembership(tx, memberId) {
   return open.find((m) => Number(m.total_amount) - Number(m.amount_paid) > 0.009) || open[open.length - 1] || null;
 }
 
-module.exports = { nextSeq, present, quote, loadPlan, findMember, checkDate, createMembership, syncMemberFromMembership, recomputeFinancials, pickMembership };
+module.exports = { nextSeq, makeMemberCode, present, quote, loadPlan, findMember, checkDate, createMembership, syncMemberFromMembership, recomputeFinancials, pickMembership };
