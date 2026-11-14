@@ -7,9 +7,14 @@
 const TEMPLATE_THEME = {
   aurora: { forced: "dark", navTop: "light" }, // dark hero  -> white navbar text on top
   bloom: { forced: "light", navTop: "ink" },   // light hero -> dark navbar text on top
-  slate: { forced: "light", navTop: "light" }  // dark hero  -> white navbar text on top
+  slate: { forced: "light", navTop: "light" }, // dark hero  -> white navbar text on top
+  forge: { forced: "dark", navTop: "light" },  // dark hero  -> white navbar text on top
+  pulse: { forced: "dark", navTop: "light" },
+  ember: { forced: "dark", navTop: "light" },
+  sunrise: { forced: "light", navTop: "ink" }, // light hero -> dark navbar text on top
+  monolith: { forced: "light", navTop: "ink" },
+  vertex: { forced: "dark", navTop: "light" }
 };
-
 // verticalKey: "gym" | "shop" | "food" | null  (only passed when that experience is really in use)
 export function getSiteTheme(venue, verticalKey = null) {
   const t = TEMPLATE_THEME[venue?.template_id];
@@ -21,7 +26,12 @@ export function getSiteTheme(venue, verticalKey = null) {
 export function getSiteBackground(themeId, isDark) {
   if (themeId === "aurora") return "#06020f";
   if (themeId === "bloom") return "#faf7f2";
-  if (themeId === "gym") return isDark ? "#09090b" : "#ffffff";
+ if (themeId === "forge") return "#0a0a0a";
+  if (themeId === "pulse") return "#0a0f2c";
+  if (themeId === "ember") return "#0a0a0a";
+  if (themeId === "sunrise") return "#ffffff";
+  if (themeId === "monolith") return "#f4f1ea";
+  if (themeId === "vertex") return "#05070d";  if (themeId === "gym") return isDark ? "#09090b" : "#ffffff";
   if (themeId === "shop") return isDark ? "#0b0f0e" : "#ffffff";
   if (themeId === "food") return isDark ? "#0f0b09" : "#ffffff";
   return isDark ? "#0c0a09" : "#ffffff";

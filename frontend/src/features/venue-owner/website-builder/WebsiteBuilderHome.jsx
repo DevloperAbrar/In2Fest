@@ -32,13 +32,19 @@ import auroraPreview from "../../../assets/templates/aurora.png";
 import bloomPreview from "../../../assets/templates/bloom.png";
 import slatePreview from "../../../assets/templates/slate.png";
 import classicPreview from "../../../assets/templates/classic.png";
+import TemplatePreview from "./TemplatePreview.jsx";
 
 // Same ids the Template picker uses. Any other value (for example the default "template-1") renders as Classic.
 const TEMPLATE_INFO = {
   aurora: { name: "Aurora", tagline: "Dark luxury", image: auroraPreview },
   bloom: { name: "Bloom", tagline: "Warm editorial", image: bloomPreview },
   slate: { name: "Slate", tagline: "Bold minimal", image: slatePreview },
-  classic: { name: "Classic", tagline: "Clean and versatile", image: classicPreview }
+  forge: { name: "Forge", tagline: "Dark energy", image: null },
+  pulse: { name: "Pulse", tagline: "Electric blue", image: null },
+  ember: { name: "Ember", tagline: "Red and black blocks", image: null },
+  sunrise: { name: "Sunrise", tagline: "Fresh and friendly", image: null },
+  monolith: { name: "Monolith", tagline: "Editorial mono", image: null },
+  vertex: { name: "Vertex", tagline: "Tech bento", image: null },  classic: { name: "Classic", tagline: "Clean and versatile", image: classicPreview }
 };
 
 const TABS = [
@@ -259,11 +265,13 @@ export default function WebsiteBuilderHome() {
           {/* DESIGN */}
           <div role="tabpanel" className={panelClass("design")}>
             <BuilderCard title="Template" description="The look and feel of your public website.">
-              <div className="overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                <img
-                  src={activeTemplate.image}
-                  alt={`${activeTemplate.name} template preview`}
-                  className="h-48 w-full object-cover object-top sm:h-64"
+            <div className="overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+                <TemplatePreview
+                  venue={venue}
+                  templateId={TEMPLATE_INFO[venue?.template_id] ? venue.template_id : null}
+                  themeColor={venue?.theme_color}
+                  fallbackImage={activeTemplate.image}
+                  height={256}
                 />
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">

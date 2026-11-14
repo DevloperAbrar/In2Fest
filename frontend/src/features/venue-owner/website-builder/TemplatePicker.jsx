@@ -6,6 +6,7 @@ import { useVenue } from "../../../context/VenueContext.jsx";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { CheckCircle2, ArrowLeft, Eye } from "lucide-react";
+import TemplatePreview from "./TemplatePreview.jsx";
 
 import auroraPreview from "../../../assets/templates/aurora.png";
 import bloomPreview from "../../../assets/templates/bloom.png";
@@ -44,6 +45,66 @@ const TEMPLATES = [
     image: slatePreview,
   },
   {
+    id: "forge",
+    name: "Forge",
+    tagline: "Dark Energy",
+    description: "Full-screen hero with a giant outline headline, scrolling ticker, count-up numbers and smooth scroll animations. Built for gyms, sports academies, studios and any high-energy brand.",
+    defaultColor: "#facc15",
+    font: "'Barlow Condensed', sans-serif",
+    tags: ["Animated", "Bold", "Premium"],
+    image: null,
+  },
+  {
+    id: "pulse",
+    name: "Pulse",
+    tagline: "Electric Blue",
+    description: "Blue gradient hero with a floating photo, glass cards and rounded pill buttons. A modern, energetic look for gyms, academies, coaching and studios.",
+    defaultColor: "#3b82f6",
+    font: "'Sora', sans-serif",
+    tags: ["Gradient", "Glass", "Modern"],
+    image: null,
+  },
+  {
+    id: "ember",
+    name: "Ember",
+    tagline: "Red & Black Blocks",
+    description: "Full-screen photo hero with two bold action blocks, sharp edges and condensed uppercase headings. Strong for gyms, martial arts, sports and fitness clubs.",
+    defaultColor: "#ef4444",
+    font: "'Oswald', sans-serif",
+    tags: ["Bold", "Sharp", "Sporty"],
+    image: null,
+  },
+  {
+    id: "sunrise",
+    name: "Sunrise",
+    tagline: "Fresh & Friendly",
+    description: "Bright white and cream design with soft round shapes, a 3-photo collage and count-up numbers. Great for yoga, wellness, salons, schools and family businesses.",
+    defaultColor: "#10b981",
+    font: "'Poppins', sans-serif",
+    tags: ["Light", "Friendly", "Soft"],
+    image: null,
+  },
+  {
+    id: "monolith",
+    name: "Monolith",
+    tagline: "Editorial Mono",
+    description: "Magazine-style layout with a huge serif headline, clean list rows and a sliding review quote. For boutique studios, photographers, designers and premium services.",
+    defaultColor: "#e8590c",
+    font: "'Instrument Serif', serif",
+    tags: ["Editorial", "Minimal", "Elegant"],
+    image: null,
+  },
+  {
+    id: "vertex",
+    name: "Vertex",
+    tagline: "Tech Bento",
+    description: "Dark grid background with glowing accents, a bento layout and gradient headline. Made for modern studios, CrossFit boxes, coaching and tech-style brands.",
+    defaultColor: "#22d3ee",
+    font: "'Manrope', sans-serif",
+    tags: ["Dark", "Bento", "Futuristic"],
+    image: null,
+  },
+  {
     id: null,
     name: "Classic",
     tagline: "Original",
@@ -55,22 +116,14 @@ const TEMPLATES = [
   },
 ];
 
-function TemplateMockup({ tpl }) {
-  return (
-    <img
-      src={tpl.image}
-      alt={`${tpl.name} template preview`}
-      className="w-full h-full object-cover object-top"
-      loading="lazy"
-    />
-  );
-}
-
 export default function TemplatePicker() {
   const navigate = useNavigate();
   const { venue, refetchVenue } = useVenue();
   const [saving, setSaving] = useState(null);
   const [hovered, setHovered] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const MODE = { aurora: "dark", bloom: "light", slate: "dark", forge: "dark", pulse: "dark", ember: "dark", sunrise: "light", monolith: "light", vertex: "dark", classic: "light" };
+  const visible = TEMPLATES.filter((t) => filter === "all" || MODE[t.id ?? "classic"] === filter);
 
   // Older venues have a legacy value (e.g. "template-1") which renders as Classic,
   // so treat any unknown id as Classic in the picker
@@ -102,14 +155,27 @@ export default function TemplatePicker() {
       </button>
 
       <p className="text-navy-500 text-sm mb-8 max-w-xl">
-        Choose a template for your public venue website. Each template has a distinct visual style — you can switch anytime without losing your content.
+        Choose a template for your public venue website. The previews below show your own business name and photo, so you can see exactly how your site will look. You can switch anytime without losing your content.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        {TEMPLATES.map((tpl) => {
-          const isActive = (tpl.id ?? null) === (activeId ?? null);
+      <div className="flex gap-2 mb-6">
+        {[["all", "All"], ["dark", "Dark"], ["light", "Light"]].map(([key, text]) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${filter === key ? "bg-navy-900 text-white border-navy-900" : "bg-white text-navy-500 border-gray-200 hover:border-navy-300"}`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-5">
+        {visible.map((tpl) => {          const isActive = (tpl.id ?? null) === (activeId ?? null);
           const isSaving = saving === (tpl.id ?? "classic");
           const isHovered = hovered === (tpl.id ?? "classic");
+          // The active template shows the vendor's current colour; others show the colour they would get.
+          const previewColor = isActive ? venue?.theme_color || tpl.defaultColor : tpl.defaultColor;
 
           return (
             <div
@@ -124,11 +190,17 @@ export default function TemplatePicker() {
               onClick={() => !isActive && !saving && selectTemplate(tpl.id, tpl.defaultColor)}
             >
               <div className="relative h-56 overflow-hidden bg-gray-100">
-                <TemplateMockup tpl={tpl} />
+                <TemplatePreview
+                  venue={venue}
+                  templateId={tpl.id}
+                  themeColor={previewColor}
+                  fallbackImage={tpl.image}
+                  height={224}
+                />
 
                 {isActive && (
                   <div
-                    className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-semibold shadow-lg"
+                    className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-semibold shadow-lg"
                     style={{ backgroundColor: tpl.defaultColor }}
                   >
                     <CheckCircle2 size={12} /> Active
@@ -136,7 +208,7 @@ export default function TemplatePicker() {
                 )}
 
                 {!isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: "rgba(0,0,0,0.35)" }}>
+                  <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: "rgba(0,0,0,0.35)" }}>
                     <span className="px-5 py-2.5 rounded-full text-white font-semibold text-sm shadow-xl" style={{ backgroundColor: tpl.defaultColor }}>
                       {isSaving ? "Applying..." : "Use This Template"}
                     </span>
