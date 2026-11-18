@@ -334,13 +334,18 @@ async function getVenuesByOwner(ownerId) {
 }
 
 /**
- * Super Admin edit of a vendor's core details: business name, owner name, phone, city and
- * main category. The subdomain never changes, so the website link stays the same.
+ * Super Admin edit of a vendor's core details: business name, owner name, phone, city,
+ * main category and the owner's LOGIN EMAIL. The subdomain never changes, so the website link stays the same.
  * When the main category changes, the vendor's own data (members, products, website sections,
  * labels they typed themselves) is NOT touched; only the category-driven behaviour changes.
+ *
+ * Changing the email only changes the email on the SAME user row (same id), so every venue, plan,
+ * payment, client and booking stays attached. The old Google link is removed and all sessions
+ * issued before the change are invalidated, so the old email can no longer reach this vendor's data.
  */
 async function adminUpdateVenue(venueId, updates = {}, adminUser = null) {
   const { City, Category } = require("../../database/models");
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
@@ -409,9 +414,68 @@ async function adminUpdateVenue(venueId, updates = {}, adminUser = null) {
     }
   }
 
-  if (Object.keys(patch).length === 0) return venue;
+  // ---- Owner login email ----
+  // Only acts when an email is sent AND it really differs from the current one.
+  let emailChange = null;
+  if (updates.owner_email !== undefined) {
+    const newEmail = String(updates.owner_email || "").trim().toLowerCase();
+    if (!newEmail) throw new AppError("Email is required", 400);
+    if (newEmail.length > 254 || !EMAIL_RE.test(newEmail)) {
+      throw new AppError("Enter a valid email address", 400);
+    }
 
-  await venue.update(patch);
+    const ownerUser = await User.findByPk(venue.owner_id);
+    if (!ownerUser) throw new AppError("This venue has no owner account", 404);
+    if (ownerUser.role !== "venue_owner") {
+      throw new AppError("Only a vendor's email can be changed here", 400);
+    }
+
+    if (String(ownerUser.email || "").trim().toLowerCase() !== newEmail) {
+      // Case-insensitive check, so "A@x.com" and "a@x.com" can never become two accounts.
+      const escapedEmail = newEmail.replace(/[\\%_]/g, "\\$&");
+      const clash = await User.findOne({
+        where: { email: { [Op.iLike]: escapedEmail }, id: { [Op.ne]: ownerUser.id } },
+        attributes: ["id"]
+      });
+      if (clash) {
+        throw new AppError("This email is already registered with another account.", 409);
+      }
+      emailChange = { ownerUser, from: ownerUser.email, to: newEmail };
+    }
+  }
+
+  if (Object.keys(patch).length === 0 && !emailChange) return venue;
+
+  if (emailChange) {
+    // One transaction: either the email change AND the other edits all save, or nothing changes.
+    try {
+      await Venue.sequelize.transaction(async (t) => {
+        await emailChange.ownerUser.update(
+          {
+            email: emailChange.to,
+            google_id: null, // old Google account can no longer log in as this vendor
+            sessions_valid_after: new Date() // every older login / refresh token stops working
+          },
+          { transaction: t }
+        );
+        if (Object.keys(patch).length > 0) {
+          await venue.update(patch, { transaction: t });
+        }
+      });
+    } catch (err) {
+      if (err && err.name === "SequelizeUniqueConstraintError") {
+        throw new AppError("This email is already registered with another account.", 409);
+      }
+      throw err;
+    }
+
+    console.log(
+      `[ADMIN-EDIT] ${adminUser ? adminUser.email : "admin"} changed login email of venue=${venue.id} ` +
+      `owner=${emailChange.ownerUser.id} ${emailChange.from} -> ${emailChange.to} at=${new Date().toISOString()}`
+    );
+  } else {
+    await venue.update(patch);
+  }
 
   if (categoryChange) {
     // Marketplace pages are cached per category; the change shows up as the cache expires.

@@ -170,7 +170,11 @@ const SCHEMA_STATEMENTS = [
   `CREATE UNIQUE INDEX IF NOT EXISTS demo_accounts_venue_uq ON demo_accounts (venue_id)`,
 
   // ---- Plans: price can be entered GST-inclusive. Default false keeps every old plan exactly as before. ----
-  `ALTER TABLE plans ADD COLUMN IF NOT EXISTS gst_inclusive BOOLEAN NOT NULL DEFAULT false`
+  `ALTER TABLE plans ADD COLUMN IF NOT EXISTS gst_inclusive BOOLEAN NOT NULL DEFAULT false`,
+
+  // ---- Users: when a vendor's login email is changed by Super Admin, every session issued before this
+  // time stops working. NULL (everyone today) means "no restriction", so existing logins are untouched. ----
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_valid_after TIMESTAMPTZ`
 ];
 
 const ENUM_STATEMENTS = [

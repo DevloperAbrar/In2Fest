@@ -50,6 +50,16 @@ async function authenticate(req, res, next) {
       throw new AppError("User not found or inactive", 401);
     }
 
+    // Login email was changed by Super Admin: tokens issued before that moment are no longer valid.
+    // Users with no change (sessions_valid_after = NULL) skip this completely.
+    // Admin impersonation tokens are exempt (they belong to the admin, not to the vendor's login).
+    if (!decoded.impersonated_by && user.sessions_valid_after) {
+      const validAfterSec = Math.floor(new Date(user.sessions_valid_after).getTime() / 1000);
+      if (!decoded.iat || decoded.iat < validAfterSec) {
+        throw new AppError("Session expired. Please sign in again.", 401);
+      }
+    }
+
     if (user.role === "venue_owner") {
       // One light query in the normal case (active venue found); count only when none is active.
       const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true }, attributes: ["id"] });

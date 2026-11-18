@@ -29,6 +29,8 @@ const FIELD_LABELS = {
   video_intro_url: "Video introduction link"
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function ChangePlanPanel({ venue, onDone, onCancel }) {
   const { data: plans, loading } = useFetch("/plans");
   const [assign, setAssign] = useState({
@@ -91,11 +93,15 @@ function ChangePlanPanel({ venue, onDone, onCancel }) {
   );
 }
 
-// Edit business name, owner, phone, city and main category on the vendor's behalf.
+// Edit business name, owner, login email, phone, city and main category on the vendor's behalf.
 function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
+  const hasOwner = Boolean(venue.owner);
+  const currentEmail = String(venue.owner?.email || "").trim().toLowerCase();
+
   const [form, setForm] = useState({
     hall_name: venue.hall_name || "",
     owner_name: venue.owner_name || "",
+    owner_email: venue.owner?.email || "",
     phone: venue.phone || "",
     city: venue.city || "",
     business_category: venue.business_category || ""
@@ -121,11 +127,14 @@ function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
   const groups = [...groupMap.entries()].map(([label, options]) => ({ label, options }));
 
   const categoryChanged = form.business_category !== venue.business_category;
+  const newEmail = form.owner_email.trim().toLowerCase();
+  const emailChanged = hasOwner && newEmail !== currentEmail;
 
   const validate = () => {
     const next = {};
     if (form.hall_name.trim().length < 2) next.hall_name = "Business name is required";
     if (form.owner_name.trim().length < 2) next.owner_name = "Owner name is required";
+    if (hasOwner && !EMAIL_RE.test(newEmail)) next.owner_email = "Enter a valid email address";
     const digits = form.phone.replace(/\D/g, "");
     if (digits.length < 10 || digits.length > 13) next.phone = "Enter a valid phone number";
     if (!form.city) next.city = "Select a city";
@@ -136,6 +145,21 @@ function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
 
   const save = async () => {
     if (!validate()) return;
+
+    if (
+      emailChanged &&
+      !window.confirm(
+        "Change this vendor's login email?\n\n" +
+        `Old: ${venue.owner.email}\n` +
+        `New: ${newEmail}\n\n` +
+        "- The old email loses access immediately and is signed out.\n" +
+        "- The vendor must sign in with Google using the NEW email.\n" +
+        "- All data (plan, payments, clients, bookings, website) stays exactly as it is."
+      )
+    ) {
+      return;
+    }
+
     if (
       categoryChanged &&
       !window.confirm(
@@ -146,10 +170,15 @@ function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
       return;
     }
 
+    // The email is sent only when it really changed, so normal edits behave exactly as before.
+    const payload = { ...form };
+    if (emailChanged) payload.owner_email = newEmail;
+    else delete payload.owner_email;
+
     setSaving(true);
     try {
-      await venueService.adminUpdate(venue.id, form);
-      showSuccess("Vendor details updated");
+      await venueService.adminUpdate(venue.id, payload);
+      showSuccess(emailChanged ? "Vendor details and login email updated" : "Vendor details updated");
       onDone();
     } catch (err) {
       showError(err.response?.data?.message || "Failed to update vendor");
@@ -163,6 +192,15 @@ function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="Business / venue name" value={form.hall_name} onChange={update("hall_name")} error={errors.hall_name} />
         <Input label="Owner name" value={form.owner_name} onChange={update("owner_name")} error={errors.owner_name} />
+        {hasOwner && (
+          <Input
+            label="Owner email (login)"
+            type="email"
+            value={form.owner_email}
+            onChange={update("owner_email")}
+            error={errors.owner_email}
+          />
+        )}
         <Input label="Phone" value={form.phone} onChange={update("phone")} error={errors.phone} />
         <Select
           label="City"
@@ -172,6 +210,14 @@ function EditDetailsPanel({ venue, categories, cities, onDone, onCancel }) {
           options={[{ value: "", label: "Select a city" }, ...cityNames.map((n) => ({ value: n, label: n }))]}
         />
       </div>
+
+      {emailChanged && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          The login email will change from <strong>{venue.owner.email}</strong> to <strong>{newEmail}</strong>.
+          The old email will be signed out and lose access. The vendor logs in with Google, so this must be
+          the Google account email they will use. All vendor data stays safe.
+        </p>
+      )}
 
       <Select
         label="Main category"

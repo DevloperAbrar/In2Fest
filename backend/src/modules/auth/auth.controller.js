@@ -150,6 +150,16 @@ async function refreshAccessToken(req, res, next) {
       if (!user || !user.is_active) {
         throw new AppError("User not found or inactive", 401);
       }
+
+      // Login email was changed by Super Admin: refresh tokens issued before that are dead.
+      // Users with no change (sessions_valid_after = NULL) skip this completely.
+      if (user.sessions_valid_after) {
+        const validAfterSec = Math.floor(new Date(user.sessions_valid_after).getTime() / 1000);
+        if (!decoded.iat || decoded.iat < validAfterSec) {
+          throw new AppError("Session expired. Please sign in again.", 401);
+        }
+      }
+
       accessToken = generateAccessToken(user);
       renewedRefresh = generateRefreshToken(user);
     }
