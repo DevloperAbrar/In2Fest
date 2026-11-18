@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import Card from "../../../components/common/Card";
 import Badge from "../../../components/common/Badge";
+import ConfirmDialog from "../../../components/common/ConfirmDialog";
+import { showSuccess, showError } from "../../../components/common/Toast";
+import api from "../../../services/api";
 import { useFetch } from "../../../hooks/useFetch";
 import { formatDate, formatDateTime, formatCurrency, formatSlugLabel } from "../../../lib/formatters";
 import { adminSidebarItems } from "../adminSidebarItems.js";
@@ -49,6 +52,10 @@ export default function RegistrationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText]);
 
+  // Empty sign-up account chosen for deletion (shows the confirm popup).
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
   function update(changes) {
     const next = new URLSearchParams(params);
     Object.entries(changes).forEach(([key, value]) => {
@@ -70,6 +77,23 @@ export default function RegistrationsPage() {
   const rows = data?.rows || [];
   const pagination = data?.pagination;
   const hasFilters = !!(q || plan || status || listed);
+
+  const handleDeleteAccount = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/overview/accounts/${deleteTarget.id}`);
+      showSuccess("Account deleted");
+      setDeleteTarget(null);
+      refetch();
+    } catch (err) {
+      showError(err.response?.data?.message || "Failed to delete account");
+      setDeleteTarget(null);
+      refetch();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <DashboardLayout sidebarItems={adminSidebarItems} pageTitle="Registrations">
@@ -185,8 +209,8 @@ export default function RegistrationsPage() {
                   </tbody>
                 </table>
               ) : type === "no_business" ? (
-                <table className="w-full min-w-[560px]">
-                  <thead className="border-b border-navy-100"><tr><Th>Name</Th><Th>Email</Th><Th>Signed up</Th><Th>Last sign-in</Th></tr></thead>
+                <table className="w-full min-w-[620px]">
+                  <thead className="border-b border-navy-100"><tr><Th>Name</Th><Th>Email</Th><Th>Signed up</Th><Th>Last sign-in</Th><Th>{" "}</Th></tr></thead>
                   <tbody className="divide-y divide-navy-50">
                     {rows.map((r) => (
                       <tr key={r.id} className="hover:bg-navy-50/40">
@@ -194,6 +218,14 @@ export default function RegistrationsPage() {
                         <Td>{r.email}</Td>
                         <Td className="whitespace-nowrap">{formatDate(r.created_at)}</Td>
                         <Td className="whitespace-nowrap">{r.last_login_at ? formatDateTime(r.last_login_at) : <span className="text-navy-300">Never</span>}</Td>
+                        <Td>
+                          <button
+                            onClick={() => setDeleteTarget(r)}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline"
+                          >
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </Td>
                       </tr>
                     ))}
                   </tbody>
@@ -241,6 +273,21 @@ export default function RegistrationsPage() {
           )}
         </Card>
       </div>
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        onConfirm={handleDeleteAccount}
+        title="Delete this empty account?"
+        message={
+          deleteTarget
+            ? `${deleteTarget.email} signed up but has no business. Deleting removes only this empty login. ` +
+              "Any vendor with a business can not be deleted from here. This cannot be undone."
+            : ""
+        }
+        confirmText="Delete account"
+        loading={deleting}
+      />
     </DashboardLayout>
   );
 }

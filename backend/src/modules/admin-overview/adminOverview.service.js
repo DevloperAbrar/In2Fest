@@ -296,6 +296,52 @@ async function getRegistrations(query = {}) {
   };
 }
 
+// Deletes ONE owner account that has no business. This is the only thing it can ever delete:
+// the SQL itself requires role = venue_owner AND no venue owned by the user, in a single atomic statement,
+// so a vendor with a venue (paid or not) can never be removed here, even if two admins click at once.
+async function deleteEmptyAccount(userId, adminUser = null) {
+  if (!UUID_RE.test(String(userId || ""))) throw new AppError("Invalid account id", 400);
+  if (adminUser && adminUser.id === userId) throw new AppError("You can not delete your own account", 400);
+
+  let deleted;
+  try {
+    deleted = await run(
+      `DELETE FROM users u
+       WHERE u.id = :userId
+         AND u.role = 'venue_owner'
+         AND NOT EXISTS (SELECT 1 FROM venues v WHERE v.owner_id = u.id)
+       RETURNING u.id, u.email`,
+      { userId }
+    );
+  } catch (err) {
+    // A database link we did not expect: nothing was deleted.
+    const code = err && (err.parent?.code || err.original?.code);
+    if (code === "23503") {
+      throw new AppError("This account is linked to other data, so it was not deleted.", 409);
+    }
+    throw err;
+  }
+
+  if (deleted.length === 0) {
+    const user = await one(
+      `SELECT u.role, (SELECT COUNT(*) FROM venues v WHERE v.owner_id = u.id) AS venue_count
+       FROM users u WHERE u.id = :userId`,
+      { userId }
+    );
+    if (!user.role) throw new AppError("Account not found. It may already be deleted.", 404);
+    if (num(user.venue_count) > 0) {
+      throw new AppError("This account owns a business, so it can not be deleted here.", 409);
+    }
+    throw new AppError("Only a vendor sign-up account can be deleted here.", 400);
+  }
+
+  console.log(
+    `[ADMIN] ${adminUser ? adminUser.email : "admin"} deleted empty account user=${deleted[0].id} ` +
+    `email=${deleted[0].email} at=${new Date().toISOString()}`
+  );
+  return { id: deleted[0].id, email: deleted[0].email };
+}
+
 // ───────────────────────────── LOGIN ACTIVITY ─────────────────────────────
 
 async function getLogins(query = {}) {
@@ -755,4 +801,4 @@ async function getSystem() {
   };
 }
 
-module.exports = { getSummary, getRegistrations, getLogins, getPlans, getMarketplace, getSystem };
+module.exports = { getSummary, getRegistrations, getLogins, getPlans, getMarketplace, getSystem, deleteEmptyAccount };

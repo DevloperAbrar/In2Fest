@@ -15,6 +15,9 @@ router.get("/plans", controller.getPlans);
 router.get("/marketplace", controller.getMarketplace);
 router.get("/system", controller.getSystem);
 
+// Removes a "signed up, no business" account (never one that owns a venue).
+router.delete("/accounts/:id", controller.deleteEmptyAccount);
+
 // Database backups
 router.post("/backups/run", controller.runBackupNow);
 router.get("/backups/download", controller.downloadBackup);

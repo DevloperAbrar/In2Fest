@@ -14,6 +14,17 @@ function handler(fn) {
   };
 }
 
+// Deletes one empty owner account (no business). The service refuses anything that owns a venue.
+async function deleteEmptyAccount(req, res, next) {
+  try {
+    const data = await service.deleteEmptyAccount(req.params.id, req.user);
+    res.set("Cache-Control", "no-store");
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Starts a backup in the background (it can take a few minutes) and answers straight away.
 async function runBackupNow(req, res, next) {
   try {
@@ -56,6 +67,7 @@ module.exports = {
   getPlans: handler(() => service.getPlans()),
   getMarketplace: handler(() => service.getMarketplace()),
   getSystem: handler(() => service.getSystem()),
+  deleteEmptyAccount,
   runBackupNow,
   downloadBackup
 };
