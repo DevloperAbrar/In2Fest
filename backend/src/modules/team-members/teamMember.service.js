@@ -162,7 +162,7 @@ async function loginTeamMember(email, password) {
   }
 
   const venue = await Venue.findByPk(teamMember.venue_id);
-  if (!venue || !venue.is_active) {
+  if (!venue || !venue.is_active || venue.app_suspended) {
     throw new AppError("This venue has been deactivated. Please contact support.", 403);
   }
 

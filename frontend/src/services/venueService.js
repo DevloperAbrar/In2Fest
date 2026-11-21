@@ -14,6 +14,8 @@ export const venueService = {
 
   listAll: (params) => api.get("/venues", { params }),
   toggleActive: (id, is_active) => api.patch(`/venues/${id}/status`, { is_active }),
+  // true = switch that part OFF. Example: { website: false, marketplace: false, application: true }
+  setStatus: (id, body) => api.patch(`/venues/${id}/status`, body),
   remove: (id) => api.delete(`/venues/${id}`),
 
   // Super Admin: onboard a vendor by email only, then impersonate them.

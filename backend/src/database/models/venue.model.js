@@ -69,6 +69,10 @@ module.exports = (sequelize, DataTypes) => {
 
     is_live: { type: DataTypes.BOOLEAN, defaultValue: false },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+    // Super Admin > Deactivate. true = that part is switched OFF. is_active is false only when all three are off.
+    app_suspended: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    website_suspended: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    marketplace_suspended: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     setup_completed_steps: { type: DataTypes.JSONB, defaultValue: [] },
 
     last_login_at: DataTypes.DATE,

@@ -39,7 +39,7 @@ passport.use(
           const Venue = User.sequelize.models.Venue;
           const totalVenues = await Venue.count({ where: { owner_id: user.id } });
           if (totalVenues > 0) {
-            const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true } });
+            const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true, app_suspended: false } });
             if (!activeVenue) {
               return done(null, false, { message: "Your venue has been deactivated" });
             }

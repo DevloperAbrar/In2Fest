@@ -713,7 +713,8 @@ async function getPublicVenueBySubdomain(subdomain) {
   const venue = await Venue.findOne({
     where: {
       subdomain,
-      is_active: true
+      is_active: true,
+      website_suspended: false // Super Admin switched the website off
       // is_live check removed for dev; add back in production
     }
   });
@@ -787,11 +788,48 @@ async function listAllVenues(query = {}) {
   };
 }
 
-async function toggleVenueActive(venueId, isActive) {
+// What is switched off for a venue. Older deactivations only set is_active = false,
+// which switched everything off, so that still counts as "all off".
+function deactivationState(venue) {
+  const all = venue.is_active === false;
+  return {
+    website: all || !!venue.website_suspended,
+    marketplace: all || !!venue.marketplace_suspended,
+    application: all || !!venue.app_suspended
+  };
+}
+
+// Super Admin > Deactivate. Accepts:
+//   { website, marketplace, application }  true = switch that part OFF, false = switch it ON
+//   { is_active }                          (old format) false = everything off, true = everything on
+// is_active is false only when all three parts are off, so every existing check
+// that reads is_active keeps working exactly as before.
+async function toggleVenueActive(venueId, input) {
   const venue = await Venue.findByPk(venueId);
   if (!venue) throw new AppError("Venue not found", 404);
 
-  venue.is_active = !!isActive;
+  const body = input && typeof input === "object" ? input : { is_active: input };
+  const KEYS = ["website", "marketplace", "application"];
+  const hasParts = KEYS.some((k) => body[k] !== undefined);
+
+  let next;
+  if (hasParts) {
+    const cur = deactivationState(venue);
+    next = {};
+    for (const k of KEYS) {
+      if (body[k] !== undefined && typeof body[k] !== "boolean") throw new AppError(`"${k}" must be true or false`, 400);
+      next[k] = body[k] === undefined ? cur[k] : body[k];
+    }
+  } else {
+    if (body.is_active === undefined) throw new AppError("Nothing to update", 400);
+    const off = !body.is_active;
+    next = { website: off, marketplace: off, application: off };
+  }
+
+  venue.is_active = !(next.website && next.marketplace && next.application);
+  venue.website_suspended = next.website;
+  venue.marketplace_suspended = next.marketplace;
+  venue.app_suspended = next.application;
   await venue.save();
   return venue;
 }

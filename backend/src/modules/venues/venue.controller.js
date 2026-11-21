@@ -100,7 +100,12 @@ async function listAllVenues(req, res, next) {
 
 async function toggleVenueActive(req, res, next) {
   try {
-    const venue = await venueService.toggleVenueActive(req.params.id, req.body.is_active);
+    const venue = await venueService.toggleVenueActive(req.params.id, req.body);
+    // Audit trail: who changed what.
+    console.log(
+      `[VENUE STATUS] admin=${req.user.email} venue=${venue.id} is_active=${venue.is_active} ` +
+      `website_off=${venue.website_suspended} marketplace_off=${venue.marketplace_suspended} app_off=${venue.app_suspended}`
+    );
     res.json({ success: true, data: venue });
   } catch (error) {
     next(error);

@@ -76,6 +76,12 @@ const SCHEMA_STATEMENTS = [
   // ---- gym logo (member card, receipt, workout PDF) ----
   `ALTER TABLE venues
      ADD COLUMN IF NOT EXISTS logo_url TEXT`,
+
+  // ---- Super Admin: deactivate website / marketplace / application separately ----
+  `ALTER TABLE venues
+     ADD COLUMN IF NOT EXISTS app_suspended BOOLEAN NOT NULL DEFAULT false,
+     ADD COLUMN IF NOT EXISTS website_suspended BOOLEAN NOT NULL DEFAULT false,
+     ADD COLUMN IF NOT EXISTS marketplace_suspended BOOLEAN NOT NULL DEFAULT false`,
   // ---- website display options + opening hours ----
   `ALTER TABLE venues
      ADD COLUMN IF NOT EXISTS show_availability BOOLEAN NOT NULL DEFAULT true,

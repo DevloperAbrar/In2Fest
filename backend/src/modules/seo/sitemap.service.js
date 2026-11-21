@@ -63,7 +63,7 @@ async function generateSitemapXml() {
     City.findAll({ where: { active: true } }),
     Category.findAll({ where: { active: true } }),
     Venue.findAll({
-      where: { is_active: true, marketplace_listed: true },
+      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false },
       attributes: ["subdomain", "city", "business_category", "hall_name", "hero_image_url", "gallery", "updatedAt",
         "profile_attributes", "marketplace_services", "specialty_tagline"]
     })

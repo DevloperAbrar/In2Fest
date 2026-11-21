@@ -5,14 +5,14 @@ const { vendorSummary } = require("./search.service");
 async function getHomepage(req, res, next) {
   try {
     const featured = await Venue.findAll({
-      where: { is_active: true, marketplace_listed: true, featured_on_homepage: true },
+      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false, featured_on_homepage: true },
       limit: 10
     });
 
-    const totalVendors = await Venue.count({ where: { is_active: true, marketplace_listed: true } });
+    const totalVendors = await Venue.count({ where: { is_active: true, marketplace_listed: true, marketplace_suspended: false } });
 
     const cityRows = await Venue.findAll({
-      where: { is_active: true, marketplace_listed: true },
+      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false },
       attributes: ["city", [fn("COUNT", col("id")), "vendor_count"]],
       group: ["city"],
       order: [[fn("COUNT", col("id")), "DESC"]],

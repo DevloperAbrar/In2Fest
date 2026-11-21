@@ -20,7 +20,8 @@ async function findSimilarVenues(venue, cityName, categorySlug, types) {
     city: { [Op.iLike]: cityName },
     business_category: categorySlug,
     is_active: true,
-    marketplace_listed: true
+    marketplace_listed: true,
+    marketplace_suspended: false
   };
   if (!types.length) return Venue.findAll({ where: base, limit: 4 });
 
@@ -44,7 +45,8 @@ async function getVendorProfile(req, res, next) {
         business_category: categorySlug,
         city: { [Op.iLike]: cityName },
         is_active: true,
-        marketplace_listed: true
+        marketplace_listed: true,
+        marketplace_suspended: false
       }
     });
 
@@ -64,7 +66,7 @@ async function getVendorProfile(req, res, next) {
       inquiries: activeFeatures.includes("inquiries"),
       slots: activeFeatures.includes("slots"),
       reviews: activeFeatures.includes("reviews"),
-      website_builder: activeFeatures.includes("website_builder")
+      website_builder: activeFeatures.includes("website_builder") && !venue.website_suspended && !venue.website_suspended
     };
 
     // Availability needs BOTH the business type to support slots AND the plan.
@@ -79,6 +81,9 @@ async function getVendorProfile(req, res, next) {
 
     // Don't expose rating data for a plan that has no reviews feature.
     const venueData = venue.toJSON();
+    delete venueData.app_suspended;
+    delete venueData.website_suspended;
+    delete venueData.marketplace_suspended;
     if (!planFeatures.reviews) {
       venueData.average_rating = null;
       venueData.review_count = 0;
@@ -124,7 +129,8 @@ async function resolveThirdSegment(req, res, next) {
         business_category: categorySlug,
         city: { [Op.iLike]: cityName },
         is_active: true,
-        marketplace_listed: true
+        marketplace_listed: true,
+        marketplace_suspended: false
       }
     });
 

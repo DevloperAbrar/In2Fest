@@ -28,7 +28,7 @@ async function resolveSubdomain(req, res, next) {
 
     if (subdomain && !reserved.includes(subdomain)) {
       const venue = await Venue.findOne({
-        where: { subdomain, is_active: true }
+        where: { subdomain, is_active: true, website_suspended: false }
       });
 
       if (!venue) {

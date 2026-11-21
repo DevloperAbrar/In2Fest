@@ -12,7 +12,7 @@ function startWeeklyStats() {
     console.log("[JOB] Running weekly marketplace stats job...");
 
     const weekAgo = dayjs().subtract(7, "day").toDate();
-    const venues = await Venue.findAll({ where: { is_active: true, marketplace_listed: true } });
+    const venues = await Venue.findAll({ where: { is_active: true, marketplace_listed: true, marketplace_suspended: false } });
 
     for (const venue of venues) {
       const inquiries = await Inquiry.count({

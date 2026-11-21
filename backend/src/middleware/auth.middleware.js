@@ -25,7 +25,7 @@ async function authenticate(req, res, next) {
       }
 
       const venue = await Venue.findByPk(teamMember.venue_id);
-      if (!venue || !venue.is_active) {
+      if (!venue || !venue.is_active || venue.app_suspended) {
         throw new AppError(
           "This venue has been deactivated. Please contact support.",
           403,
@@ -62,7 +62,7 @@ async function authenticate(req, res, next) {
 
     if (user.role === "venue_owner") {
       // One light query in the normal case (active venue found); count only when none is active.
-      const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true }, attributes: ["id"] });
+      const activeVenue = await Venue.findOne({ where: { owner_id: user.id, is_active: true, app_suspended: false }, attributes: ["id"] });
       if (!activeVenue) {
         const totalVenues = await Venue.count({ where: { owner_id: user.id } });
         if (totalVenues > 0) {

@@ -43,7 +43,7 @@ async function getCityHome(req, res, next) {
     const cityName = unslugify(req.params.citySlug);
 
     const rows = await Venue.findAll({
-      where: { is_active: true, marketplace_listed: true, city: { [Op.iLike]: cityName } },
+      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false, city: { [Op.iLike]: cityName } },
       attributes: ["business_category", [fn("COUNT", col("id")), "vendor_count"]],
       group: ["business_category"]
     });
@@ -105,6 +105,7 @@ async function getCityCategory(req, res, next) {
     const where = {
       is_active: true,
       marketplace_listed: true,
+      marketplace_suspended: false,
       city: { [Op.iLike]: cityName },
       business_category: categorySlug
     };
@@ -181,6 +182,7 @@ async function getCityCategoryLocality(req, res, next) {
       where: {
         is_active: true,
         marketplace_listed: true,
+        marketplace_suspended: false,
         city: { [Op.iLike]: cityName },
         business_category: categorySlug,
         primary_locality: { [Op.iLike]: localityName }
@@ -216,7 +218,7 @@ async function getCitiesWithVendors(req, res, next) {
   try {
     // Distinct city names that have at least one active, marketplace-listed vendor
     const rows = await Venue.findAll({
-      where: { is_active: true, marketplace_listed: true, city: { [Op.ne]: null } },
+      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false, city: { [Op.ne]: null } },
       attributes: [[fn("DISTINCT", col("city")), "city"]],
       raw: true
     });

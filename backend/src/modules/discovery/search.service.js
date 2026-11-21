@@ -29,7 +29,7 @@ const RELEVANCE_SCORE_SQL = `
 const SAFE_SLUG_RE = /^[a-z0-9-]+$/;
 
 function baseWhere() {
-  return { is_active: true, marketplace_listed: true, business_category: { [Op.ne]: null } };
+  return { is_active: true, marketplace_listed: true, marketplace_suspended: false, business_category: { [Op.ne]: null } };
 }
 
 // ---------------------------------------------------------------------------
