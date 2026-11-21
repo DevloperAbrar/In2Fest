@@ -11,6 +11,7 @@ import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, errMsg } from "./gymShared.jsx";
 import GymLogoUploader from "./GymLogoUploader.jsx";
 import CardDesigner from "./CardDesigner.jsx";
+import GymDataErase from "./GymDataErase.jsx";
 
 export default function GymSettings() {
   const { venue, refetchVenue } = useVenue();
@@ -104,6 +105,8 @@ export default function GymSettings() {
           where you can edit them and create your own. Your earlier edits are kept.
         </p>
       </Card>
+
+      <GymDataErase />
     </GymPage>
   );
 }

@@ -6,6 +6,12 @@ export const gymService = {
   dashboard: (v) => api.get(`${b(v)}/dashboard`),
   getSettings: (v) => api.get(`${b(v)}/settings`),
   saveSettings: (v, body) => api.put(`${b(v)}/settings`, body),
+  eraseSummary: (v) => api.get(`${b(v)}/data-erase/summary`),
+  eraseVerify: (v, body) => api.post(`${b(v)}/data-erase/verify`, body),
+  eraseExecute: (v, body) => api.post(`${b(v)}/data-erase/execute`, body),
+  eraseSummary: (v) => api.get(`${b(v)}/data-erase/summary`),
+  eraseVerify: (v, body) => api.post(`${b(v)}/data-erase/verify`, body),
+  eraseExecute: (v, body) => api.post(`${b(v)}/data-erase/execute`, body),
   uploadLogo: (v, file) => {
     const fd = new FormData();
     fd.append("logo", file);

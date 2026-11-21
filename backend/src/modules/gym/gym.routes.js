@@ -59,6 +59,9 @@ const ownerRole = requireRole("venue_owner");
 const ownerOnly = (req, res, next) => (req.user && req.user.isDemo ? next() : ownerRole(req, res, next));
 const proOnly = requirePlanFeature("gym_pro");
 
+// Complete data erase (owner-only, 3-step). Isolated in its own file.
+router.use("/data-erase", require("./gym.erase.routes"));
+
 // overview + settings
 router.get("/dashboard", h((req) => insights.dashboard(req.gymVenue.id)));
 router.get("/settings", h((req) => insights.publicSettings(req.gymSettings)));
