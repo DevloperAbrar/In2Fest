@@ -26,7 +26,12 @@ module.exports = (sequelize, DataTypes) => {
     show_on_home: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     // How many EXTRA categories a vendor whose main category is this one may add.
     // 0 = single category only (e.g. coaching). Default 2 keeps old behaviour.
-    max_secondary_categories: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 2 }
+    max_secondary_categories: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 2 },
+    // Marketplace launch state, set by Super Admin: live | hidden | soon. NULL = automatic
+    // (see config/launchGroups.js). Hidden never deletes or breaks a vendor's page.
+    launch_status: { type: DataTypes.STRING(10), allowNull: true },
+    // Which of the 4 groups it belongs to: gym | sports | studios | library.
+    launch_group: { type: DataTypes.STRING(20), allowNull: true }
   }, {
     tableName: "categories",
     timestamps: false

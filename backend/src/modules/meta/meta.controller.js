@@ -5,6 +5,7 @@ const { BUSINESS_TYPES, isValidBusinessType, getBusinessTypeKey } = require("../
 const { buildDefaultSections } = require("../../utils/pageSections");
 const pincodeService = require("./pincode.service");
 const cscService = require("./csc.service");
+const { resolveLaunch } = require("../../config/launchGroups");
 
 async function listCities(req, res, next) {
   try {
@@ -39,6 +40,7 @@ async function listCategories(req, res, next) {
 
       return {
         ...category,
+        ...resolveLaunch(category),
         business_type: typeKey,
         business_type_label: type.label,
         business_type_order: Math.max(typeKeys.indexOf(typeKey), 0)

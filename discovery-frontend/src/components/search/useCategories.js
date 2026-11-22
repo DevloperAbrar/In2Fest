@@ -22,6 +22,8 @@ function normalize(raw, index) {
       imageUrl: raw.image_url || null,
       tagline: raw.tagline || "",
       showOnHome: raw.show_on_home !== false,
+      launchStatus: raw.launch_status || null,
+      launchGroup: raw.launch_group || null,
     },
     index
   );
@@ -72,7 +74,7 @@ export default function useCategories() {
 
   return useMemo(() => {
     const liveCategories = categories.filter((c) => c.isLive);
-    const soonCategories = categories.filter((c) => !c.isLive);
+    const soonCategories = categories.filter((c) => c.isSoon);
     return {
       categories,
       liveCategories,

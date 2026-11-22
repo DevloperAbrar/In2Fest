@@ -18,24 +18,19 @@ const TABS = [
     ],
   },
   {
+    id: "sports", label: "Sports Academy", tint: "#E0EAFF", title: "Sports academies",
+    lead: "Batches, coaches and fees for every player, in one place.",
+    feats: [[Users, "Student records and batches"], [Wallet, "Fees and receipts"], [QrCode, "QR attendance"], [CalendarCheck, "Renewals and reminders"]],
+  },
+  {
+    id: "studios", label: "Classes & Studios", tint: "#FFF0C2", title: "Dance, music, art, yoga and martial arts",
+    lead: "Run your classes without chasing fees on WhatsApp.",
+    feats: [[Users, "Students and batches"], [Wallet, "Monthly fees and receipts"], [QrCode, "QR attendance"], [Bell, "Renewal reminders"]],
+  },
+  {
     id: "library", label: "Library", tint: "#DDF3E8", title: "Libraries & study rooms",
     lead: "Seats, shifts and fees, always under control.",
     feats: [[LayoutGrid, "Seat allocation by hall and shift"], [Wallet, "Student fees and receipts"], [QrCode, "QR attendance"], [BookOpen, "Book issue and return"]],
-  },
-  {
-    id: "food", label: "Restaurants", tint: "#FFF0C2", title: "Restaurants & food businesses",
-    lead: "Take orders on your own website and run the kitchen board.",
-    feats: [[UtensilsCrossed, "Menu with photos"], [ClipboardList, "Live order board"], [MapPin, "Customer order tracking"], [BarChart3, "Sales reports"]],
-  },
-  {
-    id: "shops", label: "Shops", tint: "#FFE0E3", title: "Shops & retail",
-    lead: "Know what is in stock and what sold today.",
-    feats: [[Package, "Item catalogue"], [Bell, "Low-stock alerts"], [Receipt, "Bills with GST"], [Store, "Your own online catalogue page"]],
-  },
-  {
-    id: "events", label: "Events", tint: "#E0EAFF", title: "Events & venues",
-    lead: "No more double bookings or lost enquiries.",
-    feats: [[CalendarCheck, "Availability calendar"], [Users, "Enquiries and bookings"], [FileText, "Client records"], [Wallet, "Invoices and balances"]],
   },
 ];
 

@@ -69,12 +69,19 @@ async function generateSitemapXml() {
     })
   ]);
 
+  // Only LIVE categories get city/category landing pages in the sitemap.
+  // Hidden categories stay reachable (vendor pages are still listed below) but are not promoted.
+  const { resolveLaunch } = require("../../config/launchGroups");
+  const liveCategorySlugs = new Set(
+    categories.filter((c) => resolveLaunch(c).launch_status === "live").map((c) => c.slug)
+  );
+
   // City + category pages are only listed when at least one vendor exists there.
   // Empty landing pages are thin content and waste crawl budget.
   const comboLastmod = new Map(); // "city-slug/category-slug" -> latest vendor update
   const cityLastmod = new Map();
   venues.forEach((v) => {
-    if (!v.business_category || !v.city) return;
+    if (!v.business_category || !v.city || !liveCategorySlugs.has(v.business_category)) return;
     const citySlug = slugify(v.city);
     const key = `${citySlug}/${v.business_category}`;
     const d = toDate(v.updatedAt);
@@ -101,7 +108,7 @@ async function generateSitemapXml() {
   const citySlugs = new Set(cities.map((c) => c.slug));
   const typeLastmod = new Map(); // "city-slug/category-slug/type-slug" -> latest vendor update
   venues.forEach((v) => {
-    if (!v.business_category || !v.city || getBusinessTypeKey(v.business_category) !== "general") return;
+    if (!v.business_category || !v.city || !liveCategorySlugs.has(v.business_category) || getBusinessTypeKey(v.business_category) !== "general") return;
     const citySlug = slugify(v.city);
     if (!citySlugs.has(citySlug)) return;
     const d = toDate(v.updatedAt);

@@ -40,6 +40,23 @@ function resolveSegmentValue(explicit, businessType) {
   return SEGMENT_FROM_TYPE[businessType] || null;
 }
 
+// launch_status: live | hidden | soon | "" (empty = automatic). launch_group: gym | sports | studios | library | "".
+function pickLaunchFields(payload) {
+  const { STATUSES, GROUP_KEYS } = require("../../config/launchGroups");
+  const out = {};
+  if (payload.launch_status !== undefined) {
+    const v = String(payload.launch_status || "").trim();
+    if (v && !STATUSES.includes(v)) throw new AppError(`Invalid launch status "${v}"`, 400);
+    out.launch_status = v || null;
+  }
+  if (payload.launch_group !== undefined) {
+    const v = String(payload.launch_group || "").trim();
+    if (v && !GROUP_KEYS.includes(v)) throw new AppError(`Invalid group "${v}"`, 400);
+    out.launch_group = v || null;
+  }
+  return out;
+}
+
 async function createCategory(payload, imageUrl) {
   const {
     name, slug, icon, display_order, is_venue_type, business_type,
@@ -78,7 +95,8 @@ async function createCategory(payload, imageUrl) {
     image_url: imageUrl || null,
     tagline: tagline && String(tagline).trim() ? String(tagline).trim().slice(0, 160) : null,
     show_on_home: asBool(show_on_home, true),
-    max_secondary_categories: resolvedMaxSecondary
+    max_secondary_categories: resolvedMaxSecondary,
+    ...pickLaunchFields(payload)
   });
 
   await syncCategoryTypes();
@@ -100,6 +118,7 @@ async function updateCategory(categoryId, payload, imageUrl) {
     max_secondary_categories !== undefined && max_secondary_categories !== null && max_secondary_categories !== "";
 
   const patch = {
+    ...pickLaunchFields(payload),
     ...(name != null && name !== "" && { name: String(name).trim() }),
     ...(icon != null && icon !== "" && { icon }),
     ...(display_order != null && display_order !== "" && { display_order: Number(display_order) }),
@@ -192,8 +211,14 @@ async function updateCity(cityId, payload) {
 // ─── Categories (dynamic CRUD) ───────────────────────────────────────────────
 
 async function listAllCategories() {
-  // Admin list  - includes inactive ones so admin can re-enable them
-  return Category.findAll({ order: [["display_order", "ASC"], ["name", "ASC"]] });
+  // Admin list  - includes inactive ones so admin can re-enable them.
+  // launch_status / launch_group come back already resolved, so the admin sees what visitors see.
+  const { resolveLaunch } = require("../../config/launchGroups");
+  const rows = await Category.findAll({ order: [["display_order", "ASC"], ["name", "ASC"]] });
+  return rows.map((r) => {
+    const plain = r.toJSON();
+    return { ...plain, ...resolveLaunch(plain) };
+  });
 }
 
 // Validates a business type coming from the admin UI. Empty means "use the default".

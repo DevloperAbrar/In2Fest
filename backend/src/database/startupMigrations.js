@@ -115,6 +115,11 @@ const SCHEMA_STATEMENTS = [
   `ALTER TABLE categories
      ADD COLUMN IF NOT EXISTS max_secondary_categories INTEGER NOT NULL DEFAULT 2`,
 
+  // ---- marketplace launch status + group (live / hidden / soon) ----
+  `ALTER TABLE categories
+     ADD COLUMN IF NOT EXISTS launch_status VARCHAR(10),
+     ADD COLUMN IF NOT EXISTS launch_group VARCHAR(20)`,
+
   // ---- Super Admin login activity ----
   `CREATE TABLE IF NOT EXISTS login_events (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

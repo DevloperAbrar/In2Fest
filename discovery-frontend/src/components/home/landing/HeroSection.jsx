@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowRight, Search, Dumbbell, BookOpen, UtensilsCrossed, Store,
-  HeartPulse, Scissors, GraduationCap, PartyPopper, CheckCircle2, MessageCircle, Receipt,
+  ArrowRight, Search, Dumbbell, BookOpen, Trophy, Music,
+  CheckCircle2, MessageCircle, Receipt,
 } from "lucide-react";
 import CitySelect from "../../common/CitySelect";
 import { Floaty, Plus, Ring, Squiggle, DotGrid, Triangle } from "./art";
@@ -16,10 +16,9 @@ const EASE = [0.22, 1, 0.36, 1];
 // and every admin-managed category.
 const TILES = [
   { key: "gym", label: "Gym & Fitness", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
-  { key: "library", label: "Library", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
-  { key: "shop", label: "Shops", q: "shop", icon: Store, bg: "#FFE0E3", fg: "#e8192c" },
-  { key: "food", label: "Restaurants", q: "restaurant", icon: UtensilsCrossed, bg: "#FFF0C2", fg: "#d38a10" },
-  { key: "events", label: "Events", q: "event", icon: PartyPopper, bg: "#E0EAFF", fg: "#3a5bd9" },
+  { key: "sports", label: "Sports Academy", q: "academy", icon: Trophy, bg: "#E0EAFF", fg: "#3a5bd9" },
+  { key: "studios", label: "Classes & Studios", q: "studio", icon: Music, bg: "#FFF0C2", fg: "#d38a10" },
+  { key: "library", label: "Library & Study", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
 ];
 
 function Tile({ t, i, reduce }) {
@@ -134,7 +133,7 @@ export default function HeroSection() {
           className="inline-flex items-center gap-2 text-xs font-bold text-navy-600 bg-white rounded-full px-4 py-2 shadow-sm"
         >
           <span className="w-2 h-2 rounded-full bg-accent-500" />
-          For gyms, libraries, restaurants, shops, clinics and more
+          For gyms, academies, studios and libraries
         </motion.p>
 
         <h1
@@ -196,7 +195,7 @@ export default function HeroSection() {
 
         <div className="mt-6 pb-16 md:pb-24">
           <p className="text-xs font-bold tracking-[0.18em] uppercase text-navy-400">Or browse by category</p>
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-5 gap-x-3 gap-y-1">
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-x-3 gap-y-1">
             {TILES.map((t, i) => <Tile key={t.key} t={t} i={i} reduce={reduce} />)}
           </div>
           <Link to="/categories" className="inline-flex items-center gap-1.5 mt-7 text-sm font-extrabold text-accent-500 hover:underline">

@@ -1,110 +1,57 @@
-import { Dumbbell, BookOpen, Store, UtensilsCrossed, PartyPopper, Clock } from "lucide-react";
+import { Dumbbell, BookOpen, Trophy, Music, Clock } from "lucide-react";
 
 /**
- * Single source of truth for "what is live on In2Fest".
+ * Display settings for the 4 live groups on the marketplace.
  *
- * LIVE_GROUPS is ordered by PRIORITY. A category belongs to the first group
- * whose matcher accepts it. Anything that matches no group is treated as
- * "Launching soon" everywhere in the UI (chip strip, categories page, filters).
+ * WHICH categories are live, hidden or soon is decided in Super Admin > Categories
+ * (Launch status + Group). It arrives from the API as launch_status / launch_group.
+ *   live   - shown in groups, menu, filters, home page
+ *   hidden - not shown anywhere, but existing vendors' pages keep working
+ *   soon   - not listed (the categories page shows one "more categories soon" line)
  *
- * To launch a new vertical later (for example Clinics), add one entry here.
- * Categories added from the super admin panel are placed automatically, using
- * the business type the admin assigned (or the slug for gym-type categories).
+ * LIVE_GROUPS is ordered by PRIORITY (Library is last on purpose).
+ * To add a new group later, add one entry here and one in backend config/launchGroups.js.
  */
-
-// Gym-type categories are matched by slug because Gym, Yoga, Sports, Dance and
-// Academies all sit under the "health_wellness" business type together with
-// Clinic and Salon, which are NOT live yet.
-const GYM_SLUGS = ["gym-fitness", "yoga-center"];
-const GYM_PATTERN =
-  /(gym|fitness|yoga|sport|dance|zumba|martial|karate|taekwondo|boxing|swim|cricket|football|badminton|skating|aerobic|crossfit|academy)/i;
-
 export const LIVE_GROUPS = [
   {
     key: "gym",
-    title: "Gym, Sports & Fitness",
+    title: "Gym & Fitness",
     shortLabel: "Gym",
-    tagline: "Gyms, yoga, sports, dance and academies",
+    tagline: "Gyms and fitness studios",
     icon: Dumbbell,
     tint: "#FFE6D6",
     ink: "#e8192c",
-    order: ["gym-fitness", "yoga-center"],
-    matches: (c) =>
-      GYM_SLUGS.includes(c.slug) ||
-      (["health_wellness", "general"].includes(c.businessType) && GYM_PATTERN.test(c.slug)),
+    order: ["gym-fitness"],
+  },
+  {
+    key: "sports",
+    title: "Sports Academy",
+    shortLabel: "Sports",
+    tagline: "Cricket, football, badminton, swimming and more",
+    icon: Trophy,
+    tint: "#E0EAFF",
+    ink: "#3a5bd9",
+    order: ["academy"],
+  },
+  {
+    key: "studios",
+    title: "Classes & Studios",
+    shortLabel: "Studios",
+    tagline: "Dance, music, art, yoga and martial arts",
+    icon: Music,
+    tint: "#FFF0C2",
+    ink: "#d38a10",
+    order: ["yoga-studio"],
   },
   {
     key: "library",
-    title: "Libraries & Study Rooms",
+    title: "Library & Study Room",
     shortLabel: "Library",
     tagline: "Seats, shifts and monthly fees",
     icon: BookOpen,
     tint: "#DDF3E8",
     ink: "#0f8a5f",
     order: ["study-library"],
-    matches: (c) => c.slug === "study-library" || c.businessType === "library",
-  },
-  {
-    key: "shops",
-    title: "Shops & Retail",
-    shortLabel: "Shops",
-    tagline: "Stores with stock, prices and WhatsApp orders",
-    icon: Store,
-    tint: "#FFE0E3",
-    ink: "#e8192c",
-    order: [
-      "kirana-store",
-      "clothing-store",
-      "footwear-store",
-      "electronics-store",
-      "mobile-shop",
-      "pharmacy",
-      "stationery-store",
-    ],
-    matches: (c) => c.businessType === "retail",
-  },
-  {
-    key: "food",
-    title: "Food & Restaurants",
-    shortLabel: "Food",
-    tagline: "Restaurants, cafes, bakeries and cloud kitchens",
-    icon: UtensilsCrossed,
-    tint: "#FFF0C2",
-    ink: "#d38a10",
-    order: ["restaurant", "bakery-sweets", "cloud-kitchen", "food-court", "restaurant-franchise", "small-hotel"],
-    matches: (c) => c.businessType === "food",
-  },
-  {
-    key: "events",
-    title: "Events & Weddings",
-    shortLabel: "Events",
-    tagline: "Venues, photographers, decorators and more",
-    icon: PartyPopper,
-    tint: "#E0EAFF",
-    ink: "#3a5bd9",
-    order: [
-      "marriage-hall",
-      "banquet-hall",
-      "party-lawn",
-      "farmhouse",
-      "photographer",
-      "videographer",
-      "decorator",
-      "caterer",
-      "dj",
-      "event-manager",
-      "wedding-planner",
-      "makeup-artist",
-      "mehendi-artist",
-      "tent-house",
-      "sound-lighting",
-      "card-printing",
-      "horse-buggy",
-      "pandit-services",
-      "travel-transport",
-      "singer",
-    ],
-    matches: (c) => c.businessType === "events",
   },
 ];
 
@@ -112,21 +59,35 @@ export const SOON_GROUP = {
   key: "soon",
   title: "Launching soon",
   shortLabel: "Soon",
-  tagline: "We are onboarding these businesses right now",
+  tagline: "More categories are on the way",
   icon: Clock,
   tint: "#F3F1EC",
   ink: "#8a90a2",
 };
 
-/** Adds groupKey / isLive / rank to a normalised category. */
+// Used only if the API did not send launch_status / launch_group (for example an old cached response).
+const LEGACY_LIVE = {
+  "gym-fitness": "gym",
+  academy: "sports",
+  "yoga-studio": "studios",
+  "yoga-center": "studios",
+  "study-library": "library",
+};
+
+/** Adds groupKey / isLive / isSoon / isHidden / rank to a normalised category. */
 export function annotateCategory(cat, index = 0) {
-  const group = LIVE_GROUPS.find((g) => g.matches(cat)) || null;
+  const status = cat.launchStatus || (LEGACY_LIVE[cat.slug] ? "live" : "hidden");
+  const groupKey = cat.launchGroup || LEGACY_LIVE[cat.slug] || null;
+  const group = status === "live" ? LIVE_GROUPS.find((g) => g.key === groupKey) || null : null;
   const pos = group ? group.order.indexOf(cat.slug) : -1;
+  const isSoon = !group && status === "soon";
   return {
     ...cat,
-    groupKey: group ? group.key : SOON_GROUP.key,
+    groupKey: group ? group.key : isSoon ? SOON_GROUP.key : "hidden",
     isLive: !!group,
-    // Known slugs follow the order above; unknown ones follow the admin display order.
+    isSoon,
+    isHidden: !group && !isSoon,
+    // Known slugs follow the order above; others follow the admin display order.
     rank: pos === -1 ? 1000 + index : pos,
   };
 }
@@ -136,7 +97,7 @@ function groupPriority(groupKey) {
   return i === -1 ? LIVE_GROUPS.length : i;
 }
 
-/** Live groups first (in priority order), then everything that is launching soon. */
+/** Live groups first (in priority order), then everything else. */
 export function sortByPriority(list) {
   return [...list].sort(
     (a, b) => groupPriority(a.groupKey) - groupPriority(b.groupKey) || a.rank - b.rank

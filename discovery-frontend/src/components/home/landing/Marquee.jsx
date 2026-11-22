@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
-const WORDS = ["Gyms", "Libraries", "Restaurants", "Shops", "Clinics", "Salons", "Coaching classes", "Event venues"];
+const WORDS = ["Gyms", "Sports Academy", "Dance", "Music", "Art", "Yoga", "Martial Arts", "Libraries"];
 
 export default function Marquee() {
   const reduce = useReducedMotion();

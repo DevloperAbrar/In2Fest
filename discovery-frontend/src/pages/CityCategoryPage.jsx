@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import NoIndexIfHidden from "../components/seo/NoIndexIfHidden";
 import api from "../lib/api";
 import BreadcrumbNav from "../components/seo/BreadcrumbNav";
 import FilterSidebar from "../components/search/FilterSidebar";
@@ -48,6 +49,7 @@ export default function CityCategoryPage({ typeSlug }) {
         <meta name="description" content={data.seo.description} />
         <link rel="canonical" href={canonicalUrl} />
       </Helmet>
+      <NoIndexIfHidden slug={category} />
 
       <CityListSchema
         vendors={data.vendors}

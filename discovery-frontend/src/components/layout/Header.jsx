@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring } from 
 import {
   Menu, X, ChevronDown, MessageSquareText, LogOut, Search, Star, Bookmark,
   ArrowRight, LogIn, Building2, TrendingUp, Sparkles,
-  Dumbbell, BookOpen, UtensilsCrossed, Store, HeartPulse, Scissors, GraduationCap, PartyPopper,
+  Dumbbell, BookOpen, UtensilsCrossed, Store, HeartPulse, Scissors, GraduationCap, PartyPopper, Trophy, Music,
   LayoutDashboard, Globe, MapPin,
 } from "lucide-react";
 import { usePublicAuth } from "../../context/PublicAuthContext.jsx";
@@ -21,19 +21,14 @@ const EASE = [0.22, 1, 0.36, 1];
 // Business types. Search uses keywords so it works for every city/category.
 // Live business types, in launch priority order. Search uses keywords so it works for every city/category.
 const BUSINESS_TYPES = [
-  { key: "gym", label: "Gym, Sports & Fitness", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
-  { key: "library", label: "Libraries & Study Rooms", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
-  { key: "shop", label: "Shops & Retail", q: "shop", icon: Store, bg: "#FFE0E3", fg: "#e8192c" },
-  { key: "food", label: "Food & Restaurants", q: "restaurant", icon: UtensilsCrossed, bg: "#FFF0C2", fg: "#d38a10" },
-  { key: "events", label: "Events & Weddings", q: "event", icon: PartyPopper, bg: "#E0EAFF", fg: "#3a5bd9" },
+  { key: "gym", label: "Gym & Fitness", q: "gym", icon: Dumbbell, bg: "#FFE6D6", fg: "#e8192c" },
+  { key: "sports", label: "Sports Academy", q: "academy", icon: Trophy, bg: "#E0EAFF", fg: "#3a5bd9" },
+  { key: "studios", label: "Classes & Studios", q: "studio", icon: Music, bg: "#FFF0C2", fg: "#d38a10" },
+  { key: "library", label: "Library & Study Room", q: "library", icon: BookOpen, bg: "#DDF3E8", fg: "#0f8a5f" },
 ];
 
-// Not live yet. Shown as "Launching soon" in the menu.
-const SOON_TYPES = [
-  { key: "clinic", label: "Clinics", slug: "clinic", icon: HeartPulse },
-  { key: "salon", label: "Salon & Spa", slug: "salon-spa", icon: Scissors },
-  { key: "coaching", label: "Coaching", slug: "coaching-institute", icon: GraduationCap },
-];
+// Nothing is "launching soon" in the menu any more. Leave empty to hide the block.
+const SOON_TYPES = [];
 // Run it / Get it / Found it  (the three things the platform does)
 const SOLUTIONS = [
   { to: "/for-vendors/run-it", word: "Run it.", desc: "Software for members, bookings and billing", icon: LayoutDashboard, bg: "#1a2035", fg: "#ffffff" },
@@ -279,7 +274,7 @@ export default function Header() {
                             </Link>
                           );
                         })}
-                                            <div className="mt-2 rounded-2xl border border-dashed border-navy-100 px-3 py-2.5">
+                                            <div className={`mt-2 rounded-2xl border border-dashed border-navy-100 px-3 py-2.5 ${SOON_TYPES.length ? "" : "hidden"}`}>
                         <p className="text-[11px] font-extrabold tracking-[0.16em] uppercase text-navy-300 mb-2">
                           Launching soon
                         </p>

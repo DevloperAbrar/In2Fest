@@ -19,10 +19,25 @@ const EMPTY_FORM = {
   show_on_home: true,
   display_order: "",
   business_type: "general",
-  max_secondary_categories: 2
+  max_secondary_categories: 2,
+  launch_status: "hidden",
+  launch_group: ""
 };
 
 const MAX_IMAGE_MB = 5;
+
+const LAUNCH_STATUS_OPTIONS = [
+  { value: "live", label: "Live - shown everywhere" },
+  { value: "hidden", label: "Hidden - only existing vendors' pages work" },
+  { value: "soon", label: "Soon - not listed yet" }
+];
+const LAUNCH_GROUP_OPTIONS = [
+  { value: "", label: "No group" },
+  { value: "gym", label: "Gym & Fitness" },
+  { value: "sports", label: "Sports Academy" },
+  { value: "studios", label: "Classes & Studios" },
+  { value: "library", label: "Library & Study Room" }
+];
 
 function SlugPreview({ name, customSlug }) {
   const auto = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -131,6 +146,8 @@ export default function CategoryManager() {
       ...cat,
       business_type: cat.business_type || "general",
       tagline: cat.tagline || "",
+      launch_status: cat.launch_status || "hidden",
+      launch_group: cat.launch_group || "",
       show_on_home: cat.show_on_home !== false,
       max_secondary_categories: Number.isInteger(cat.max_secondary_categories)
         ? cat.max_secondary_categories
@@ -150,6 +167,8 @@ export default function CategoryManager() {
         is_venue_type: editTarget.is_venue_type,
         show_on_home: editTarget.show_on_home,
         business_type: editTarget.business_type,
+        launch_status: editTarget.launch_status,
+        launch_group: editTarget.launch_group,
         max_secondary_categories: editTarget.max_secondary_categories,
         image: editFile || undefined,
         remove_image: editRemoved && !editFile ? true : undefined
@@ -227,6 +246,25 @@ export default function CategoryManager() {
             <p className="text-xs text-gray-400 mt-1">
               Also decides which group this category appears under on the home page.
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <div>
+                <Select
+                  label="Launch status"
+                  options={LAUNCH_STATUS_OPTIONS}
+                  value={form.launch_status}
+                  onChange={(e) => set("launch_status", e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Hidden removes it from home, menu and filters. Existing vendors keep their pages.
+                </p>
+              </div>
+              <Select
+                label="Group (needed for Live)"
+                options={LAUNCH_GROUP_OPTIONS}
+                value={form.launch_group}
+                onChange={(e) => set("launch_group", e.target.value)}
+              />
+            </div>
           </div>
           <div className="md:col-span-2">
             <Input
@@ -296,6 +334,7 @@ export default function CategoryManager() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3">Business type</th>
+                <th className="px-4 py-3">Launch</th>
                 <th className="px-4 py-3">Home</th>
                 <th className="px-4 py-3">Active</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -317,6 +356,15 @@ export default function CategoryManager() {
                   <td className="px-4 py-3">
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary-50 text-primary-700">
                       {businessTypeLabel(cat.business_type)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      cat.launch_status === "live" ? "bg-green-50 text-green-700"
+                        : cat.launch_status === "soon" ? "bg-yellow-50 text-yellow-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}>
+                      {cat.launch_status || "hidden"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{cat.show_on_home === false ? "Hidden" : "Shown"}</td>
@@ -383,6 +431,18 @@ export default function CategoryManager() {
               onRemove={() => { setEditFile(null); setEditRemoved(true); }}
             />
             <div>
+              <Select
+                label="Launch status"
+                options={LAUNCH_STATUS_OPTIONS}
+                value={editTarget.launch_status}
+                onChange={(e) => setEditTarget({ ...editTarget, launch_status: e.target.value })}
+              />
+              <Select
+                label="Group (needed for Live)"
+                options={LAUNCH_GROUP_OPTIONS}
+                value={editTarget.launch_group}
+                onChange={(e) => setEditTarget({ ...editTarget, launch_group: e.target.value })}
+              />
               <Select
                 label="Business type"
                 options={businessTypeOptions}

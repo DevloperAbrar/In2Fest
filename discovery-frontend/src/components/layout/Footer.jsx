@@ -52,11 +52,10 @@ const SOCIAL_LINKS = [
 // Generic business types, same keyword search as the home page tiles.
 // Live business types only, in launch priority order.
 const BROWSE = [
-  ["Gyms, sports & fitness", "gym"],
-  ["Libraries & study rooms", "library"],
-  ["Shops & retail", "shop"],
-  ["Restaurants & food", "restaurant"],
-  ["Event venues & vendors", "event"],
+  ["Gym & fitness", "gym"],
+  ["Sports academies", "academy"],
+  ["Classes & studios", "studio"],
+  ["Library & study rooms", "library"],
 ];
 
 function Arches({ className = "", width = 260 }) {
@@ -170,7 +169,7 @@ export default function Footer() {
             <p className="mt-4 text-sm text-white/65 leading-relaxed">
               {t(
                 "footer.brandLine",
-                "Software to run your business, a website of your own, and customers who find you. For gyms, libraries, restaurants, shops, clinics, events and more."
+                "Software to run your business, a website of your own, and customers who find you. For gyms, sports academies, studios and libraries."
               )}
             </p>
             <div className="flex items-center gap-2.5 mt-6">

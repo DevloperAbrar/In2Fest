@@ -1,18 +1,25 @@
 const { Op, fn, col } = require("sequelize");
 const { Venue, Booking } = require("../../database/models");
 const { vendorSummary } = require("./search.service");
+const { getLiveSlugs } = require("../../config/launchGroups");
 
 async function getHomepage(req, res, next) {
   try {
+    // The home page only talks about LIVE categories: featured vendors and the counters.
+    // Vendors in hidden categories keep their own pages, they are just not promoted here.
+    const liveSlugs = await getLiveSlugs();
+    const live = liveSlugs.length ? { business_category: { [Op.in]: liveSlugs } } : {};
+    const base = { is_active: true, marketplace_listed: true, marketplace_suspended: false, ...live };
+
     const featured = await Venue.findAll({
-      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false, featured_on_homepage: true },
+      where: { ...base, featured_on_homepage: true },
       limit: 10
     });
 
-    const totalVendors = await Venue.count({ where: { is_active: true, marketplace_listed: true, marketplace_suspended: false } });
+    const totalVendors = await Venue.count({ where: base });
 
     const cityRows = await Venue.findAll({
-      where: { is_active: true, marketplace_listed: true, marketplace_suspended: false },
+      where: base,
       attributes: ["city", [fn("COUNT", col("id")), "vendor_count"]],
       group: ["city"],
       order: [[fn("COUNT", col("id")), "DESC"]],

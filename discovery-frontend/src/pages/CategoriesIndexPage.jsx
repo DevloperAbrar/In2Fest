@@ -192,6 +192,22 @@ function SoonPanel({ items }) {
   );
 }
 
+function MoreSoonLine() {
+  return (
+    <div className="mb-6 rounded-[2rem] border-2 border-dashed border-navy-100 bg-white/60 px-5 py-5 text-center sm:px-7">
+      <p className="text-sm font-medium text-navy-600">
+        More categories are coming soon. Tell us which business you run and we will let you know.
+      </p>
+      <Link
+        to="/contact"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-accent-500 px-5 py-2.5 text-sm font-extrabold text-white transition-colors hover:bg-accent-600"
+      >
+        Tell us what you need <ArrowRight size={14} />
+      </Link>
+    </div>
+  );
+}
+
 export default function CategoriesIndexPage() {
   const { categories, loading } = useCategories();
   const [query, setQuery] = useState("");
@@ -201,7 +217,7 @@ export default function CategoriesIndexPage() {
   const { liveGroups, soonItems, totalVisible } = useMemo(() => {
     const visible = q ? categories.filter((c) => c.label.toLowerCase().includes(q)) : categories;
     const live = buildLiveGroups(visible);
-    const soon = visible.filter((c) => !c.isLive);
+    const soon = visible.filter((c) => c.isSoon);
     const total = live.reduce((s, g) => s + g.items.length, 0) + soon.length;
     return { liveGroups: live, soonItems: soon, totalVisible: total };
   }, [categories, q]);
@@ -223,7 +239,7 @@ export default function CategoriesIndexPage() {
         <title>All Business Categories | {BRAND_NAME}</title>
         <meta
           name="description"
-          content={`Browse verified gyms, libraries, shops, restaurants and event vendors on ${BRAND_NAME}. Contact businesses directly on WhatsApp. No commission.`}
+          content={`Browse verified gyms, sports academies, dance, music and yoga classes and libraries on ${BRAND_NAME}. Contact businesses directly on WhatsApp. No commission.`}
         />
         <link rel="canonical" href={`https://${BASE_DOMAIN}/categories`} />
         <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
@@ -257,7 +273,7 @@ export default function CategoriesIndexPage() {
             className="mb-4 font-display font-extrabold text-navy-700"
             style={{ fontSize: "clamp(1.9rem,5vw,3.2rem)", letterSpacing: "-0.03em", lineHeight: 1.05 }}
           >
-            Every local business, <span className="text-accent-500">by category.</span>
+            Fitness, classes and study spaces, <span className="text-accent-500">by category.</span>
           </motion.h1>
 
           <motion.p
@@ -266,7 +282,7 @@ export default function CategoriesIndexPage() {
             transition={{ duration: 0.45, delay: 0.1 }}
             className="mx-auto mb-7 max-w-xl text-base text-navy-400 md:text-lg"
           >
-            Gyms, libraries, shops, restaurants and event vendors. Pick a category to see verified businesses near you.
+            Gyms, sports academies, studios and libraries. Pick a category to see verified businesses near you.
           </motion.p>
 
           <motion.div
@@ -279,7 +295,7 @@ export default function CategoriesIndexPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search a category, e.g. Gym or Restaurant"
+              placeholder="Search a category, e.g. Gym or Yoga"
               aria-label="Search categories"
               className="w-full rounded-full border-2 border-transparent bg-white py-3.5 pl-12 pr-5 text-sm font-medium text-navy-700 shadow-[0_20px_40px_-24px_rgba(26,32,53,0.45)] placeholder:text-navy-300 focus:border-navy-700 focus:outline-none"
             />
@@ -363,6 +379,7 @@ export default function CategoriesIndexPage() {
                   <GroupPanel key={group.key} group={group} items={items} index={i} forceOpen={!!q} />
                 ))}
                 <SoonPanel items={soonItems} />
+                <MoreSoonLine />
               </motion.div>
             </AnimatePresence>
           )}

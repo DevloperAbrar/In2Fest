@@ -226,7 +226,9 @@ export default function VenueDetailsForm() {
   if (step === 1) {
     return (
       <BusinessTypePicker
-        categories={categories}
+        categories={(categories || []).filter(
+          (c) => !c.launch_status || c.launch_status === "live" || c.slug === primaryCategory
+        )}
         loading={categoriesLoading}
         selected={primaryCategory}
         onSelect={setPrimaryCategory}
