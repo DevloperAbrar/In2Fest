@@ -5,21 +5,38 @@ const { getLiveSlugs } = require("../../config/launchGroups");
 
 async function getHomepage(req, res, next) {
   try {
-    // The home page only talks about LIVE categories: featured vendors and the counters.
-    // Vendors in hidden categories keep their own pages, they are just not promoted here.
+    // Featured vendors still show only LIVE categories (hidden categories keep their own
+    // pages but are not promoted on the home page).
     const liveSlugs = await getLiveSlugs();
     const live = liveSlugs.length ? { business_category: { [Op.in]: liveSlugs } } : {};
-    const base = { is_active: true, marketplace_listed: true, marketplace_suspended: false, ...live };
+
+    // Same conditions as the search page (search.service.js baseWhere), so the home page
+    // counters always match the "businesses found" number on /search.
+    const statsWhere = {
+      is_active: true,
+      marketplace_listed: true,
+      marketplace_suspended: false,
+      business_category: { [Op.ne]: null }
+    };
 
     const featured = await Venue.findAll({
-      where: { ...base, featured_on_homepage: true },
+      where: { ...statsWhere, ...live, featured_on_homepage: true },
       limit: 10
     });
 
-    const totalVendors = await Venue.count({ where: base });
+    // Total businesses: every listed vendor, same as the search page.
+    const totalVendors = await Venue.count({ where: statsWhere });
 
+    // Real number of distinct cities (not capped at 10).
+    const citiesCovered = await Venue.count({
+      where: { ...statsWhere, city: { [Op.ne]: null } },
+      distinct: true,
+      col: "city"
+    });
+
+    // Top cities list is still limited to 10 for display.
     const cityRows = await Venue.findAll({
-      where: base,
+      where: statsWhere,
       attributes: ["city", [fn("COUNT", col("id")), "vendor_count"]],
       group: ["city"],
       order: [[fn("COUNT", col("id")), "DESC"]],
@@ -39,7 +56,7 @@ async function getHomepage(req, res, next) {
         featured_vendors: featured.map(vendorSummary),
         trust_stats: {
           total_vendors: totalVendors,
-          cities_covered: cityRows.length,
+          cities_covered: citiesCovered,
           events_completed: eventsCompleted
         },
         top_cities: cityRows.map((r) => ({
