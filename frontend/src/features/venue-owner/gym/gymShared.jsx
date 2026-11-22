@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings, Clock, CalendarCheck } from "lucide-react";
+import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings, Clock, CalendarCheck, Layers, TrendingUp, BookOpen, Trophy } from "lucide-react";
+import { useGymVariant, VARIANT_TERMS } from "./gymVariant.js";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useAuth } from "../../../context/AuthContext";
@@ -177,12 +178,33 @@ const TAB_DEFS = [
 ];
 const SETTINGS_TAB = { to: "/dashboard/gym/settings", label: "Settings", icon: Settings, tone: "navy" };
 
+// Sports Academy and Studio accounts: no workouts, no store; batches and progress instead.
+// Gym accounts always use TAB_DEFS exactly as before.
+function tabsFor(variant) {
+  if (variant === "gym") return TAB_DEFS;
+  const t = VARIANT_TERMS[variant];
+  return [
+    { to: "/dashboard/gym", label: "Overview", icon: LayoutGrid, end: true, tone: "navy" },
+    { to: "/dashboard/gym/members", label: t.people, icon: Users, tone: "emerald" },
+    { to: "/dashboard/gym/batches", label: t.batches, icon: Layers, tone: "amber" },
+    { to: "/dashboard/gym/progress", label: "Progress", icon: TrendingUp, tone: "violet" },
+    { to: "/dashboard/gym/attendance", label: "Attendance", icon: CalendarCheck, tone: "sky" },
+    { to: "/dashboard/gym/plans", label: t.plans, icon: Ticket, tone: "violet" },
+    { to: "/dashboard/gym/drills", label: "Drills", icon: BookOpen, tone: "amber" },
+    { to: "/dashboard/gym/events", label: "Events", icon: Trophy, tone: "red" },
+    { to: "/dashboard/gym/leads", label: "Leads", icon: UserPlus, tone: "sky" },
+    { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle, tone: "emerald" }
+  ];
+}
+
 export function GymTabs() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const reduce = useReducedMotion();
   const rowRef = useRef(null);
-  const baseTabs = user?.role !== "team_member" || user?.isDemo ? [...TAB_DEFS, SETTINGS_TAB] : TAB_DEFS;
+  const { variant } = useGymVariant();
+  const defs = tabsFor(variant);
+  const baseTabs = user?.role !== "team_member" || user?.isDemo ? [...defs, SETTINGS_TAB] : defs;
   const tabs = baseTabs.filter((tb) => tb === SETTINGS_TAB || hasScope(user, "gym", GYM_TAB_SCOPES[tb.to] || []));
 
   // Keep the active tab in view on small screens.
@@ -247,8 +269,9 @@ export function GymTabs() {
 
 export function GymPage({ title, subtitle, actions, children }) {
   const reduce = useReducedMotion();
+  const { terms } = useGymVariant();
   return (
-    <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Gym">
+    <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={terms.pageTitle}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h1 className="font-display text-xl font-bold text-navy-900 truncate">{title}</h1>

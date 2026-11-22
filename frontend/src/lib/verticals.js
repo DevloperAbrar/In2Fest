@@ -45,6 +45,19 @@ export const VERTICALS = {
   
 };
 
+// Sports Academy and Classes & Studios run on the gym engine, so they reuse the gym website
+// look (key stays "gym") but get their own wording, accent and a light default theme.
+const GYM_VARIANTS = {
+  academy: {
+    ...VERTICALS.gym, variant: "academy", accent: "#2563eb", darkDefault: false,
+    navLabels: { packages: "Fee Plans", courses: "Sports", results: "Achievements", team: "Coaches" }
+  },
+  studio: {
+    ...VERTICALS.gym, variant: "studio", accent: "#9333ea", darkDefault: false,
+    navLabels: { packages: "Packages", courses: "Classes", results: "Showcase", team: "Instructors" }
+  }
+};
+
 const categoriesOf = (venue) =>
   [venue?.business_category, ...(venue?.secondary_categories || [])].filter(Boolean);
 
@@ -53,7 +66,10 @@ export function isFoodVenue(venue) {
 }
 
 // First matching category wins (primary category first, then secondary ones).
-export function getVertical(venue) {
+// First matching category wins (primary category first, then secondary ones).
+// segmentKey is the functionality Super Admin gave the primary category (from the business profile).
+export function getVertical(venue, segmentKey) {
+  if (segmentKey === "academy" || segmentKey === "studio") return GYM_VARIANTS[segmentKey];
   for (const c of categoriesOf(venue)) {
     if (GYM_SLUGS.includes(c)) return VERTICALS.gym;
     if (LIBRARY_SLUGS.includes(c)) return VERTICALS.library;

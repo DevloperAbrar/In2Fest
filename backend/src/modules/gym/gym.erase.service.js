@@ -34,6 +34,10 @@ const SCOPE_META = {
 // where = extra filter (always combined with venue_id = :v). label null = not shown in the summary.
 // photos = column holding an image URL that is removed from storage after the erase.
 const STEPS = [
+  { scope: "members", table: "gym_assessments", label: "Progress records" },
+  { scope: "members", table: "gym_batch_members", label: null },
+  { scope: "members", table: "gym_event_participants", label: null },
+  { scope: "members", table: "gym_member_profiles", label: "Sport / class profiles" },
   { scope: "members", table: "gym_attendance", label: "Attendance records" },
   { scope: "members", table: "gym_member_shifts", label: null },
   { scope: "members", table: "gym_message_logs", label: "WhatsApp message history", where: " AND recipient_type = 'member'" },
@@ -55,6 +59,10 @@ const STEPS = [
   { scope: "setup", table: "gym_exercises", label: "Your custom exercises" }, // built-in exercises have venue_id NULL, never matched
   { scope: "setup", table: "gym_message_templates", label: "Your message templates" },
   { scope: "setup", table: "gym_shifts", label: "Shifts" },
+  { scope: "setup", table: "gym_batches", label: "Batches / classes" },
+  { scope: "setup", table: "gym_test_templates", label: "Your custom tests" },
+  { scope: "setup", table: "gym_events", label: "Events" },
+  { scope: "setup", table: "gym_drills", label: "Your drills" },
   { scope: "setup", table: "gym_plans", label: "Membership plans" }
 ];
 

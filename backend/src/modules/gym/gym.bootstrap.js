@@ -49,6 +49,7 @@ async function ensureGymSchema() {
   await require("./gym.card.models").ensure();
   await require("./gym.shift.models").ensure();
   await require("./gym.attendance.models").ensure();
+  await require("./academy.models").ensure();
   await require("../staff/staff.models").ensure();
 }
 

@@ -4,11 +4,12 @@ import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 import Button from "../../../components/common/Button";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { emptyItem } from "../../../lib/sectionLibrary";
-import { Plus, Trash2, Download } from "lucide-react";
+import { Plus, Trash2, Download, Ticket } from "lucide-react";
 
 // Converts a Slots-module package into a website section item
 function packageToItem(pkg) {
@@ -22,14 +23,29 @@ function packageToItem(pkg) {
   };
 }
 
+const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+
 export default function PackagesSectionEditor() {
   const { venue, refetchVenue } = useVenue();
   const navigate = useNavigate();
+  const { profile } = useBusinessProfile();
 
-  // Vendor's real packages from the Slots module
+  // Sports Academy and Classes & Studios sell Fee plans / Packages from the Academy module,
+  // so their website shows those plans live. Everyone else keeps the Slots packages import.
+  const segKey = profile?.segment?.key;
+  const planEngine = segKey === "academy" || segKey === "studio";
+  const planWord = segKey === "studio" ? "Packages" : "Fee plans";
+
+  // Vendor's real packages from the Slots module (not used by academy / studio accounts)
   const { data: slotPackages, loading: pkgsLoading } = useFetch(
-    venue ? `/venues/${venue.id}/packages` : null,
-    { skip: !venue }
+    venue && !planEngine ? `/venues/${venue.id}/packages` : null,
+    { skip: !venue || planEngine }
+  );
+
+  // Fee plans / Packages from the Academy module
+  const { data: feePlans, loading: plansLoading } = useFetch(
+    venue && planEngine ? `/venues/${venue.id}/gym/plans` : null,
+    { skip: !venue || !planEngine }
   );
 
   const [title, setTitle] = useState("");
@@ -41,9 +57,10 @@ export default function PackagesSectionEditor() {
   React.useEffect(() => {
     if (!venue?.page_sections) return;
     const existing = venue.page_sections.find((s) => s.type === "packages");
-    setTitle(existing?.config?.title || "Our Packages");
+    const fallbackTitle = segKey === "studio" ? "Class Packages" : segKey === "academy" ? "Fee Plans" : "Our Packages";
+    setTitle(existing?.config?.title || fallbackTitle);
     setItems(existing?.config?.items || []);
-  }, [venue]);
+  }, [venue, segKey]);
 
   const updateItem = (id, field, value) =>
     setItems(items.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
@@ -95,9 +112,10 @@ export default function PackagesSectionEditor() {
   };
 
   const availableToImport = (slotPackages || []).filter((p) => !importedIds.has(p.id));
+  const livePlans = Array.isArray(feePlans) ? feePlans.filter((p) => p.is_active !== false) : [];
 
   return (
-    <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle="Packages">
+    <DashboardLayout sidebarItems={ownerSidebarItems} pageTitle={planEngine ? planWord : "Packages"}>
       <div className="max-w-2xl bg-white p-6 rounded-xl border border-gray-100 space-y-6">
 
         {/* Section heading */}
@@ -111,46 +129,79 @@ export default function PackagesSectionEditor() {
           />
         </div>
 
-        {/* Import from Slots packages */}
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Download size={15} className="text-indigo-600" />
-            <span className="text-sm font-medium text-indigo-800">Import from your Slots packages</span>
-          </div>
-
-          {pkgsLoading ? (
-            <p className="text-xs text-indigo-500">Loading your packages…</p>
-          ) : availableToImport.length === 0 ? (
-            <p className="text-xs text-indigo-500">
-              {(slotPackages || []).length === 0
-                ? "No packages found. Create them first under Slots → Packages."
-                : "All your packages have been imported."}
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {availableToImport.map((pkg) => (
-                <button
-                  key={pkg.id}
-                  type="button"
-                  onClick={() => importPackage(pkg)}
-                  className="flex items-center gap-1.5 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"
-                >
-                  <Plus size={12} /> {pkg.name}
-                  {pkg.price != null && (
-                    <span className="text-indigo-400 ml-1">
-                      ₹{Number(pkg.price).toLocaleString("en-IN")}
-                    </span>
-                  )}
-                </button>
-              ))}
+        {planEngine ? (
+          /* Live Fee plans / Packages */
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Ticket size={15} className="text-emerald-600" />
+              <span className="text-sm font-medium text-emerald-800">Your {planWord.toLowerCase()} show on your website automatically</span>
             </div>
-          )}
-        </div>
+            {plansLoading ? (
+              <p className="text-xs text-emerald-600">Loading your {planWord.toLowerCase()}…</p>
+            ) : livePlans.length === 0 ? (
+              <p className="text-xs text-emerald-700">No active {planWord.toLowerCase()} yet. Add them once and they appear here and on your website.</p>
+            ) : (
+              <div className="divide-y divide-emerald-100 rounded-lg bg-white border border-emerald-100">
+                {livePlans.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                      <p className="text-xs text-gray-400">{p.duration_value} {p.duration_unit}{p.is_popular ? " · Popular" : ""}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900 shrink-0">{inr(p.price)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button variant="outline" onClick={() => navigate("/dashboard/gym/plans")}>Manage {planWord.toLowerCase()}</Button>
+          </div>
+        ) : (
+          /* Import from Slots packages */
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Download size={15} className="text-indigo-600" />
+              <span className="text-sm font-medium text-indigo-800">Import from your Slots packages</span>
+            </div>
+
+            {pkgsLoading ? (
+              <p className="text-xs text-indigo-500">Loading your packages…</p>
+            ) : availableToImport.length === 0 ? (
+              <p className="text-xs text-indigo-500">
+                {(slotPackages || []).length === 0
+                  ? "No packages found. Create them first under Slots → Packages."
+                  : "All your packages have been imported."}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableToImport.map((pkg) => (
+                  <button
+                    key={pkg.id}
+                    type="button"
+                    onClick={() => importPackage(pkg)}
+                    className="flex items-center gap-1.5 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"
+                  >
+                    <Plus size={12} /> {pkg.name}
+                    {pkg.price != null && (
+                      <span className="text-indigo-400 ml-1">
+                        ₹{Number(pkg.price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Current entries */}
+        {planEngine && (
+          <p className="text-xs text-gray-400">
+            Extra entries below are shown only when you have no active {planWord.toLowerCase()}.
+          </p>
+        )}
         {items.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-2">
-            No entries yet. Import a package above or add one manually.
+            {planEngine ? "No extra entries. You can leave this empty." : "No entries yet. Import a package above or add one manually."}
           </p>
         )}
 

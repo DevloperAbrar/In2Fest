@@ -96,7 +96,7 @@ export default function VenueHomePage() {
   }
 
   // ---- Vertical (gym / shop / food / venue) ------------------------------------------
-  const vertical = getVertical(venue);
+  const vertical = getVertical(venue, bizProfile?.segment?.key);
   // A vendor who explicitly picked Aurora / Bloom / Slate keeps that hero.
   // Classic (null or the legacy "template-1") gets the category-specific experience.
   const useVertical = vertical.key !== "venue" && !TEMPLATES[venue.template_id];
@@ -127,10 +127,10 @@ export default function VenueHomePage() {
   const showSlotsPackages = venue.show_slots_packages !== false && vertical.key !== "food";
 
   // Navbar links chosen by the vendor in Website Builder > "Website menu"
-  const navItems = resolveNav(venue, { slots, packages });
+  const navItems = resolveNav(venue, { slots, packages, segmentKey: bizProfile?.segment?.key });
 
   // ---- Actions & primary CTA ----------------------------------------------------------
-  const actions = { openTrial: () => setTrialOpen(true) };
+  const actions = { openTrial: () => setTrialOpen(true), variant: vertical.variant };
   let primaryCta = { label: "Enquire Now", href: "#inquiry" };
   if (vertical.key === "gym") {
     primaryCta = { label: "Join Now", onClick: actions.openTrial };
@@ -212,7 +212,7 @@ export default function VenueHomePage() {
       })}
 
       {trialOpen && vertical.key === "gym" && (
-        <FreeTrialModal venueId={venue.id} theme={v.theme_color} onClose={() => setTrialOpen(false)} />
+        <FreeTrialModal venueId={venue.id} theme={v.theme_color} variant={vertical.variant} onClose={() => setTrialOpen(false)} />
       )}
     </PublicLayout>
   );

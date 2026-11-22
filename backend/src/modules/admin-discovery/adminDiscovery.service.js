@@ -142,7 +142,10 @@ async function updateCategory(categoryId, payload, imageUrl) {
   } else if (hasBusinessType) {
     const changed = patch.business_type !== cat.business_type;
     const isBuiltIn = Boolean(CATEGORY_BUSINESS_TYPE[cat.slug]) || Boolean(SEGMENT_BY_CATEGORY[cat.slug]);
-    if (cat.segment || (changed && !isBuiltIn)) {
+    // Academy and Studio are chosen by the admin (no business type maps to them).
+    // Saving the same business type again must never turn them back into "gym".
+    const keepCustomSegment = !changed && ["academy", "studio"].includes(cat.segment);
+    if (!keepCustomSegment && (cat.segment || (changed && !isBuiltIn))) {
       patch.segment = SEGMENT_FROM_TYPE[patch.business_type] || null;
     }
   }

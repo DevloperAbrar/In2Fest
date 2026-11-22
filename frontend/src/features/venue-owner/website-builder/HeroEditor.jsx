@@ -10,13 +10,17 @@ import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { BACKEND_URL } from "../../../lib/constants"; // ADD
 import GymLogoUploader from "../gym/GymLogoUploader.jsx";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 
 export default function HeroEditor() {
   const { venue, refetchVenue } = useVenue();
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const isGym = [venue?.business_category, ...(venue?.secondary_categories || [])].includes("gym-fitness");
+  const { profile: bizProfile } = useBusinessProfile();
+  const segKey = bizProfile?.segment?.key;
+  const isAcademyOrStudio = segKey === "academy" || segKey === "studio";
+  const isGym = [venue?.business_category, ...(venue?.secondary_categories || [])].includes("gym-fitness") || isAcademyOrStudio;
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm({
     defaultValues: { hero_heading: "", hero_subheading: "", hero_button_text: "Enquire Now" }
@@ -77,7 +81,7 @@ export default function HeroEditor() {
 
         {isGym && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Gym Logo</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{isAcademyOrStudio ? "Logo" : "Gym Logo"}</label>
             <GymLogoUploader venueId={venue.id} logoUrl={venue.logo_url} onChanged={refetchVenue} />
           </div>
         )}

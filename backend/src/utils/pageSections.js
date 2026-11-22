@@ -1,4 +1,13 @@
 const { SECTION_TYPES, CATEGORY_SECTION_DEFAULTS, CATEGORY_SECTION_TITLES } = require("../config/sectionLibrary");
+const { segmentForCategory } = require("../config/vendorSegments");
+
+// Static categories keep their own slug. A category that Super Admin made a Sports Academy or
+// Classes & Studios gets the matching section set. Everything else is unchanged.
+function sectionKeyFor(slug) {
+  if (CATEGORY_SECTION_DEFAULTS[slug]) return slug;
+  const seg = segmentForCategory(slug);
+  return seg && (seg.key === "academy" || seg.key === "studio") ? `@${seg.key}` : slug;
+}
 const { sanitizeSocialConfig } = require("./socialLinks");
 
 // Fixed skeleton order for core sections when building fresh defaults.
@@ -12,7 +21,7 @@ function cloneDefaultConfig(type) {
 
 function makeSection(type, categorySlug) {
   const config = cloneDefaultConfig(type);
-  const title = CATEGORY_SECTION_TITLES[categorySlug]?.[type];
+  const title = CATEGORY_SECTION_TITLES[sectionKeyFor(categorySlug)]?.[type];
   if (config && title) config.title = title;
   return { type, visible: true, config };
 }
@@ -22,7 +31,7 @@ function makeSection(type, categorySlug) {
 // "stats" is placed right under the hero (numbers bar), everything else sits
 // between services and the gallery.
 function buildDefaultSections(categorySlug) {
-  const optionalTypes = CATEGORY_SECTION_DEFAULTS[categorySlug] || CATEGORY_SECTION_DEFAULTS.default;
+  const optionalTypes = CATEGORY_SECTION_DEFAULTS[sectionKeyFor(categorySlug)] || CATEGORY_SECTION_DEFAULTS.default;
 
   const sections = [makeSection("hero", categorySlug)];
   if (optionalTypes.includes("stats") && SECTION_TYPES.stats) sections.push(makeSection("stats", categorySlug));

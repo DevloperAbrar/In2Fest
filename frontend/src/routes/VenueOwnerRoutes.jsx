@@ -61,6 +61,12 @@ import GymLeads from "../features/venue-owner/gym/GymLeads.jsx";
 import GymSettings from "../features/venue-owner/gym/GymSettings.jsx";
 import GymMessages from "../features/venue-owner/gym/GymMessages.jsx";
 import GymStore from "../features/venue-owner/gym/GymStore.jsx";
+import AcademyBatches from "../features/venue-owner/gym/AcademyBatches.jsx";
+import AcademyProgress from "../features/venue-owner/gym/AcademyProgress.jsx";
+import StudentProgress from "../features/venue-owner/gym/StudentProgress.jsx";
+import AcademyBatchAttendance from "../features/venue-owner/gym/AcademyBatchAttendance.jsx";
+import AcademyDrills from "../features/venue-owner/gym/AcademyDrills.jsx";
+import AcademyEvents from "../features/venue-owner/gym/AcademyEvents.jsx";
 import StaffAttendance from "../features/venue-owner/staff/StaffAttendance.jsx";
 import StaffList from "../features/venue-owner/staff/StaffList.jsx";
 import StaffPayroll from "../features/venue-owner/staff/StaffPayroll.jsx";
@@ -151,6 +157,12 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
         <Route path="gym/messages" element={<RequireFeature feature="gym"><GymMessages /></RequireFeature>} />
         <Route path="gym/store" element={<RequireFeature feature="gym"><GymStore /></RequireFeature>} />
+        <Route path="gym/batches" element={<RequireFeature feature="gym"><AcademyBatches /></RequireFeature>} />
+        <Route path="gym/progress" element={<RequireFeature feature="gym"><AcademyProgress /></RequireFeature>} />
+        <Route path="gym/progress/:id" element={<RequireFeature feature="gym"><StudentProgress /></RequireFeature>} />
+        <Route path="gym/batches/:id/attendance" element={<RequireFeature feature="gym"><AcademyBatchAttendance /></RequireFeature>} />
+        <Route path="gym/drills" element={<RequireFeature feature="gym"><AcademyDrills /></RequireFeature>} />
+        <Route path="gym/events" element={<RequireFeature feature="gym"><AcademyEvents /></RequireFeature>} />
         <Route path="gym/settings" element={<RequireOwner><RequireFeature feature="gym"><GymSettings /></RequireFeature></RequireOwner>} />
         <Route path="staff" element={<RequireFeature feature="gym"><StaffAttendance /></RequireFeature>} />
         <Route path="staff/members" element={<RequireFeature feature="gym"><StaffList /></RequireFeature>} />

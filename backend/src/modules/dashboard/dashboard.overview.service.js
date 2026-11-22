@@ -22,7 +22,7 @@ async function safe(promise, fallback) {
 function resolveSegment(venue) {
   const VS = require("../../config/vendorSegments");
   const cats = [venue.business_category, ...(venue.secondary_categories || [])].filter(Boolean);
-  if (cats.some((c) => GC.GYM_CATEGORY_SLUGS.includes(c)) || VS.categoriesInSegment(cats, "gym")) return "gym";
+  if (cats.some((c) => GC.GYM_CATEGORY_SLUGS.includes(c)) || VS.isGymEngine(cats)) return "gym";
   if (cats.includes("study-library") || VS.categoriesInSegment(cats, "library")) return "library";
   if (subtypeFor(venue)) return "food";
   if (typeof BT.getBusinessTypeKey === "function" && cats.some((c) => BT.getBusinessTypeKey(c) === "retail")) return "retail";

@@ -18,7 +18,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 async function gymVenue(id) {
   const venue = UUID_RE.test(String(id)) ? await Venue.findOne({ where: { id, is_active: true } }) : null;
   const cats = venue ? [venue.business_category, ...(venue.secondary_categories || [])] : [];
-  if (!venue || (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").categoriesInSegment(cats, "gym"))) throw new AppError("Gym not found", 404);
+  if (!venue || (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").isGymEngine(cats))) throw new AppError("Gym not found", 404);
   return venue;
 }
 
@@ -42,22 +42,27 @@ async function plans(req, res, next) {
 }
 
 async function trial(req, res, next) {
-    try {
-      if (req.body.website) return res.status(201).json({ success: true, message: "Thanks!" }); // honeypot
-      const venue = await gymVenue(req.params.venueId);
-      const name = String(req.body.name || "").trim().slice(0, 80);
-      if (name.length < 2) throw new AppError("Please enter your name", 400);
-      const phone = U.normalizePhone(req.body.phone);
-      const recent = await GymLead.findOne({ where: { venue_id: venue.id, phone, createdAt: { [Op.gt]: new Date(Date.now() - 86400000) } } });
-      if (!recent) {
-        await GymLead.create({
-          venue_id: venue.id, name, phone, goal: C.GOALS.includes(req.body.goal) ? req.body.goal : null,
-          preferred_time: String(req.body.preferred_time || "").trim().slice(0, 40) || null, source: "website"
-        });
-      }
-      res.status(201).json({ success: true, message: "Thanks! The gym will contact you shortly." });
-    } catch (e) { next(e); }
-  }
+  try {
+    if (req.body.website) return res.status(201).json({ success: true, message: "Thanks!" }); // honeypot
+    const venue = await gymVenue(req.params.venueId);
+    const variant = require("../../config/vendorSegments").gymVariantFor(venue.business_category); // gym | academy | studio
+    const name = String(req.body.name || "").trim().slice(0, 80);
+    if (name.length < 2) throw new AppError("Please enter your name", 400);
+    const phone = U.normalizePhone(req.body.phone);
+    // Gyms pick a fitness goal. Academies and studios type the sport or class they are interested in.
+    const goal = variant === "gym"
+      ? (C.GOALS.includes(req.body.goal) ? req.body.goal : null)
+      : String(req.body.interest || "").trim().replace(/\s+/g, " ").slice(0, 30) || null;
+    const recent = await GymLead.findOne({ where: { venue_id: venue.id, phone, createdAt: { [Op.gt]: new Date(Date.now() - 86400000) } } });
+    if (!recent) {
+      await GymLead.create({
+        venue_id: venue.id, name, phone, goal,
+        preferred_time: String(req.body.preferred_time || "").trim().slice(0, 40) || null, source: "website"
+      });
+    }
+    res.status(201).json({ success: true, message: variant === "gym" ? "Thanks! The gym will contact you shortly." : "Thanks! We will contact you shortly." });
+  } catch (e) { next(e); }
+}
 
 const workoutPdf = (req, res, next) => workout.pdfByToken(req.params.token, res).catch(next);
 

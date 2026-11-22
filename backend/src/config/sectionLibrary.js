@@ -295,6 +295,11 @@ const CATEGORY_SECTION_DEFAULTS = {
 
   "other-business": ["packages", "hours", "faq"],
 
+  // Sports Academy and Classes & Studios categories created in Category Manager.
+  // Resolved by functionality (segment), not by slug. See utils/pageSections.js.
+  "@academy": ["stats", "courses", "packages", "schedule", "team", "results", "hours", "faq", "cta_banner"],
+  "@studio": ["stats", "courses", "packages", "schedule", "team", "results", "hours", "faq", "cta_banner"],
+
   // Fallback for any category not listed above  - including new ones added
   // later through Category Manager.
   default: ["packages", "faq"]
@@ -319,6 +324,8 @@ const CATEGORY_SECTION_TITLES = {
     video_tour: "Take a Tour"
   },
   "yoga-center": { courses: "Our Classes", schedule: "Class Timetable", packages: "Membership Plans" },
+  "@academy": { courses: "Sports We Train", packages: "Fee Plans", schedule: "Batch Timings", team: "Meet Our Coaches", results: "Achievements", stats: "Our Numbers" },
+  "@studio": { courses: "Our Classes", packages: "Class Packages", schedule: "Class Timetable", team: "Meet Our Instructors", results: "Student Showcase", stats: "Our Numbers" },
   "marriage-hall": { video_tour: "Take a Virtual Tour" },
   "banquet-hall": { video_tour: "Take a Virtual Tour" },
   "party-lawn": { video_tour: "Take a Virtual Tour" },

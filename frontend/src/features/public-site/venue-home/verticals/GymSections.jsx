@@ -143,7 +143,7 @@ export function GymPlans({ config, theme, toneIdx, venue, actions }) {
           </Reveal>
         ))}
       </div>
-      <BmiCard theme={theme} onTrial={onTrial} />
+      {!actions?.variant && <BmiCard theme={theme} onTrial={onTrial} />}
     </SectionShell>
   );
 }

@@ -14,6 +14,7 @@ import Button from "../../../components/common/Button";
 import { ShiftOverviewCard } from "./GymShifts.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, inr, fmtDate, errMsg, downloadBlob } from "./gymShared.jsx";
+import { useGymVariant } from "./gymVariant.js";
 import {
   AnimatedNumber, EmptyState, GymSkeleton, InitialsAvatar, ProgressRing, SectionTitle,
   Sparkline, StatTile, Surface, TONES, fadeUp, stagger
@@ -205,6 +206,7 @@ function PersonRow({ to, name, sub, right }) {
 
 export default function GymDashboard() {
   const { venue } = useVenue();
+  const { terms } = useGymVariant();
   const vid = venue?.id;
   const { data: d, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/dashboard` : null, { skip: !vid });
   const [busy, setBusy] = useState(null);
@@ -222,7 +224,7 @@ export default function GymDashboard() {
 
   if (!d) {
     return (
-      <GymPage title="Gym Overview">
+      <GymPage title={`${terms.pageTitle} Overview`}>
         <GymSkeleton />
       </GymPage>
     );
@@ -245,7 +247,7 @@ export default function GymDashboard() {
   const maxY = Math.max(100, ...series.map(monthTotal));
 
   return (
-    <GymPage title="Gym Overview" subtitle="Members, renewals and collections at a glance" actions={refreshBtn}>
+    <GymPage title={`${terms.pageTitle} Overview`} subtitle={`${terms.people}, renewals and collections at a glance`} actions={refreshBtn}>
       <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-4 md:space-y-5 pb-2">
         <Hero d={d} c={c} series={series} />
 

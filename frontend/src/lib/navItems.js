@@ -71,7 +71,7 @@ function applyNavOrder(list, order) {
  */
 export function getNavCandidates(venue, opts = {}) {
   if (!venue) return [];
-  const { strict = false, slots, packages, ignoreOrder = false } = opts;
+  const { strict = false, slots, packages, ignoreOrder = false, segmentKey } = opts;
 
   const sections =
     Array.isArray(venue.page_sections) && venue.page_sections.length > 0
@@ -97,7 +97,7 @@ export function getNavCandidates(venue, opts = {}) {
     }
   };
 
-  const vertical = getVertical(venue);
+  const vertical = getVertical(venue, segmentKey);
 
   sections.forEach((section) => {
     if (!section || section.visible === false) return;

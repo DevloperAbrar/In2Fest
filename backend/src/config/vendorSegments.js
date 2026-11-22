@@ -83,6 +83,24 @@ const SEGMENTS = {
     modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "library"],
     nav: [...ALWAYS_NAV, "library", "inquiries", "website", "marketplace", "reviews", "referrals"]
   },
+  // Sports academies (cricket, football, badminton, swimming ...) and class businesses
+  // (dance, music, art, yoga, martial arts). Both use the shared gym engine (members, plans,
+  // payments, attendance, leads, messages), so they keep the "gym" plan feature, but they get
+  // their own menu and tools. No fixed categories: Super Admin assigns them per category.
+  academy: {
+    key: "academy",
+    label: "Sports Academy",
+    categories: [],
+    modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "gym"],
+    nav: [...ALWAYS_NAV, "gym", "inquiries", "website", "marketplace", "reviews", "referrals"]
+  },
+  studio: {
+    key: "studio",
+    label: "Classes & Studios",
+    categories: [],
+    modules: ["website_builder", "marketplace_profile", "reviews", "inquiries", "gym"],
+    nav: [...ALWAYS_NAV, "gym", "inquiries", "website", "marketplace", "reviews", "referrals"]
+  },
   // Generic events segment. No fixed categories: only categories created by Super Admin
   // with the "events" functionality land here (through categories.segment).
   events: {
@@ -98,7 +116,10 @@ const SEGMENT_BY_CATEGORY = {};
 Object.values(SEGMENTS).forEach((seg) => seg.categories.forEach((slug) => { SEGMENT_BY_CATEGORY[slug] = seg; }));
 
 // Functionality a Super Admin can give a NEW category (stored in categories.segment).
-const ASSIGNABLE_SEGMENTS = ["gym", "shop", "food", "library", "events"];
+const ASSIGNABLE_SEGMENTS = ["gym", "academy", "studio", "shop", "food", "library", "events"];
+
+// Segments that run on the shared gym engine (members, plans, payments, attendance, leads ...).
+const GYM_ENGINE_SEGMENTS = ["gym", "academy", "studio"];
 
 /* Runtime registry: slug -> segment key, loaded from categories.segment
    (see utils/categoryTypeCache.js). Static segments above always win. */
@@ -127,6 +148,21 @@ function categoriesInSegment(slugs, segmentKey) {
     const seg = segmentForCategory(slug);
     return Boolean(seg) && seg.key === segmentKey;
   });
+}
+
+// True when ANY slug runs on the gym engine (Gym, Sports Academy or Classes & Studios).
+function isGymEngine(slugs) {
+  return (slugs || []).filter(Boolean).some((slug) => {
+    const seg = segmentForCategory(slug);
+    return Boolean(seg) && GYM_ENGINE_SEGMENTS.includes(seg.key);
+  });
+}
+
+// "gym" | "academy" | "studio" for the vendor's PRIMARY category. Everything that is not
+// explicitly an academy or studio keeps the old gym behaviour.
+function gymVariantFor(primarySlug) {
+  const seg = segmentForCategory(primarySlug);
+  return seg && (seg.key === "academy" || seg.key === "studio") ? seg.key : "gym";
 }
 
 // Returns null for categories that are not in a segment (they keep the old business-type behaviour).
@@ -158,8 +194,11 @@ module.exports = {
   SEGMENTS,
   SEGMENT_BY_CATEGORY,
   ASSIGNABLE_SEGMENTS,
+  GYM_ENGINE_SEGMENTS,
   setDynamicCategorySegments,
   segmentForCategory,
   categoriesInSegment,
+  isGymEngine,
+  gymVariantFor,
   resolveSegment
 };

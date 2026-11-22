@@ -51,6 +51,7 @@ const SCOPES = {
       ["/members", ["members"]],
       ["/plans", ["members"]],
       ["/shifts", ["members"]],
+      ["/academy", ["members"]],
       ["/card-settings", ["members"]],
       ["/card-preview", ["members"]],
       ["/attendance", ["attendance"]],

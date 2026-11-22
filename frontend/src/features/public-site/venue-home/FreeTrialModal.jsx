@@ -5,8 +5,10 @@ import api from "../../../services/api";
 const GOALS = [["fat_loss", "Fat loss"], ["muscle_gain", "Muscle gain"], ["strength", "Strength"], ["flexibility", "Flexibility"], ["general_fitness", "General fitness"]];
 const TIMES = ["Morning (5-9 AM)", "Late morning (9-12)", "Afternoon (12-4)", "Evening (4-8 PM)", "Night (8-11 PM)"];
 
-export default function FreeTrialModal({ venueId, theme = "#16a34a", onClose }) {
-  const [f, setF] = useState({ name: "", phone: "", goal: "", preferred_time: "", website: "" });
+// variant: undefined for gyms (unchanged), "academy" or "studio" for Sports Academy / Classes & Studios.
+export default function FreeTrialModal({ venueId, theme = "#16a34a", variant, onClose }) {
+  const isGym = !variant;
+  const [f, setF] = useState({ name: "", phone: "", goal: "", interest: "", preferred_time: "", website: "" });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -25,12 +27,16 @@ export default function FreeTrialModal({ venueId, theme = "#16a34a", onClose }) 
   };
 
   const input = "w-full px-3 py-2.5 border border-stone-300 dark:border-stone-600 rounded-xl text-sm bg-white dark:bg-stone-800 text-stone-900 dark:text-white focus:outline-none focus:ring-2";
+  const heading = isGym ? "Get membership details" : "Book a free trial";
+  const intro = isGym
+    ? "Share your details and our team will call you back with plans and timings."
+    : `Share your details and our team will call you back with fees and ${variant === "studio" ? "class" : "batch"} timings.`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4" onClick={onClose}>
       <div className="bg-white dark:bg-stone-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-stone-900 dark:text-white">Get membership details</h3>
+          <h3 className="text-lg font-bold text-stone-900 dark:text-white">{heading}</h3>
           <button onClick={onClose} className="text-stone-400"><X size={20} /></button>
         </div>
         {done ? (
@@ -40,13 +46,23 @@ export default function FreeTrialModal({ venueId, theme = "#16a34a", onClose }) 
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3">
-            <p className="text-sm text-stone-500 dark:text-stone-400 -mt-2 mb-1">Share your details and our team will call you back with plans and timings.</p>
+            <p className="text-sm text-stone-500 dark:text-stone-400 -mt-2 mb-1">{intro}</p>
             <input className={input} placeholder="Your name" required value={f.name} onChange={set("name")} />
             <input className={input} placeholder="Mobile number" inputMode="numeric" maxLength={10} required value={f.phone} onChange={set("phone")} />
-            <select className={input} value={f.goal} onChange={set("goal")}>
-              <option value="">Your goal (optional)</option>
-              {GOALS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+            {isGym ? (
+              <select className={input} value={f.goal} onChange={set("goal")}>
+                <option value="">Your goal (optional)</option>
+                {GOALS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            ) : (
+              <input
+                className={input}
+                maxLength={30}
+                placeholder={variant === "studio" ? "Class you are interested in (e.g. Dance, Yoga)" : "Sport you are interested in (e.g. Cricket)"}
+                value={f.interest}
+                onChange={set("interest")}
+              />
+            )}
             <select className={input} value={f.preferred_time} onChange={set("preferred_time")}>
               <option value="">Preferred time (optional)</option>
               {TIMES.map((t) => <option key={t} value={t}>{t}</option>)}

@@ -20,6 +20,8 @@ import { shiftRange } from "./GymShifts.jsx";
 import ImportMembersModal from "./ImportMembersModal.jsx";
 import ModalErrorBoundary from "./ModalErrorBoundary.jsx";
 import { MemberAvatar, EmptyMembersArt, SheetSection } from "./memberUi.jsx";
+import { useGymVariant } from "./gymVariant.js";
+import AcademyEnrollSections, { EMPTY_PROFILE, buildProfilePayload, hasProfileData, profileProblem, batchLabel } from "./AcademyMemberForm.jsx";
 
 const TABS = [["all", "All"], ["active", "Active"], ["expiring", "Expiring"], ["expired", "Expired"], ["frozen", "Frozen"], ["dues", "Dues"]];
 // Mobile shows the filters in this order (desktop keeps TABS above).
@@ -52,87 +54,137 @@ const previewTotal = (plan, f) => {
 };
 
 function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
+  const { variant, terms, isGym } = useGymVariant();
   const { data: plans } = useFetch(isOpen && vid ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen || !vid });
-  const { data: shiftData } = useFetch(isOpen && vid ? `/venues/${vid}/gym/shifts` : null, { skip: !isOpen || !vid });
+  const { data: shiftData } = useFetch(isOpen && vid && isGym ? `/venues/${vid}/gym/shifts` : null, { skip: !isOpen || !vid || !isGym });
   const shifts = shiftData?.items || [];
-  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", weight: "", height: "", address: "", health_notes: "", emergency_name: "", emergency_phone: "", parent_name: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
+  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", dob: "", weight: "", height: "", address: "", health_notes: "", emergency_name: "", emergency_phone: "", parent_name: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
   const [f, setF] = useState(blank);
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [pf, setPf] = useState(EMPTY_PROFILE);
+  const [batchId, setBatchId] = useState("");
+  const [config, setConfig] = useState(null);
+  const [batches, setBatches] = useState([]);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   useEffect(() => {
     if (isOpen) {
-      setF({ ...blank, name: lead?.name || "", phone: lead?.phone || "", goal: lead?.goal || "" });
+      setF({ ...blank, name: lead?.name || "", phone: lead?.phone || "", goal: isGym ? lead?.goal || "" : "" });
       setPhoto(null);
+      setPf(EMPTY_PROFILE);
+      setBatchId("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, lead]);
 
+  // Sports Academy / Studio only: sports list and batches for the extra fields.
+  useEffect(() => {
+    if (!isOpen || !vid || isGym) return undefined;
+    let off = false;
+    gymService.acConfig(vid).then((r) => { if (!off) setConfig(r.data.data); }).catch(() => {});
+    gymService.acBatches(vid, false).then((r) => { if (!off) setBatches(r.data.data || []); }).catch(() => {});
+    return () => { off = true; };
+  }, [isOpen, vid, isGym]);
+
   const plan = (plans || []).find((p) => p.id === f.plan_id);
   const total = previewTotal(plan, f);
+  const planLabel = isGym ? "Plan" : variant === "academy" ? "Fee plan" : "Package";
+  const trainerLabel = isGym ? "Trainer" : variant === "academy" ? "Coach" : "Instructor";
 
   const submit = async () => {
+    if (!isGym) {
+      const problem = profileProblem(pf);
+      if (problem) { showError(problem); return; }
+    }
     setBusy(true);
     try {
       const res = await gymService.enroll(vid, {
-        name: f.name, phone: f.phone, gender: f.gender, goal: f.goal, health_notes: f.health_notes, emergency_name: f.emergency_name,
+        name: f.name, phone: f.phone, gender: f.gender, health_notes: f.health_notes, emergency_name: f.emergency_name,
         emergency_phone: f.emergency_phone, parent_name: f.parent_name, trainer_name: f.trainer_name, plan_id: f.plan_id, start_date: f.start_date,
         weight: f.weight, height: f.height, address: f.address,
+        ...(isGym ? { goal: f.goal } : { dob: f.dob }),
         ...(f.shift_id ? { shift_id: f.shift_id } : {}),
         include_pt: f.include_pt, extra_discount: f.extra_discount || 0, waive_joining: f.waive_joining, lead_id: lead?.id,
         source: lead ? "website_trial" : "walk_in",
         payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, reference: f.reference } : undefined
       });
       const memberId = res.data.data.member.id;
-      showSuccess("Member added");
-      // The photo goes up right after the member exists. If it fails the member is still saved.
+      showSuccess(`${terms.person} added`);
+      // The photo, sport details and batch go up right after the member exists.
+      // If any of them fails the member is still saved.
       if (photo) {
         try { await gymService.uploadPhoto(vid, memberId, photo); }
-        catch (e) { showError(errMsg(e, "Member added, but the photo could not be uploaded. Add it from the member page.")); }
+        catch (e) { showError(errMsg(e, `${terms.person} added, but the photo could not be uploaded. Add it from the ${terms.person.toLowerCase()} page.`)); }
+      }
+      if (!isGym && hasProfileData(pf, f.health_notes)) {
+        try { await gymService.acSaveProfile(vid, memberId, buildProfilePayload(pf, f.health_notes)); }
+        catch (e) { showError(errMsg(e, `${terms.person} added, but the sport details could not be saved. Add them from the Progress page.`)); }
+      }
+      if (!isGym && batchId) {
+        try { await gymService.acAddStudents(vid, batchId, [memberId]); }
+        catch (e) { showError(errMsg(e, `${terms.person} added, but could not be added to the ${terms.batch.toLowerCase()}.`)); }
       }
       onDone(memberId);
-    } catch (e) { showError(errMsg(e, "Could not add member")); } finally { setBusy(false); }
+    } catch (e) { showError(errMsg(e, `Could not add ${terms.person.toLowerCase()}`)); } finally { setBusy(false); }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add member" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Add ${terms.person.toLowerCase()}`} size="lg">
       <div className="space-y-3">
         <SheetSection icon={Camera} title="Photo" hint="Optional. Take one now or pick from gallery" tone="sky">
           <PhotoPicker name={f.name} file={photo} onChange={setPhoto} disabled={busy} />
         </SheetSection>
 
-        <SheetSection icon={UserRound} title="Basic details" hint="Name and mobile are required" tone="emerald">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Input label="Name *" value={f.name} onChange={set("name")} />
-            <Input label="Mobile *" inputMode="numeric" maxLength={10} value={f.phone} onChange={set("phone")} />
-            <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
-            <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
-            <Input label="Weight (optional)" placeholder="e.g. 72 kg" maxLength={30} value={f.weight} onChange={set("weight")} />
-            <Input label="Height (optional)" placeholder="e.g. 172 cm" maxLength={30} value={f.height} onChange={set("height")} />
-            <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
-            <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} />
-            <div className="sm:col-span-2">
-              <Input label="Parent name (optional)" maxLength={100} value={f.parent_name} onChange={set("parent_name")} />
-            </div>
-          </div>
-        </SheetSection>
+        {isGym ? (
+          <>
+            <SheetSection icon={UserRound} title="Basic details" hint="Name and mobile are required" tone="emerald">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Input label="Name *" value={f.name} onChange={set("name")} />
+                <Input label="Mobile *" inputMode="numeric" maxLength={10} value={f.phone} onChange={set("phone")} />
+                <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+                <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
+                <Input label="Weight (optional)" placeholder="e.g. 72 kg" maxLength={30} value={f.weight} onChange={set("weight")} />
+                <Input label="Height (optional)" placeholder="e.g. 172 cm" maxLength={30} value={f.height} onChange={set("height")} />
+                <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
+                <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} />
+                <div className="sm:col-span-2">
+                  <Input label="Parent name (optional)" maxLength={100} value={f.parent_name} onChange={set("parent_name")} />
+                </div>
+              </div>
+            </SheetSection>
 
-        <SheetSection icon={HeartPulse} title="Address and health" hint="Optional" tone="red">
-          <Field label="Address (optional)"><TextArea rows={2} maxLength={300} value={f.address} onChange={set("address")} /></Field>
-          <Field label="Health notes (injury, medical condition)"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>
-        </SheetSection>
+            <SheetSection icon={HeartPulse} title="Address and health" hint="Optional" tone="red">
+              <Field label="Address (optional)"><TextArea rows={2} maxLength={300} value={f.address} onChange={set("address")} /></Field>
+              <Field label="Health notes (injury, medical condition)"><TextArea value={f.health_notes} onChange={set("health_notes")} /></Field>
+            </SheetSection>
+          </>
+        ) : (
+          <AcademyEnrollSections
+            f={f}
+            set={set}
+            pf={pf}
+            setPf={setPf}
+            config={config}
+            terms={terms}
+            group={variant === "studio" ? "studio" : "sport"}
+          />
+        )}
 
         <SheetSection icon={Ticket} title="Plan and fees" hint="Choose a plan to see the total" tone="violet" divider>
           <div className="grid sm:grid-cols-2 gap-3">
-            <Select label="Plan *" value={f.plan_id} onChange={set("plan_id")}
-              options={[{ value: "", label: "Select plan" }, ...(plans || []).map((p) => ({ value: p.id, label: `${p.name} - ${inr(p.price)}` }))]} />
+            <Select label={`${planLabel} *`} value={f.plan_id} onChange={set("plan_id")}
+              options={[{ value: "", label: `Select ${planLabel.toLowerCase()}` }, ...(plans || []).map((p) => ({ value: p.id, label: `${p.name} - ${inr(p.price)}` }))]} />
             <Input label="Start date" type="date" value={f.start_date} onChange={set("start_date")} />
             <Input label="Extra discount (₹)" inputMode="decimal" value={f.extra_discount} onChange={set("extra_discount")} />
-            <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
-            {shifts.length > 0 && (
+            <Input label={trainerLabel} value={f.trainer_name} onChange={set("trainer_name")} />
+            {isGym && shifts.length > 0 && (
               <Select label="Shift (optional)" value={f.shift_id} onChange={set("shift_id")}
                 options={[{ value: "", label: "No shift" }, ...shifts.map((s) => ({ value: s.id, label: `${s.name} (${shiftRange(s)})` }))]} />
+            )}
+            {!isGym && batches.length > 0 && (
+              <Select label={`${terms.batch} (optional)`} value={batchId} onChange={(e) => setBatchId(e.target.value)}
+                options={[{ value: "", label: `No ${terms.batch.toLowerCase()}` }, ...batches.map((b) => ({ value: b.id, label: batchLabel(b) }))]} />
             )}
           </div>
           {plan && (
@@ -170,7 +222,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
 
         <div className="sticky bottom-0 z-10 -mx-5 -mb-5 sm:-mx-6 sm:-mb-6 md:mx-0 md:mb-0 px-5 sm:px-6 md:px-0 py-3 md:pt-2 md:pb-0 bg-white/95 backdrop-blur border-t border-navy-100/70 md:border-0 md:bg-transparent md:backdrop-blur-none md:static flex gap-2 md:justify-end">
           <Button variant="outline" className="flex-1 md:flex-none" onClick={onClose}>Cancel</Button>
-          <Button className="flex-[2] md:flex-none" onClick={submit} loading={busy} disabled={!f.name || !f.phone || !f.plan_id}>Add member</Button>
+          <Button className="flex-[2] md:flex-none" onClick={submit} loading={busy} disabled={!f.name || !f.phone || !f.plan_id}>{`Add ${terms.person.toLowerCase()}`}</Button>
         </div>
       </div>
     </Modal>

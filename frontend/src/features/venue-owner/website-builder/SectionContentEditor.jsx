@@ -7,10 +7,10 @@ import Button from "../../../components/common/Button";
 import { venueService } from "../../../services/venueService";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { SECTION_TYPES, FIELD_LABELS, emptyItem } from "../../../lib/sectionLibrary";
-import { Plus, Trash2, Upload, X, Loader2, Package } from "lucide-react";
+import { Plus, Trash2, Upload, X, Loader2, Package, Image as ImageIcon } from "lucide-react";
 import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 
-function ImageUploadField({ item, venueId, onUploaded }) {
+function ImageUploadField({ item, venueId, logoUrl, onUploaded }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
 
@@ -44,27 +44,46 @@ function ImageUploadField({ item, venueId, onUploaded }) {
       />
 
       {item.image_url ? (
-        <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200 group">
-          <img src={item.image_url} alt="" className="w-full h-full object-cover" />
+        <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200 group bg-white">
+          <img src={item.image_url} alt="" className={`w-full h-full ${item.image_url === logoUrl ? "object-contain p-2" : "object-cover"}`} />
           <button
             type="button"
             onClick={() => onUploaded("")}
-            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
             title="Remove image"
           >
             <X size={12} />
           </button>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-300 hover:text-primary-500 transition-all disabled:opacity-50"
-        >
-          {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
-          <span className="text-xs">{uploading ? "Uploading..." : "Upload"}</span>
-        </button>
+        <div className="flex flex-wrap items-stretch gap-3">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary-300 hover:text-primary-500 transition-all disabled:opacity-50"
+          >
+            {uploading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+            <span className="text-xs">{uploading ? "Uploading..." : "Upload new"}</span>
+          </button>
+
+          {logoUrl ? (
+            <button
+              type="button"
+              onClick={() => onUploaded(logoUrl)}
+              disabled={uploading}
+              className="w-32 h-32 rounded-lg border-2 border-dashed border-gray-200 bg-white flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-primary-300 hover:text-primary-500 transition-all disabled:opacity-50"
+            >
+              <img src={logoUrl} alt="" className="w-14 h-14 object-contain" />
+              <span className="text-xs">Use my logo</span>
+            </button>
+          ) : (
+            <div className="w-32 h-32 rounded-lg border border-gray-100 bg-white flex flex-col items-center justify-center gap-1 px-2 text-center text-gray-400">
+              <ImageIcon size={18} />
+              <span className="text-[11px] leading-tight">Add your logo in Settings to reuse it here</span>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -206,6 +225,7 @@ export default function SectionContentEditor() {
                     key={field}
                     item={item}
                     venueId={venue.id}
+                    logoUrl={venue.logo_url || ""}
                     onUploaded={(url) => updateItem(item.id, "image_url", url)}
                   />
                 ) : (

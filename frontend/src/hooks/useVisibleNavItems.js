@@ -62,7 +62,10 @@ export function useVisibleNavItems(items = []) {
       // or for any category whose functionality (segment) matches (Super-Admin-created categories).
       if (item.categorySlugs && venueReady) {
         const bySlug = item.categorySlugs.some((s) => venueCategories.includes(s));
-        const bySegment = Boolean(item.segmentKey) && profile?.segment?.key === item.segmentKey;
+        const segKey = profile?.segment?.key;
+        const bySegment =
+          Boolean(item.segmentKey) &&
+          (segKey === item.segmentKey || (item.segmentKey === "gym" && (segKey === "academy" || segKey === "studio")));
         if (!bySlug && !bySegment) return false;
       }
 
@@ -85,6 +88,11 @@ export function useVisibleNavItems(items = []) {
         !venueCategories.includes("gym-fitness")
       ) {
         return { ...item, label: GENERIC_TOOLS_LABEL };
+      }
+      const segKey = profile?.segment?.key;
+      if (venueReady && (segKey === "academy" || segKey === "studio")) {
+        if (item.navKey === "gym") return { ...item, label: segKey === "academy" ? "Academy" : "Studio" };
+        if (item.path === "/dashboard/staff") return { ...item, label: "Coaches & Staff" };
       }
       const termKey = LABEL_TERM[item.path];
       if (termKey && profile && terms[termKey]) return { ...item, label: terms[termKey] };

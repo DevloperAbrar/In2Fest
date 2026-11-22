@@ -33,8 +33,10 @@ async function loadGym(req, res, next) {
     const venue = await Venue.findByPk(req.params.venueId);
     if (!venue) throw new AppError("Venue not found", 404);
     const cats = [venue.business_category, ...(venue.secondary_categories || [])];
-   if (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c)) && !require("../../config/vendorSegments").categoriesInSegment(cats, "gym")) throw new AppError("Gym tools are available only for Gym & Fitness businesses", 403);
+    const VS = require("../../config/vendorSegments");
+    if (!cats.some((c) => C.GYM_CATEGORY_SLUGS.includes(c)) && !VS.isGymEngine(cats)) throw new AppError("Gym tools are available only for Gym & Fitness businesses", 403);
     req.gymVenue = venue;
+    req.gymVariant = VS.gymVariantFor(venue.business_category); // "gym" | "academy" | "studio"
     req.gymSettings = await insights.getSettings(venue.id);
     next();
   } catch (e) { next(e); }
@@ -61,6 +63,13 @@ const proOnly = requirePlanFeature("gym_pro");
 
 // Complete data erase (owner-only, 3-step). Isolated in its own file.
 router.use("/data-erase", require("./gym.erase.routes"));
+
+// Sports Academy / Studio accounts do not use workouts or the supplement store.
+const gymOnlyTools = (req, res, next) => (req.gymVariant === "gym" ? next() : next(new AppError("This section is not available for your account type", 403)));
+router.use(["/exercises", "/workout-plans", "/store"], gymOnlyTools);
+
+// Sports Academy / Studio tools (batches, sport profile, tests, progress). Isolated in its own file.
+router.use("/academy", require("./academy.routes"));
 
 // overview + settings
 router.get("/dashboard", h((req) => insights.dashboard(req.gymVenue.id)));
@@ -140,6 +149,8 @@ router.patch("/members/:id", h(async (req) => {
 router.delete("/members/:id/permanent", ownerOnly, h(async (req) => {
   const out = await members.deleteMember(req.gymVenue.id, req.params.id, req.query.confirm);
   await shifts.unassign(req.gymVenue.id, req.params.id).catch(() => {});
+  await require("./academy.service").cleanupMember(req.gymVenue.id, req.params.id).catch(() => {});
+  await require("./academy.models").GymEventParticipant.destroy({ where: { venue_id: req.gymVenue.id, member_id: req.params.id } }).catch(() => {});
   return out;
 }));
 router.delete("/members/:id", h((req) => members.archiveMember(req.gymVenue.id, req.params.id)));

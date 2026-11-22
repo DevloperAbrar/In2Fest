@@ -20,6 +20,7 @@ import ConfirmDialog from "../../../components/common/ConfirmDialog";
 import PhotoPicker from "./PhotoPicker.jsx";
 import { MemberAvatar, ActionTile, InfoRow } from "./memberUi.jsx";
 import { shiftRange } from "./GymShifts.jsx";
+import { useGymVariant } from "./gymVariant.js";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import {
   GymPage, StatusPill, Field, TextArea, MessageModal,
@@ -154,6 +155,7 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
 
   // Edits the member's profile, the dates of the current membership, and (optionally) changes the plan.
   function EditModal({ isOpen, onClose, vid, member, memberships, onDone }) {
+    const { isGym } = useGymVariant();
     const current = currentMembership(memberships);
     const frozen = member.status === "frozen";
     const [f, setF] = useState(() => editBase(member));
@@ -321,10 +323,16 @@ function LinkModal({ isOpen, onClose, vid, member, hasDue }) {
             <Input label="Email" type="email" value={f.email} onChange={set("email")} error={err("email")} />
             <Select label="Gender" value={f.gender} onChange={set("gender")} options={[{ value: "", label: "Select" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }]} />
             <Input label="Date of birth" type="date" max={todayISO()} value={f.dob} onChange={set("dob")} />
-            <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+            {isGym ? (
+              <Select label="Goal" value={f.goal} onChange={set("goal")} options={[{ value: "", label: "Select goal" }, ...GOALS]} />
+            ) : (
+              <div className="flex items-end pb-1">
+                <Link to={`/dashboard/gym/progress/${member.id}`} className="text-sm font-semibold text-primary-600 hover:underline">Edit sport / class details</Link>
+              </div>
+            )}
             <Input label="Weight" placeholder="e.g. 72 kg" maxLength={30} value={f.weight} onChange={set("weight")} />
             <Input label="Height" placeholder="e.g. 172 cm" maxLength={30} value={f.height} onChange={set("height")} />
-            <Input label="Trainer" value={f.trainer_name} onChange={set("trainer_name")} />
+            <Input label={isGym ? "Trainer" : "Coach / instructor"} value={f.trainer_name} onChange={set("trainer_name")} />
             <Input label="Emergency contact name" value={f.emergency_name} onChange={set("emergency_name")} />
             <Input label="Emergency contact phone" inputMode="numeric" value={f.emergency_phone} onChange={set("emergency_phone")} error={err("emergency_phone")} />
             <Input label="Parent name (optional)" maxLength={100} value={f.parent_name} onChange={set("parent_name")} />
@@ -571,6 +579,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
     const [msg, setMsg] = useState(null);
     const [freezeDays, setFreezeDays] = useState("7");
     const [payEdit, setPayEdit] = useState(null);
+    const { isGym } = useGymVariant();
 
   
     if (loading || !data) return <GymPage title="Member"><Loader /></GymPage>;
@@ -603,7 +612,12 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
 
     return (
       <GymPage title={m.name} subtitle={`${m.member_code} · ${m.phone}`}
-        actions={<Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit</Button>}>
+        actions={(
+          <div className="flex gap-2">
+            {!isGym && <Link to={`/dashboard/gym/progress/${m.id}`} className="tap-scale inline-flex items-center px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">Progress</Link>}
+            <Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit</Button>
+          </div>
+        )}>
 
         {/* ================= MOBILE ================= */}
         <div className="md:hidden space-y-3.5">
@@ -720,7 +734,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
               ) : (
                 <ActionTile icon={Snowflake} label="Freeze" tone="sky" onClick={() => setModal("freeze")} disabled={!m.end_date || m.days_left < 0 || (plan && !plan.freeze_allowed)} />
               )}
-              <ActionTile icon={Dumbbell} label="Workout" tone="red" onClick={() => setModal("workout")} />
+              {isGym && <ActionTile icon={Dumbbell} label="Workout" tone="red" onClick={() => setModal("workout")} />}
               <ActionTile icon={CreditCard} label="Card" tone="navy" onClick={() => setModal("card")} />
               <ActionTile icon={Pencil} label="Edit details" tone="navy" onClick={() => setModal("edit")} />
             </div>
@@ -827,7 +841,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
           </section>
 
           {/* Workout plans */}
-          <section className="rounded-3xl bg-white border border-navy-100/70 shadow-card p-4">
+          <section className={`rounded-3xl bg-white border border-navy-100/70 shadow-card p-4 ${isGym ? "" : "hidden"}`}>
             <h2 className="font-display font-semibold text-[15px] text-navy-900 pb-3">Workout plans</h2>
             {plans.length === 0 ? (
               <p className="text-sm text-navy-400">No plan assigned yet.</p>
@@ -911,7 +925,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
             ? <Button variant="outline" onClick={() => act(() => gymService.unfreeze(vid, m.id), "Membership resumed")}><Snowflake size={14} /> Unfreeze</Button>
             : <Button variant="outline" onClick={() => setModal("freeze")} disabled={!m.end_date || m.days_left < 0 || (plan && !plan.freeze_allowed)}><Snowflake size={14} /> Freeze</Button>}
           <Button variant="outline" onClick={() => setMsg({ title: "Message", types: msgTypes })}><MessageSquare size={14} /> Message</Button>
-          <Button variant="outline" onClick={() => setModal("workout")}><Dumbbell size={14} /> Workout</Button>
+          {isGym && <Button variant="outline" onClick={() => setModal("workout")}><Dumbbell size={14} /> Workout</Button>}
           <Button variant="outline" onClick={() => setModal("card")}><CreditCard size={14} /> Card</Button>
           <Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit details</Button>
           <Button variant="outline" className="sm:col-span-2 text-red-600" onClick={() => setModal("archive")}><Archive size={14} /> Archive member</Button>
@@ -953,7 +967,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
               ))}
             </div>
           </Card>
-          <Card title="Workout plans" className="md:col-span-2">
+          <Card title="Workout plans" className={`md:col-span-2 ${isGym ? "" : "hidden"}`}>
             {plans.length === 0 ? <p className="text-sm text-gray-400">No plan assigned yet.</p> : (
               <div className="divide-y text-sm">
                 {plans.map((p) => (
