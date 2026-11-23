@@ -12,6 +12,7 @@ const router = express.Router();
 
 router.get("/homepage", homepageController.getHomepage);
 router.get("/search", searchController.searchVendors);
+router.get("/search/map", searchController.searchMap);
 router.get("/autocomplete", searchController.autocomplete);
 router.get("/business-types", searchController.businessTypes);
 router.get("/cities-with-vendors", cityController.getCitiesWithVendors);

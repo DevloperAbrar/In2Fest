@@ -56,6 +56,8 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showMap, setShowMap] = useState(false);
+  const [mapData, setMapData] = useState({ vendors: [], total: 0, mapped: 0, unmapped: 0, truncated: false });
+  const [mapLoading, setMapLoading] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const { categories } = useCategories();
@@ -77,6 +79,20 @@ export default function SearchPage() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.toString()]);
+
+    // The map loads ALL vendors that match the filters (not only the current page of the list).
+    useEffect(() => {
+      if (!showMap) return undefined;
+      let off = false;
+      setMapLoading(true);
+      const { page, sort, ...mapFilters } = filters; // eslint-disable-line no-unused-vars
+      api.get("/search/map", { params: mapFilters })
+        .then(({ data }) => { if (!off) setMapData(data.data); })
+        .catch(() => { if (!off) setMapData({ vendors: [], total: 0, mapped: 0, unmapped: 0, truncated: false }); })
+        .finally(() => { if (!off) setMapLoading(false); });
+      return () => { off = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showMap, params.toString()]);
 
   const updateFilters = (next) => {
     const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== "" && v !== undefined));
@@ -352,7 +368,14 @@ export default function SearchPage() {
                         transition={{ duration: 0.2 }}
                       >
                         <div className="bg-white border border-navy-100 rounded-3xl p-2">
-                          <MapView vendors={result.results} onClose={() => setShowMap(false)} />
+                          <MapView
+                            vendors={mapData.vendors}
+                            total={mapData.total}
+                            unmapped={mapData.unmapped}
+                            truncated={mapData.truncated}
+                            loading={mapLoading}
+                            onClose={() => setShowMap(false)}
+                          />
                         </div>
                       </motion.div>
                     ) : (

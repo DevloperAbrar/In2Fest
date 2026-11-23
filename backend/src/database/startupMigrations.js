@@ -6,6 +6,14 @@ const { FIXED_CATEGORIES } = require("../config/categories");
 const { refreshCategoryTypes } = require("../utils/categoryTypeCache");
 
 const SCHEMA_STATEMENTS = [
+  // ---- vendor map location (resolved once, used by the marketplace map) ----
+  `ALTER TABLE venues
+     ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7),
+     ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7),
+     ADD COLUMN IF NOT EXISTS geo_source VARCHAR(12),
+     ADD COLUMN IF NOT EXISTS geo_key VARCHAR(40),
+     ADD COLUMN IF NOT EXISTS geo_checked_at TIMESTAMPTZ`,
+
   // ---- invoices ----
   `ALTER TABLE invoices ALTER COLUMN client_id DROP NOT NULL`,
   `ALTER TABLE invoices

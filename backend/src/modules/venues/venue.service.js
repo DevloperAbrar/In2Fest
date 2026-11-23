@@ -540,8 +540,12 @@ async function updateVenue(venueId, ownerId, updates) {
     venue.page_sections = normalizeSections(venue);
   }
 
+  const locationChanged = ["google_maps_link", "address", "city", "primary_locality"].some((f) => updates[f] !== undefined);
+
   await venue.save();
   await recalculateSetupChecklist(venue);
+  // The map location is refreshed in the background. It never delays or fails the save.
+  if (locationChanged) require("../discovery/geo.service").refreshVenue(venue.id).catch(() => {});
   return venue;
 }
 

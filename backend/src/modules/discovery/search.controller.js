@@ -29,4 +29,16 @@ async function businessTypes(req, res, next) {
   }
 }
 
-module.exports = { searchVendors, autocomplete, businessTypes };
+// All matching vendors with map coordinates, for the search page map.
+// GET /discovery/search/map?city=...&category=... (same filters as /search)
+async function searchMap(req, res, next) {
+  try {
+    const result = await searchService.searchMap(req.query);
+    res.set("Cache-Control", "public, max-age=60");
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { searchVendors, searchMap, autocomplete, businessTypes };

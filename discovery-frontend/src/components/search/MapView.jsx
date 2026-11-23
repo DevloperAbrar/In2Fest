@@ -1,37 +1,60 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, Star, Navigation } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 /**
- * MapView — vendors on OpenStreetMap via Leaflet.
+ * MapView: every vendor that matches the search, on OpenStreetMap via Leaflet.
  *
- * Coord priority (set by backend search.service.js):
- *   1. vendor.latitude / vendor.longitude  (precise, from google_maps_link)
- *   2. city-centre coords                  (fallback, vendor.coords_are_approximate = true)
- *   3. neither → vendor not shown on map
+ * Coordinates come from the backend (/search/map). Each vendor has latitude and longitude, and
+ * coords_are_approximate = true when only the city centre is known (shown as a grey "~" pin).
+ * Close pins are grouped into clusters so many vendors stay readable.
  */
 
-let L = null;
+const CDN = "https://cdnjs.cloudflare.com/ajax/libs";
+const LEAFLET_CSS = `${CDN}/leaflet/1.9.4/leaflet.min.css`;
+const LEAFLET_JS = `${CDN}/leaflet/1.9.4/leaflet.min.js`;
+const CLUSTER_CSS = [`${CDN}/leaflet.markercluster/1.5.3/MarkerCluster.css`, `${CDN}/leaflet.markercluster/1.5.3/MarkerCluster.Default.css`];
+const CLUSTER_JS = `${CDN}/leaflet.markercluster/1.5.3/leaflet.markercluster.js`;
 
-function loadLeaflet() {
+function loadCss(href) {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
+function loadScript(src) {
   return new Promise((resolve, reject) => {
-    if (window.L) { resolve(window.L); return; }
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
-    document.head.appendChild(link);
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === "1") resolve();
+      else { existing.addEventListener("load", () => resolve()); existing.addEventListener("error", reject); }
+      return;
+    }
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-    script.onload = () => resolve(window.L);
+    script.src = src;
+    script.onload = () => { script.dataset.loaded = "1"; resolve(); };
     script.onerror = reject;
     document.head.appendChild(script);
   });
 }
 
+// Leaflet is required. The cluster plugin is optional: if it fails to load, plain pins are used.
+async function loadLeaflet() {
+  loadCss(LEAFLET_CSS);
+  if (!window.L) await loadScript(LEAFLET_JS);
+  CLUSTER_CSS.forEach(loadCss);
+  if (!window.L.markerClusterGroup) {
+    try { await loadScript(CLUSTER_JS); } catch { /* plain pins */ }
+  }
+  return window.L;
+}
+
 function makeIcon(isApproximate) {
   const bg = isApproximate
-    ? "linear-gradient(135deg,#9aa0b8,#6d7591)"   // muted for city-centre fallback
-    : "linear-gradient(135deg,#e8192c,#f5a623)";   // brand red-gold for precise pin
+    ? "linear-gradient(135deg,#9aa0b8,#6d7591)"
+    : "linear-gradient(135deg,#e8192c,#f5a623)";
   return {
     className: "",
     html: `<div style="
@@ -53,11 +76,10 @@ function PopupCard({ vendor, onClose }) {
   const navigate = useNavigate();
   if (!vendor) return null;
 
-  const slug        = vendor.slug || vendor.subdomain;
-  const citySlug    = vendor.city_slug || (vendor.city || "").toLowerCase().replace(/\s+/g, "-");
+  const slug = vendor.slug || vendor.subdomain;
+  const citySlug = vendor.city_slug || (vendor.city || "").toLowerCase().replace(/\s+/g, "-");
   const categorySlug = vendor.category_slug || vendor.business_category;
-  const photo       = vendor.cover_photo || vendor.hero_image_url;
-  const isApprox    = vendor.coords_are_approximate;
+  const photo = vendor.cover_photo || vendor.hero_image_url;
 
   const directionsUrl = vendor.google_maps_link ||
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -66,13 +88,11 @@ function PopupCard({ vendor, onClose }) {
 
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] w-72 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
-      {photo && (
-        <img src={photo} alt={vendor.hall_name} className="w-full h-28 object-cover" />
-      )}
+      {photo && <img src={photo} alt={vendor.hall_name} className="w-full h-28 object-cover" />}
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-1">
           <p className="font-semibold text-gray-800 text-sm leading-tight">{vendor.hall_name}</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0" aria-label="Close">
             <X size={14} />
           </button>
         </div>
@@ -81,21 +101,17 @@ function PopupCard({ vendor, onClose }) {
           {vendor.primary_locality ? `${vendor.primary_locality}, ` : ""}{vendor.city}
         </p>
 
-        {isApprox && (
+        {vendor.coords_are_approximate && (
           <p className="text-[10px] text-amber-500 bg-amber-50 border border-amber-100 rounded px-2 py-0.5 mb-1.5 inline-block">
-            Approximate location (city centre)
+            Approximate location (city area)
           </p>
         )}
 
         {vendor.average_rating > 0 && (
           <div className="flex items-center gap-1 mb-2">
             <Star size={11} className="fill-yellow-400 text-yellow-400" />
-            <span className="text-xs font-medium text-gray-700">
-              {Number(vendor.average_rating).toFixed(1)}
-            </span>
-            {vendor.review_count > 0 && (
-              <span className="text-xs text-gray-400">({vendor.review_count})</span>
-            )}
+            <span className="text-xs font-medium text-gray-700">{Number(vendor.average_rating).toFixed(1)}</span>
+            {vendor.review_count > 0 && <span className="text-xs text-gray-400">({vendor.review_count})</span>}
           </div>
         )}
 
@@ -105,8 +121,8 @@ function PopupCard({ vendor, onClose }) {
           </p>
         )}
 
-        
-       <a   href={directionsUrl}
+        <a
+          href={directionsUrl}
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-1 text-xs text-blue-500 hover:underline mb-2"
@@ -128,80 +144,85 @@ function PopupCard({ vendor, onClose }) {
   );
 }
 
-// India centre — used when no vendors have any coords at all
 const INDIA_CENTER = [22.5, 80.0];
-const INDIA_ZOOM   = 5;
+const INDIA_ZOOM = 5;
 
-export default function MapView({ vendors = [], onClose }) {
-  const mapRef         = useRef(null);
+export default function MapView({ vendors = [], total, unmapped = 0, truncated = false, loading = false, onClose }) {
+  const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markersRef     = useRef([]);
+  const layerRef = useRef(null);
   const [selectedVendor, setSelectedVendor] = useState(null);
-  const [leafletReady, setLeafletReady]     = useState(false);
-  const [loadError, setLoadError]           = useState(false);
+  const [leafletReady, setLeafletReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
-  // Vendors that have any usable coords (precise or city-centre fallback)
-  const mappable = vendors.filter(
-    (v) => v.latitude != null && v.longitude != null &&
-           !isNaN(Number(v.latitude)) && !isNaN(Number(v.longitude))
+  const mappable = useMemo(
+    () => vendors.filter((v) => v.latitude != null && v.longitude != null && !isNaN(Number(v.latitude)) && !isNaN(Number(v.longitude))),
+    [vendors]
   );
-  const preciseCount = mappable.filter((v) => !v.coords_are_approximate).length;
+  const approxCount = mappable.filter((v) => v.coords_are_approximate).length;
+  const shownTotal = total != null ? total : vendors.length;
 
   useEffect(() => {
+    let off = false;
     loadLeaflet()
-      .then((leaflet) => { L = leaflet; setLeafletReady(true); })
-      .catch(() => setLoadError(true));
+      .then(() => { if (!off) setLeafletReady(true); })
+      .catch(() => { if (!off) setLoadError(true); });
+    return () => { off = true; };
   }, []);
 
-  // Init map
+  // Create the map once.
   useEffect(() => {
-    if (!leafletReady || !mapRef.current || mapInstanceRef.current) return;
-
-    const center = mappable.length > 0
-      ? [Number(mappable[0].latitude), Number(mappable[0].longitude)]
-      : INDIA_CENTER;
-    const zoom = mappable.length === 0 ? INDIA_ZOOM : mappable.length === 1 ? 14 : 12;
-
-    mapInstanceRef.current = L.map(mapRef.current, { center, zoom, zoomControl: true });
+    if (!leafletReady || !mapRef.current || mapInstanceRef.current) return undefined;
+    const L = window.L;
+    const map = L.map(mapRef.current, { center: INDIA_CENTER, zoom: INDIA_ZOOM, zoomControl: true });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
-    }).addTo(mapInstanceRef.current);
+    }).addTo(map);
+    mapInstanceRef.current = map;
+    setTimeout(() => map.invalidateSize(), 0);
 
     return () => {
-      if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+      map.remove();
+      mapInstanceRef.current = null;
+      layerRef.current = null;
     };
-  }, [leafletReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leafletReady]);
 
-  // Add/refresh markers
+  // Draw every vendor. Runs again whenever the list changes (new filters).
   useEffect(() => {
-    if (!leafletReady || !mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!leafletReady || !map) return undefined;
+    const L = window.L;
 
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-    if (mappable.length === 0) return;
+    if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null; }
+    setSelectedVendor(null);
+    if (mappable.length === 0) return undefined;
 
+    const group = L.markerClusterGroup
+      ? L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 45, spiderfyOnMaxZoom: true })
+      : L.layerGroup();
     const bounds = [];
 
     mappable.forEach((vendor) => {
       const lat = Number(vendor.latitude);
       const lng = Number(vendor.longitude);
-      const icon = L.divIcon(makeIcon(vendor.coords_are_approximate));
-
-      const marker = L.marker([lat, lng], { icon })
-        .addTo(mapInstanceRef.current)
-        .on("click", () => setSelectedVendor(vendor));
-
-      markersRef.current.push(marker);
+      L.marker([lat, lng], { icon: L.divIcon(makeIcon(vendor.coords_are_approximate)) })
+        .on("click", () => setSelectedVendor(vendor))
+        .addTo(group);
       bounds.push([lat, lng]);
     });
 
-    if (bounds.length > 1) {
-      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
-    } else if (bounds.length === 1) {
-      mapInstanceRef.current.setView(bounds[0], 14);
-    }
-  }, [leafletReady, vendors]); // eslint-disable-line react-hooks/exhaustive-deps
+    map.addLayer(group);
+    layerRef.current = group;
+
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+    else map.setView(bounds[0], 14);
+
+    return () => {
+      if (layerRef.current) { map.removeLayer(layerRef.current); layerRef.current = null; }
+    };
+  }, [leafletReady, mappable]);
 
   return (
     <div className="relative w-full h-[560px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
@@ -209,11 +230,15 @@ export default function MapView({ vendors = [], onClose }) {
       {/* Count badge */}
       <div className="absolute top-3 left-3 z-[1001] bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-navy-800 shadow-sm flex items-center gap-1.5">
         <MapPin size={13} className="text-accent-600" />
-        {mappable.length} of {vendors.length} shown on map
-        {mappable.length > preciseCount && (
-          <span className="text-[10px] text-gray-400 font-normal ml-1">
-            ({mappable.length - preciseCount} approximate)
-          </span>
+        {loading ? "Loading vendors…" : `${mappable.length} of ${shownTotal} shown on map`}
+        {!loading && approxCount > 0 && (
+          <span className="text-[10px] text-gray-400 font-normal ml-1">({approxCount} approximate)</span>
+        )}
+        {!loading && unmapped > 0 && (
+          <span className="text-[10px] text-gray-400 font-normal ml-1">· {unmapped} without location</span>
+        )}
+        {!loading && truncated && (
+          <span className="text-[10px] text-gray-400 font-normal ml-1">· narrow your filters to see the rest</span>
         )}
       </div>
 
@@ -240,27 +265,20 @@ export default function MapView({ vendors = [], onClose }) {
         <div ref={mapRef} className="w-full h-full" />
       )}
 
-      {/* No coords notice */}
-      {leafletReady && mappable.length === 0 && (
+      {/* No locations notice */}
+      {leafletReady && !loading && mappable.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-white/90 border border-gray-200 rounded-xl px-5 py-4 text-sm text-gray-500 text-center shadow max-w-xs">
             <MapPin size={24} className="mx-auto mb-2 text-gray-300" />
             <p className="font-medium text-gray-600 mb-1">No locations available</p>
             <p className="text-xs text-gray-400">
-              Vendors shown here haven't added a Google Maps link yet.
-              Ask them to add one from their profile settings.
+              These vendors have not added an address or a Google Maps link yet.
             </p>
           </div>
         </div>
       )}
 
-      {/* Popup */}
-      {selectedVendor && (
-        <PopupCard
-          vendor={selectedVendor}
-          onClose={() => setSelectedVendor(null)}
-        />
-      )}
+      {selectedVendor && <PopupCard vendor={selectedVendor} onClose={() => setSelectedVendor(null)} />}
     </div>
   );
 }

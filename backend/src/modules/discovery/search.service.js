@@ -4,6 +4,7 @@ const { slugify, unslugify } = require("../../utils/slugify");
 const { getVertical, getCardTags } = require("../../config/marketplaceVerticals");
 const { getBusinessTypeKey } = require("../../config/businessTypes");
 const taxonomy = require("../../config/otherBusinessTaxonomy");
+const geoService = require("./geo.service");
 
 const PAGE_SIZE = 20;
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
@@ -365,3 +366,72 @@ async function autocomplete(q) {
 }
 
 module.exports = { search, autocomplete, vendorSummary, venueIdsForType, getBusinessTypeFacets, isGeneral, PAGE_SIZE };
+
+// ---------------------------------------------------------------------------
+// Map: every vendor that matches the same filters as the list (not just one page).
+// ---------------------------------------------------------------------------
+const MAP_LIMIT = 300;
+
+async function searchMap(query) {
+  // Same filters as the list, so the map always agrees with "N businesses found".
+  const base = await search({ ...query, page: 1, limit: MAP_LIMIT });
+  const stored = await geoService.loadGeo(base.results.map((v) => v.id));
+
+  const vendors = [];
+  const missing = [];
+  base.results.forEach((v) => {
+    const g = stored.get(v.id);
+    let lat = null;
+    let lng = null;
+    let approximate = false;
+
+    if (g && Number.isFinite(g.lat) && Number.isFinite(g.lng)) {
+      lat = g.lat;
+      lng = g.lng;
+      approximate = g.source === "city";
+    } else {
+      // Not stored yet: use the old guess (link coordinates or city centre) and queue a proper lookup.
+      missing.push(v.id);
+      if (v.latitude != null && v.longitude != null) {
+        lat = Number(v.latitude);
+        lng = Number(v.longitude);
+        approximate = Boolean(v.coords_are_approximate);
+      }
+    }
+
+    if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) return;
+    if (approximate) [lat, lng] = geoService.jitter(v.id, lat, lng);
+
+    vendors.push({
+      id: v.id,
+      hall_name: v.hall_name,
+      slug: v.slug,
+      subdomain: v.subdomain,
+      city: v.city,
+      city_slug: v.city_slug,
+      category_slug: v.category_slug,
+      business_category: v.business_category,
+      primary_locality: v.primary_locality,
+      cover_photo: v.cover_photo,
+      starting_price: v.starting_price,
+      average_rating: v.average_rating,
+      review_count: v.review_count,
+      google_maps_link: v.google_maps_link,
+      latitude: lat,
+      longitude: lng,
+      coords_are_approximate: approximate
+    });
+  });
+
+  if (missing.length) geoService.backfillMissing(10, missing).catch(() => {});
+
+  return {
+    vendors,
+    total: base.total,
+    mapped: vendors.length,
+    unmapped: base.results.length - vendors.length,
+    truncated: base.total > base.results.length
+  };
+}
+
+module.exports.searchMap = searchMap;
