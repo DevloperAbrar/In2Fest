@@ -3,9 +3,12 @@
 //
 // Order of attempts for one vendor:
 //   1. Google Maps link (full link, or a short maps.app.goo.gl link that is followed to its end)
-//   2. the vendor's address        (OpenStreetMap Nominatim)
-//   3. the vendor's locality       (OpenStreetMap Nominatim)
-//   4. the city centre             (cities table, else Nominatim)
+//   2. the vendor's address, then locality, then business name   (geocoder)
+//   3. the city centre                                           (cities table, else geocoder)
+//
+// Geocoders, in order: Google (only when GOOGLE_GEOCODING_KEY is set), OpenStreetMap Nominatim,
+// Photon (OpenStreetMap). A network error or a blocked request is NEVER saved as "not found":
+// the vendor is simply tried again on the next run.
 //
 // The columns are read and written with raw SQL on purpose: the Venue model is not touched,
 // so a slow or failed migration can never break the other venue queries.
@@ -16,11 +19,27 @@ const { sequelize } = require("../../config/database");
 const { City } = require("../../database/models");
 
 const USER_AGENT = process.env.GEOCODER_USER_AGENT || "In2Fest/1.0 (vendor map locations)";
+const GOOGLE_KEY = process.env.GOOGLE_GEOCODING_KEY || "";
 const SHORT_HOST = /^(maps\.app\.goo\.gl|goo\.gl)$/i;
-const RECHECK_MS = 3 * 24 * 60 * 60 * 1000;
+const RECHECK_MS = 12 * 60 * 60 * 1000;
+// Bumping this makes every vendor that has no exact location get looked up again.
+const KEY_VERSION = "2:";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // India only: anything outside is a wrong match.
 const inIndia = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= 6 && lat <= 38 && lng >= 68 && lng <= 98;
+
+/* ------------------------------ run log ------------------------------ */
+
+let runNotes = {};
+function note(where, e) {
+  const status = e && e.response && e.response.status;
+  const msg = `${where}: ${status ? `HTTP ${status}` : (e && e.message) || "error"}`;
+  runNotes[msg] = (runNotes[msg] || 0) + 1;
+}
+
+/* ------------------------------ Google Maps links ------------------------------ */
 
 function extractCoordsFromLink(link = "") {
   const pin = link.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
@@ -29,6 +48,30 @@ function extractCoordsFromLink(link = "") {
   if (at) return [parseFloat(at[1]), parseFloat(at[2])];
   const q = link.match(/[?&](?:q|query|ll)=(-?\d+\.?\d+),\s*(-?\d+\.?\d+)/);
   if (q) return [parseFloat(q[1]), parseFloat(q[2])];
+  return null;
+}
+
+// The page behind a Google link repeats its coordinates in a few places.
+function coordsFromHtml(html = "") {
+  const s = String(html).slice(0, 400000);
+  const center = s.match(/center=(-?\d+\.\d+)(?:%2C|,)(-?\d+\.\d+)/);
+  if (center) {
+    const la = parseFloat(center[1]);
+    const lo = parseFloat(center[2]);
+    if (inIndia(la, lo)) return [la, lo];
+  }
+  const init = s.match(/APP_INITIALIZATION_STATE=\[\[\[[\d.]+,(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (init) {
+    const lo = parseFloat(init[1]);
+    const la = parseFloat(init[2]);
+    if (inIndia(la, lo)) return [la, lo];
+  }
+  const pin = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (pin) {
+    const la = parseFloat(pin[1]);
+    const lo = parseFloat(pin[2]);
+    if (inIndia(la, lo)) return [la, lo];
+  }
   return null;
 }
 
@@ -41,12 +84,13 @@ async function coordsFromShortLink(link) {
 
   const res = await axios.get(link, {
     maxRedirects: 6,
-    timeout: 7000,
+    timeout: 8000,
     responseType: "text",
     maxContentLength: 3 * 1024 * 1024,
     validateStatus: (s) => s < 500,
     headers: { "User-Agent": "Mozilla/5.0 (compatible; In2FestBot/1.0)", "Accept-Language": "en-IN" }
   });
+
   const finalUrl = (res.request && res.request.res && res.request.res.responseUrl) || "";
   const candidates = [finalUrl];
   const cont = finalUrl.match(/[?&]continue=([^&]+)/); // Google consent page wraps the real link
@@ -55,47 +99,109 @@ async function coordsFromShortLink(link) {
     const p = extractCoordsFromLink(c);
     if (p) return p;
   }
-  return null;
+  return coordsFromHtml(res.data);
 }
 
-// Nominatim allows 1 request per second, so every lookup waits its turn in one queue.
-let geocodeChain = Promise.resolve();
-let lastGeocodeAt = 0;
-async function runGeocode(query) {
-  const wait = lastGeocodeAt + 1100 - Date.now();
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastGeocodeAt = Date.now();
-  const res = await axios.get("https://nominatim.openstreetmap.org/search", {
-    params: { q: query, format: "jsonv2", limit: 1, countrycodes: "in" },
-    timeout: 8000,
-    headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" }
+/* ------------------------------ geocoders ------------------------------ */
+
+async function googleGeocode(query) {
+  const res = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
+    params: { address: query, region: "in", components: "country:IN", key: GOOGLE_KEY },
+    timeout: 8000
   });
-  const hit = Array.isArray(res.data) ? res.data[0] : null;
-  if (!hit) return null;
-  const lat = parseFloat(hit.lat);
-  const lng = parseFloat(hit.lon);
-  return inIndia(lat, lng) ? [lat, lng] : null;
+  const d = res.data || {};
+  if (d.status === "ZERO_RESULTS") return null;
+  if (d.status !== "OK") throw new Error(`Google ${d.status}`);
+  const loc = d.results[0] && d.results[0].geometry && d.results[0].geometry.location;
+  return loc && inIndia(loc.lat, loc.lng) ? [loc.lat, loc.lng] : null;
 }
-function geocode(query) {
-  const next = geocodeChain.then(() => runGeocode(query));
-  geocodeChain = next.catch(() => {});
+
+// Nominatim allows 1 request per second, so its lookups wait their turn in one queue.
+let nominatimChain = Promise.resolve();
+let lastNominatimAt = 0;
+function nominatimGeocode(query) {
+  const next = nominatimChain.then(async () => {
+    const wait = lastNominatimAt + 1100 - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastNominatimAt = Date.now();
+    const res = await axios.get("https://nominatim.openstreetmap.org/search", {
+      params: { q: query, format: "jsonv2", limit: 1, countrycodes: "in" },
+      timeout: 8000,
+      headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" }
+    });
+    const hit = Array.isArray(res.data) ? res.data[0] : null;
+    if (!hit) return null;
+    const lat = parseFloat(hit.lat);
+    const lng = parseFloat(hit.lon);
+    return inIndia(lat, lng) ? [lat, lng] : null;
+  });
+  nominatimChain = next.catch(() => {});
   return next;
 }
 
+async function photonGeocode(query) {
+  const res = await axios.get("https://photon.komoot.io/api/", {
+    params: { q: query, limit: 1, lang: "en" },
+    timeout: 8000,
+    headers: { "User-Agent": USER_AGENT }
+  });
+  const f = res.data && Array.isArray(res.data.features) ? res.data.features[0] : null;
+  if (!f || !f.geometry || !Array.isArray(f.geometry.coordinates)) return null;
+  const [lng, lat] = f.geometry.coordinates;
+  return inIndia(lat, lng) ? [lat, lng] : null;
+}
+
+function providers() {
+  return [
+    ...(GOOGLE_KEY ? [["google", googleGeocode]] : []),
+    ["nominatim", nominatimGeocode],
+    ["photon", photonGeocode]
+  ];
+}
+
+// Returns [lat, lng], or null when a geocoder answered "no such place".
+// Throws only when EVERY geocoder failed (blocked, offline, rate limited): that must not be saved as "not found".
+async function geocode(query) {
+  let answered = false;
+  let lastError = null;
+  for (const [name, fn] of providers()) {
+    try {
+      const c = await fn(query);
+      answered = true;
+      if (c) return c;
+    } catch (e) {
+      lastError = e;
+      note(name, e);
+    }
+  }
+  if (!answered && lastError) throw lastError;
+  return null;
+}
+
+/* ------------------------------ one vendor ------------------------------ */
+
+// -> { lat, lng, source } | null (definitely not found). Throws on a temporary failure.
 async function resolveGeo(v) {
   const link = String(v.google_maps_link || "").trim();
   if (link) {
     let c = extractCoordsFromLink(link);
-    if (!c) c = await coordsFromShortLink(link).catch(() => null);
+    if (!c) c = await coordsFromShortLink(link).catch((e) => { note("google-link", e); return null; });
     if (c && inIndia(c[0], c[1])) return { lat: c[0], lng: c[1], source: "link" };
   }
 
   const city = String(v.city || "").trim();
+  const address = String(v.address || "").replace(/\s+/g, " ").trim();
   const tries = [];
-  if (v.address && city) tries.push([`${String(v.address).replace(/\s+/g, " ").trim()}, ${city}, India`, "address"]);
+  if (address && city) {
+    tries.push([`${address}, ${city}, India`, "address"]);
+    const parts = address.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 2) tries.push([`${parts.slice(-2).join(", ")}, ${city}, India`, "address"]);
+  }
   if (v.primary_locality && city) tries.push([`${v.primary_locality}, ${city}, India`, "locality"]);
+  if (v.hall_name && city) tries.push([`${v.hall_name}, ${city}, India`, "address"]);
+
   for (const [q, source] of tries) {
-    const c = await geocode(q).catch(() => null);
+    const c = await geocode(q);
     if (c) return { lat: c[0], lng: c[1], source };
   }
 
@@ -104,61 +210,79 @@ async function resolveGeo(v) {
     const la = row ? parseFloat(row.latitude) : NaN;
     const lo = row ? parseFloat(row.longitude) : NaN;
     if (inIndia(la, lo)) return { lat: la, lng: lo, source: "city" };
-    const c = await geocode(`${city}, India`).catch(() => null);
+    const c = await geocode(`${city}, India`);
     if (c) return { lat: c[0], lng: c[1], source: "city" };
   }
   return null;
 }
 
-// Changes whenever the link, address, locality or city changes, so a moved vendor is looked up again.
+// Changes whenever the link, address, locality, city or name changes, so a moved vendor is looked up again.
 function keyFor(v) {
-  const raw = [v.google_maps_link, v.address, v.primary_locality, v.city].map((s) => String(s || "").trim().toLowerCase()).join("|");
-  return crypto.createHash("sha1").update(raw).digest("hex").slice(0, 40);
+  const raw = [v.google_maps_link, v.address, v.primary_locality, v.city, v.hall_name]
+    .map((s) => String(s || "").trim().toLowerCase())
+    .join("|");
+  return KEY_VERSION + crypto.createHash("sha1").update(raw).digest("hex").slice(0, 38);
 }
 
-const COLUMNS = "id, hall_name, address, city, primary_locality, google_maps_link, latitude, longitude, geo_key, geo_checked_at";
+const COLUMNS = "id, hall_name, address, city, primary_locality, google_maps_link, latitude, longitude, geo_source, geo_key, geo_checked_at";
 
+// -> "saved" | "none" | "error" | "skip"
 async function processRow(row) {
   const key = keyFor(row);
   const same = row.geo_key === key;
-  if (same && row.latitude != null) return false;
-  if (same && row.geo_checked_at && Date.now() - new Date(row.geo_checked_at).getTime() < RECHECK_MS) return false;
+  if (same && row.latitude != null && row.geo_source !== "city") return "skip";
+  if (same && row.geo_checked_at && Date.now() - new Date(row.geo_checked_at).getTime() < RECHECK_MS) return "skip";
 
-  const g = await resolveGeo(row);
+  let g;
+  try {
+    g = await resolveGeo(row);
+  } catch (e) {
+    return "error"; // temporary failure: nothing is saved, so the next run tries again
+  }
+
+  // Never replace an exact location with a worse (city-level) one.
+  if (g && g.source === "city" && row.latitude != null && row.geo_source && row.geo_source !== "city") {
+    g = { lat: parseFloat(row.latitude), lng: parseFloat(row.longitude), source: row.geo_source };
+  }
+
   await sequelize.query(
     `UPDATE venues SET latitude = :lat, longitude = :lng, geo_source = :src, geo_key = :key, geo_checked_at = NOW() WHERE id = :id`,
     { replacements: { lat: g ? g.lat : null, lng: g ? g.lng : null, src: g ? g.source : null, key, id: row.id } }
   );
-  return Boolean(g);
+  return g ? "saved" : "none";
 }
 
 let running = false;
 
-// Fills in vendors that have no stored location yet. Safe to call often: one run at a time.
+// Fills in vendors that have no exact location yet. Safe to call often: one run at a time.
 async function backfillMissing(limit = 25, onlyIds = null) {
   if (running) return 0;
   running = true;
-  let done = 0;
+  runNotes = {};
+  const tally = { saved: 0, none: 0, error: 0, skip: 0 };
   try {
-    const byIds = Array.isArray(onlyIds) && onlyIds.length;
+    const byIds = Array.isArray(onlyIds) && onlyIds.length > 0;
     const rows = await sequelize.query(
       `SELECT ${COLUMNS} FROM venues
-        WHERE is_active = true AND latitude IS NULL
-          AND (geo_checked_at IS NULL OR geo_checked_at < NOW() - INTERVAL '3 days')
+        WHERE is_active = true
+          AND (latitude IS NULL OR geo_source = 'city')
+          AND (geo_checked_at IS NULL OR geo_checked_at < NOW() - INTERVAL '12 hours'
+               OR geo_key IS NULL OR geo_key NOT LIKE '2:%')
           ${byIds ? "AND id IN (:ids)" : ""}
         ORDER BY geo_checked_at ASC NULLS FIRST
         LIMIT :limit`,
       { replacements: { limit, ids: byIds ? onlyIds : [null] }, type: QueryTypes.SELECT }
     );
     for (const row of rows) {
-      try { if (await processRow(row)) done += 1; } catch (e) { console.error("[GEO] venue", row.id, e.message); }
+      try { tally[await processRow(row)] += 1; } catch (e) { tally.error += 1; note("save", e); }
     }
+    if (rows.length) console.log("[GEO] run:", JSON.stringify({ ...tally, google_key: Boolean(GOOGLE_KEY), problems: runNotes }));
   } catch (e) {
     console.error("[GEO] backfill failed:", e.message);
   } finally {
     running = false;
   }
-  return done;
+  return tally.saved;
 }
 
 // Called after a vendor saves a new link, address, locality or city.

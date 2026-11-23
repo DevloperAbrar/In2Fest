@@ -200,7 +200,7 @@ export default function MapView({ vendors = [], total, unmapped = 0, truncated =
     if (mappable.length === 0) return undefined;
 
     const group = L.markerClusterGroup
-      ? L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 45, spiderfyOnMaxZoom: true })
+      ? L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 40, disableClusteringAtZoom: 13, spiderfyOnMaxZoom: true })
       : L.layerGroup();
     const bounds = [];
 
