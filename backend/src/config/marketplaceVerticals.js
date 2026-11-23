@@ -80,6 +80,58 @@ const VERTICALS = {
     }
   },
 
+  academy: {
+    key: "academy",
+    label: "Sports Academy",
+    cta_label: "Book a Trial Class",
+    whatsapp_message: "Hi, I found you on In2Fest. I want to know about batches, fees and a trial class.",
+    group_order: ["Academy details", "Coaching & facilities", "Payments"],
+    priceUnits: ["per month", "per quarter", "per year", "per session"],
+    stats: ["starting_price", "attr:academy_type", "year_established", "attr:coaches_count"],
+    labels: {
+      taglinePlaceholder: "e.g. Cricket and football coaching for kids in Raipur",
+      description: "About your academy",
+      achievements: "Awards & certifications",
+      highlights: "Student achievements",
+      highlightsPlaceholder: "Tournaments won, state or national players, selections",
+      services: "Sports & programs",
+      servicesHint: "Add each sport or program you run, for example Cricket coaching, Swimming or Summer camp.",
+      servicesPlaceholder: "Add a sport or program (e.g. Cricket coaching)",
+      price: "Fees from",
+      priceMax: "Highest fee",
+      policy: "Fees, refund & attendance policy",
+      policyHint: "Explain admission fee, monthly fee, missed batches and refunds.",
+      inquiry: "Book a Trial Class",
+      team: "Coaches"
+    }
+  },
+
+  studio: {
+    key: "studio",
+    label: "Classes & Studios",
+    cta_label: "Book a Trial Class",
+    whatsapp_message: "Hi, I found you on In2Fest. I want to know about classes, timings, fees and a trial class.",
+    group_order: ["Studio details", "Classes & facilities", "Payments"],
+    priceUnits: ["per month", "per quarter", "per year", "per session"],
+    stats: ["starting_price", "attr:studio_format", "year_established", "attr:instructors_count"],
+    labels: {
+      taglinePlaceholder: "e.g. Bollywood and classical dance classes for all ages in Raipur",
+      description: "About your studio",
+      achievements: "Awards & certifications",
+      highlights: "Student showcase",
+      highlightsPlaceholder: "Annual day performances, grade exam results, competitions won",
+      services: "Classes & courses",
+      servicesHint: "Add each class you teach, for example Hip-hop, Hindustani vocals or Karate. Add the monthly fee if it helps.",
+      servicesPlaceholder: "Add a class (e.g. Bharatnatyam)",
+      price: "Fees from",
+      priceMax: "Highest fee",
+      policy: "Fees, refund & makeup class policy",
+      policyHint: "Explain admission fee, class packs, missed classes and refunds.",
+      inquiry: "Book a Trial Class",
+      team: "Instructors"
+    }
+  },
+
   general: {
     key: "general",
     label: "Business",
@@ -94,9 +146,11 @@ const GYM_SLUGS = ["gym-fitness"];
 const LIBRARY_SLUGS = ["study-library"];
 const TYPE_TO_VERTICAL = { events: "events", retail: "shops", food: "food", library: "library" };
 
-function getVertical(categorySlug, businessTypeKey) {
+// segmentKey (optional): "academy" | "studio" when Super Admin gave the category that functionality.
+function getVertical(categorySlug, businessTypeKey, segmentKey) {
   if (GYM_SLUGS.includes(categorySlug)) return VERTICALS.gym;
   if (LIBRARY_SLUGS.includes(categorySlug)) return VERTICALS.library;
+  if (segmentKey === "academy" || segmentKey === "studio") return VERTICALS[segmentKey];
   const key = TYPE_TO_VERTICAL[businessTypeKey];
   return VERTICALS[key] || VERTICALS.general;
 }
@@ -131,6 +185,15 @@ function getCardTags(vertical, attrs = {}) {
       if (list(attrs.facilities).includes("AC")) tags.push("AC");
       if (attrs.open_24x7) tags.push("Open 24x7");
       else if (attrs.trial_day) tags.push("Free trial day");
+      break;
+    case "academy":
+      list(attrs.sports_offered).slice(0, 2).forEach((s) => tags.push(s));
+      if (attrs.trial_class) tags.push("Free trial");
+      break;
+    case "studio":
+      list(attrs.class_types).slice(0, 2).forEach((s) => tags.push(s));
+      if (attrs.trial_class) tags.push("Free trial");
+      else if (list(attrs.studio_format).includes("Online")) tags.push("Online");
       break;
     default:
       break;

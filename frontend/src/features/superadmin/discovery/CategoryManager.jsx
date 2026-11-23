@@ -23,19 +23,32 @@ const EMPTY_FORM = {
   max_secondary_categories: 2
 };
 
-// What a vendor in this category sees after login. "Auto" keeps the old behaviour
-// (decided by the business type).
-const FUNCTIONALITY_OPTIONS = [
-  { value: "", label: "Auto (from business type)" },
-  { value: "gym", label: "Gym & Fitness" },
-  { value: "academy", label: "Sports Academy" },
-  { value: "studio", label: "Classes & Studios" },
-  { value: "library", label: "Library & Study Rooms" },
-  { value: "shop", label: "Shops & Retail" },
-  { value: "food", label: "Restaurants & Food" },
-  { value: "events", label: "Events & Celebrations" },
-  { value: "none", label: "None (basic profile only)" }
+// One choice for the Super Admin. Each kind sets BOTH the functionality (what the vendor sees after
+// login) and the business type (invoice wording and home page group). "none" = basic profile only.
+const CATEGORY_KINDS = [
+  { value: "gym", label: "Gym & Fitness", business_type: "health_wellness", segment: "gym" },
+  { value: "academy", label: "Sports Academy (cricket, football, badminton, swimming...)", business_type: "education", segment: "academy" },
+  { value: "studio", label: "Classes & Studios (dance, music, art, yoga, martial arts)", business_type: "education", segment: "studio" },
+  { value: "library", label: "Library & Study Rooms", business_type: "library", segment: "library" },
+  { value: "shop", label: "Shops & Retail", business_type: "retail", segment: "shop" },
+  { value: "food", label: "Restaurants & Food", business_type: "food", segment: "food" },
+  { value: "events", label: "Events & Celebrations", business_type: "events", segment: "events" },
+  { value: "coaching", label: "Coaching, Schools & Training (basic profile)", business_type: "education", segment: "none" },
+  { value: "wellness", label: "Salon, Clinic & Wellness (basic profile)", business_type: "health_wellness", segment: "none" },
+  { value: "professional", label: "Professional Services (basic profile)", business_type: "professional", segment: "none" },
+  { value: "home", label: "Home & Repair Services (basic profile)", business_type: "home_services", segment: "none" },
+  { value: "other", label: "Other Business (basic profile)", business_type: "general", segment: "none" }
 ];
+const KIND_OPTIONS = CATEGORY_KINDS.map((k) => ({ value: k.value, label: k.label }));
+
+// Works out which kind a category currently is (used to show the dropdown value).
+function kindOf(segment, businessType) {
+  const bySegment = segment && segment !== "none" ? CATEGORY_KINDS.find((k) => k.segment === segment) : null;
+  if (bySegment) return bySegment.value;
+  const basic = CATEGORY_KINDS.find((k) => k.segment === "none" && k.business_type === businessType);
+  const any = CATEGORY_KINDS.find((k) => k.business_type === businessType);
+  return (basic || any || CATEGORY_KINDS[CATEGORY_KINDS.length - 1]).value;
+}
 
 const MAX_IMAGE_MB = 5;
 
@@ -236,13 +249,22 @@ export default function CategoryManager() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <Select
-              label="Business type"
-              options={businessTypeOptions}
-              value={form.business_type}
-              onChange={(e) => set("business_type", e.target.value)}
+              label="Category type *"
+              options={KIND_OPTIONS}
+              value={kindOf(form.segment, form.business_type)}
+              onChange={(e) => {
+                const kind = CATEGORY_KINDS.find((k) => k.value === e.target.value);
+                if (!kind) return;
+                setForm((f) => ({
+                  ...f,
+                  business_type: kind.business_type,
+                  segment: kind.segment,
+                  ...(kind.value === "academy" || kind.value === "studio" ? { max_secondary_categories: 0 } : {})
+                }));
+              }}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Also decides which group this category appears under on the home page.
+              Decides the vendor menu, tools, website sections and marketplace form. Pick Sports Academy or Classes & Studios for those businesses.
             </p>
           </div>
           <div className="md:col-span-2">
@@ -256,15 +278,20 @@ export default function CategoryManager() {
           </div>
         </div>
         <div className="mb-4 max-w-sm">
-          <Select
-            label="Functionality (what the vendor sees after login)"
-            options={FUNCTIONALITY_OPTIONS}
-            value={form.segment}
-            onChange={(e) => set("segment", e.target.value)}
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            Auto follows the business type. Choose Sports Academy or Classes & Studios for those businesses.
-          </p>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-gray-500">Advanced: invoice wording and home page group</summary>
+            <div className="mt-2">
+              <Select
+                label="Business type"
+                options={businessTypeOptions}
+                value={form.business_type}
+                onChange={(e) => set("business_type", e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Filled in automatically from Category type. Change it only if you need different invoice wording or a different home page group.
+              </p>
+            </div>
+          </details>
         </div>
         <div className="mb-4 max-w-sm">
           <Input
@@ -412,25 +439,33 @@ export default function CategoryManager() {
             />
             <div>
               <Select
-                label="Business type"
-                options={businessTypeOptions}
-                value={editTarget.business_type}
-                onChange={(e) => setEditTarget({ ...editTarget, business_type: e.target.value })}
+                label="Category type"
+                options={KIND_OPTIONS}
+                value={kindOf(editTarget.segment, editTarget.business_type)}
+                onChange={(e) => {
+                  const kind = CATEGORY_KINDS.find((k) => k.value === e.target.value);
+                  if (kind) setEditTarget({ ...editTarget, business_type: kind.business_type, segment: kind.segment });
+                }}
               />
               <p className="text-xs text-gray-400 mt-1">
-                Changing this updates the profile questions, billing setup and home page group for every vendor in this category.
+                Changing this changes the menu, tools, website sections, marketplace form and invoice wording of every vendor in this category.
               </p>
             </div>
             <div>
-              <Select
-                label="Functionality (what the vendor sees after login)"
-                options={FUNCTIONALITY_OPTIONS}
-                value={editTarget.segment}
-                onChange={(e) => setEditTarget({ ...editTarget, segment: e.target.value })}
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Changing this changes the menu and tools of every vendor in this category.
-              </p>
+              <details className="text-sm">
+                <summary className="cursor-pointer text-gray-500">Advanced: invoice wording and home page group</summary>
+                <div className="mt-2">
+                  <Select
+                    label="Business type"
+                    options={businessTypeOptions}
+                    value={editTarget.business_type}
+                    onChange={(e) => setEditTarget({ ...editTarget, business_type: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Changing this updates invoice wording and the home page group for every vendor in this category.
+                  </p>
+                </div>
+              </details>
             </div>
             <div>
               <Input

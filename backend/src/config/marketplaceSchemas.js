@@ -13,6 +13,7 @@ const { AppError } = require("../middleware/error.middleware");
 const { getVertical } = require("./marketplaceVerticals");
 const { EXTRA_ATTRIBUTES, cleanCatalog } = require("./marketplaceExtras");
 const taxonomy = require("./otherBusinessTaxonomy");
+const { segmentForCategory } = require("./vendorSegments");
 
 /* ------------------------------------------------------------------ */
 /* Field helpers                                                        */
@@ -705,6 +706,66 @@ const TYPE_PROFILES = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Sports Academy and Classes & Studios                                 */
+/* ------------------------------------------------------------------ */
+// Used only for categories Super Admin gave the Sports Academy or Classes & Studios functionality
+// AND that have no built-in form of their own. Built-in categories are never affected.
+const AGE_GROUPS = ["Under 8", "8 to 12 years", "13 to 17 years", "Adults (18+)"];
+const LEVELS = ["Beginner", "Intermediate", "Advanced / competitive"];
+
+const SEGMENT_ATTRIBUTES = {
+  academy: [
+    multi("sports_offered", "Sports coached", [
+      "Cricket", "Football", "Badminton", "Swimming", "Tennis", "Basketball", "Table tennis",
+      "Skating", "Athletics", "Kabaddi", "Volleyball", "Boxing", "Other"
+    ], { group: "Academy details", required: true, filterable: true }),
+    sel("academy_type", "Who can join", ["Co-ed", "Boys only", "Girls only"], { group: "Academy details", filterable: true }),
+    multi("age_groups", "Age groups", AGE_GROUPS, { group: "Academy details", filterable: true }),
+    multi("training_levels", "Training levels", LEVELS, { group: "Academy details" }),
+    num("coaches_count", "Number of coaches", { group: "Academy details", min: 0, max: 200 }),
+    text("batch_timings", "Batch timings", { group: "Academy details", placeholder: "e.g. Morning 6 to 8 AM, Evening 4 to 7 PM" }),
+    bool("trial_class", "Free trial class", { group: "Academy details", filterable: true }),
+    bool("certified_coaches", "Certified or national-level coaches", { group: "Coaching & facilities", filterable: true }),
+    bool("tournaments", "Takes part in tournaments", { group: "Coaching & facilities" }),
+    bool("progress_reports", "Progress reports for parents", { group: "Coaching & facilities" }),
+    multi("facilities", "Facilities", [
+      "Outdoor ground", "Turf wicket", "Nets / practice pitch", "Floodlights", "Indoor court", "Swimming pool",
+      "Gym / fitness room", "Equipment provided", "Changing room", "Drinking water", "First-aid", "Parking"
+    ], { group: "Coaching & facilities", filterable: true })
+  ],
+  studio: [
+    multi("class_types", "Classes taught", [
+      "Dance", "Music", "Art & craft", "Yoga", "Martial arts", "Zumba", "Pilates", "Other"
+    ], { group: "Studio details", required: true, filterable: true }),
+    multi("studio_format", "Class format", ["Offline (at studio)", "Online", "Home visits"], { group: "Studio details", filterable: true }),
+    multi("age_groups", "Age groups", AGE_GROUPS, { group: "Studio details", filterable: true }),
+    multi("training_levels", "Levels", LEVELS, { group: "Studio details" }),
+    num("instructors_count", "Number of instructors", { group: "Studio details", min: 0, max: 200 }),
+    text("batch_timings", "Class timings", { group: "Studio details", placeholder: "e.g. Weekdays 5 to 8 PM, Sunday 10 AM" }),
+    bool("trial_class", "Free trial class", { group: "Studio details", filterable: true }),
+    bool("one_to_one", "1:1 classes available", { group: "Classes & facilities" }),
+    bool("workshops", "Workshops or camps", { group: "Classes & facilities" }),
+    bool("performances", "Annual day, recitals or grade exams", { group: "Classes & facilities" }),
+    multi("facilities", "Facilities", [
+      "AC", "Mirrors", "Sound system", "Mats provided", "Instruments provided",
+      "Changing room", "Locker", "Washroom", "Drinking water", "Parking"
+    ], { group: "Classes & facilities", filterable: true })
+  ]
+};
+
+const SEGMENT_SUGGESTIONS = {
+  academy: ["Cricket coaching", "Football coaching", "Badminton coaching", "Swimming lessons", "Summer camp"],
+  studio: ["Dance classes", "Vocal music", "Guitar lessons", "Yoga classes", "Karate classes"]
+};
+
+// "academy" | "studio" for categories that use these forms, otherwise null.
+function segmentKeyFor(slug) {
+  if (!slug || CATEGORY_ATTRIBUTES[slug]) return null;
+  const seg = segmentForCategory(slug);
+  return seg && (seg.key === "academy" || seg.key === "studio") ? seg.key : null;
+}
+
+/* ------------------------------------------------------------------ */
 /* Schema builder                                                       */
 /* ------------------------------------------------------------------ */
 function getProfileSchema(categorySlug, secondarySlugs = []) {
@@ -717,7 +778,8 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
   const type = BUSINESS_TYPES[typeKey] || BUSINESS_TYPES.general;
   const override = TYPE_PROFILES[typeKey] || {};
 
-  const vertical = getVertical(slug, typeKey);
+  const segKey = segmentKeyFor(slug);
+  const vertical = getVertical(slug, typeKey, segKey);
   const labels = { ...BASE_PROFILE.labels, ...(override.labels || {}), ...(vertical.labels || {}) };
 
   // Attributes: primary category first, then secondary categories, then universal ones.
@@ -732,7 +794,7 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
     });
   };
   const forSlug = (s) => [
-    ...(CATEGORY_ATTRIBUTES[s] || TYPE_ATTRIBUTES[getBusinessTypeKey(s)] || []),
+    ...(CATEGORY_ATTRIBUTES[s] || SEGMENT_ATTRIBUTES[segmentKeyFor(s)] || TYPE_ATTRIBUTES[getBusinessTypeKey(s)] || []),
     ...(EXTRA_ATTRIBUTES[s] || [])
   ];
 
@@ -744,7 +806,7 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
 
   // General businesses (Other Business and any category added with the General type) get a list
   // of business types to pick from, plus quick-add services per type.
-  const isGeneralType = typeKey === "general";
+  const isGeneralType = typeKey === "general" && !segKey;
   if (isGeneralType) {
     attributes.forEach((a) => {
       if (a.suggestionsFrom === "taxonomy") a.suggestions = taxonomy.TYPES.map((t) => t.label);
@@ -768,7 +830,7 @@ function getProfileSchema(categorySlug, secondarySlugs = []) {
     required: requiredColumns,
     labels,
     price_units: units(vertical.priceUnits || override.priceUnits || BASE_PROFILE.priceUnits),
-    services_suggestions: CATEGORY_SUGGESTIONS[slug] || override.servicesSuggestions || BASE_PROFILE.servicesSuggestions,
+    services_suggestions: CATEGORY_SUGGESTIONS[slug] || SEGMENT_SUGGESTIONS[segKey] || override.servicesSuggestions || BASE_PROFILE.servicesSuggestions,
     stats: vertical.stats || override.stats || BASE_PROFILE.stats,
     features: { availability: getBusinessProfile(slug, secondary).modules.includes("slots") },
     attributes,
@@ -871,4 +933,4 @@ function isAttributeFilled(value) {
   return true;
 }
 
-module.exports = { getProfileSchema, sanitizeProfileAttributes, isAttributeFilled };
+module.exports = { getProfileSchema, sanitizeProfileAttributes, isAttributeFilled, marketplaceSegmentKey: segmentKeyFor };

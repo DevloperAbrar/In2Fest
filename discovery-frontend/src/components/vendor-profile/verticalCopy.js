@@ -8,6 +8,18 @@ const COPY = {
     types: ["Visit the gym", "Membership enquiry", "Personal training", "Group classes"],
     countLabel: "People joining"
   },
+  academy: {
+    dateLabel: "Preferred trial date",
+    typeLabel: "I am interested in",
+    types: ["Free trial class", "Fees & batch timings", "Admission enquiry", "Coaching details", "General enquiry"],
+    countLabel: "Number of students"
+  },
+  studio: {
+    dateLabel: "Preferred trial date",
+    typeLabel: "I am interested in",
+    types: ["Free trial class", "Class timings & fees", "Admission enquiry", "Workshop / event", "General enquiry"],
+    countLabel: "Number of students"
+  },
   food: {
     dateLabel: "Date",
     typeLabel: "Request type",

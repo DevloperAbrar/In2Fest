@@ -213,7 +213,11 @@ function vendorSummary(venue, cityRow, matchedCategory) {
     business_type_slugs: types.map((t) => t.slug),
     business_type_label: types.length ? types[0].label : null,
     card_tags: getCardTags(
-      getVertical(venue.business_category, getBusinessTypeKey(venue.business_category)),
+      getVertical(
+        venue.business_category,
+        getBusinessTypeKey(venue.business_category),
+        require("../../config/marketplaceSchemas").marketplaceSegmentKey(venue.business_category)
+      ),
       venue.profile_attributes || {}
     ),
     google_maps_link: link,
