@@ -85,6 +85,11 @@ function memberFields(b, creating) {
   if (b.weight !== undefined) o.weight = String(b.weight || "").trim().slice(0, 30) || null;
   if (b.height !== undefined) o.height = String(b.height || "").trim().slice(0, 30) || null;
   if (b.address !== undefined) o.address = String(b.address || "").trim().slice(0, 300) || null;
+  if (b.leave_reason !== undefined) {
+    const reason = String(b.leave_reason || "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim().slice(0, 200);
+    o.leave_reason = reason || null;
+    o.leave_reason_at = reason ? new Date() : null;
+  }
   if (b.photo_url !== undefined) {
     const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
     o.photo_url = b.photo_url && base && String(b.photo_url).startsWith(`${base}/`) ? b.photo_url : null;
@@ -215,6 +220,8 @@ async function applyMembershipPeriod(tx, member, input) {
   await ms.update({ start_date: start, end_date: end }, { transaction: tx });
   const patch = { start_date: start, end_date: end, status: end < U.todayIST() ? "expired" : "active" };
   if (member.joined_on === oldStart) patch.joined_on = start; // first membership: the joining date follows it
+  if (end >= U.todayIST()) { patch.leave_reason = null; patch.leave_reason_at = null; } // running again: old reason no longer applies
+  if (end >= U.todayIST()) { patch.leave_reason = null; patch.leave_reason_at = null; } // running again: old reason no longer applies
   await member.update(patch, { transaction: tx });
 }
 
@@ -448,10 +455,10 @@ async function exportMembers(venueId, q) {
   };
   // text fields: neutralise spreadsheet formulas ( =, +, -, @ at the start )
   const text = (v) => cell(/^[=+\-@\t\r]/.test(String(v ?? "")) ? `'${v}` : v);
-  const head = ["Member ID", "Name", "Mobile", "Plan", "Start date", "End date", "Days left", "Status", "Balance due", "Total paid", "Goal", "Trainer"];
+  const head = ["Member ID", "Name", "Mobile", "Plan", "Start date", "End date", "Days left", "Status", "Balance due", "Total paid", "Goal", "Trainer", "Reason for not continuing"];
   const lines = rows.map((m) => [
     text(m.member_code), text(m.name), cell(m.phone), text(m.plan_name), cell(m.start_date), cell(m.end_date), cell(m.days_left),
-    cell(m.display_status), cell(m.balance_due), cell(m.total_paid), text(m.goal), text(m.trainer_name)
+    cell(m.display_status), cell(m.balance_due), cell(m.total_paid), text(m.goal), text(m.trainer_name), text(m.leave_reason)
   ].join(","));
   return `\uFEFF${[head.join(","), ...lines].join("\r\n")}`; // BOM so Excel reads it as UTF-8
 }

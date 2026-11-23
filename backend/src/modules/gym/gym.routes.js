@@ -175,6 +175,8 @@ router.delete("/shifts/:id", ownerOnly, h((req) => shifts.remove(req.gymVenue.id
 
 // payments
 router.get("/payments", h((req) => payments.listPayments(req.gymVenue.id, req.query)));
+router.get("/payments/redate-preview", ownerOnly, h((req) => payments.redateToMembershipMonth(ctx(req), { apply: false })));
+router.post("/payments/redate", ownerOnly, blockInDemo("Re-dating payments"), h((req) => payments.redateToMembershipMonth(ctx(req), { apply: true })));
 router.get("/payments/:id/receipt", async (req, res, next) => {
   try { await receipt.receiptPdf(ctx(req), req.params.id, res); } catch (e) { next(e); }
 });

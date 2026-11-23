@@ -56,6 +56,8 @@ export const gymService = {
   cancelPayment: (v, id) => api.post(`${b(v)}/payments/${id}/cancel`),
   refreshPayment: (v, id) => api.post(`${b(v)}/payments/${id}/refresh`),
   editPayment: (v, id, body) => api.patch(`${b(v)}/payments/${id}`, body),
+  redatePreview: (v) => api.get(`${b(v)}/payments/redate-preview`),
+  redateApply: (v) => api.post(`${b(v)}/payments/redate`),
   receiptPdf: (v, id) => api.get(`${b(v)}/payments/${id}/receipt`, { responseType: "blob" }),
   memberCard: (v, id) => api.get(`${b(v)}/members/${id}/card`, { responseType: "blob" }),
 

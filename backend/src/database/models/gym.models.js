@@ -74,7 +74,10 @@ module.exports = (sequelize, DataTypes) => {
         balance_due: amount(),
         total_paid: amount(),
         portal_token: { type: STRING(40), allowNull: false },
-        is_archived: { type: BOOLEAN, allowNull: false, defaultValue: false }
+        is_archived: { type: BOOLEAN, allowNull: false, defaultValue: false },
+        // Why the member did not continue (typed by the vendor). Cleared automatically on renewal.
+        leave_reason: STRING(200),
+        leave_reason_at: DATE
     }, {
         tableName: "gym_members",
         indexes: [

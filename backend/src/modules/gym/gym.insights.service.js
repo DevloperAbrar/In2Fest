@@ -79,17 +79,51 @@ async function dashboard(venueId) {
   );
 
   const from = U.addMonths(monthStart, -5);
+  const monthEnd = U.addDays(U.addMonths(monthStart, 1), -1);
+
+  // Money: counted in the month it was received (paid_on).
   const rev = await q(
     `SELECT to_char(p.paid_on, 'YYYY-MM') AS month, COALESCE(ms.kind, 'other') AS kind, SUM(p.amount)::float AS total
      FROM gym_payments p LEFT JOIN gym_memberships ms ON ms.id = p.membership_id
      WHERE p.venue_id = :v AND p.status = 'paid' AND p.paid_on >= :from GROUP BY 1, 2`,
     { from }
   );
+  // Members: counted in the month the membership STARTS, so old / back-dated members land in the right month.
+  const moves = await q(
+    `SELECT to_char(ms.start_date, 'YYYY-MM') AS month, ms.kind, COUNT(DISTINCT ms.member_id)::int AS n
+     FROM gym_memberships ms
+     JOIN gym_members gm ON gm.id = ms.member_id AND gm.is_archived = false
+     WHERE ms.venue_id = :v AND ms.status = 'active' AND ms.start_date BETWEEN :from AND :monthEnd
+     GROUP BY 1, 2`,
+    { from, monthEnd }
+  );
+  // Members who had a running membership on at least one day of each month.
+  const running = await q(
+    `SELECT to_char(m.month_start, 'YYYY-MM') AS month, COUNT(DISTINCT ms.member_id)::int AS n
+     FROM generate_series(CAST(:from AS date), CAST(:monthStart AS date), interval '1 month') AS m(month_start)
+     JOIN gym_memberships ms ON ms.venue_id = :v AND ms.status = 'active'
+       AND ms.start_date <= CAST(m.month_start + interval '1 month' - interval '1 day' AS date)
+       AND ms.end_date >= CAST(m.month_start AS date)
+     JOIN gym_members gm ON gm.id = ms.member_id AND gm.is_archived = false
+     GROUP BY 1`,
+    { from, monthStart }
+  );
+
   const series = [];
-  for (let i = 5; i >= 0; i--) series.push({ month: U.addMonths(monthStart, -i).slice(0, 7), new: 0, renewal: 0, other: 0 });
+  for (let i = 5; i >= 0; i--) series.push({ month: U.addMonths(monthStart, -i).slice(0, 7), new: 0, renewal: 0, other: 0, joined: 0, renewed: 0, active: 0 });
   rev.forEach((r) => {
     const s = series.find((x) => x.month === r.month);
     if (s) s[r.kind === "new" ? "new" : r.kind === "renewal" ? "renewal" : "other"] += r.total;
+  });
+  moves.forEach((r) => {
+    const s = series.find((x) => x.month === r.month);
+    if (!s) return;
+    if (r.kind === "new") s.joined += r.n;
+    else if (r.kind === "renewal") s.renewed += r.n;
+  });
+  running.forEach((r) => {
+    const s = series.find((x) => x.month === r.month);
+    if (s) s.active = r.n;
   });
   const sum = (s) => s.new + s.renewal + s.other;
 

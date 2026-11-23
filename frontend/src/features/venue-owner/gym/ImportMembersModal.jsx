@@ -72,7 +72,7 @@ export default function ImportMembersModal({ vid, onClose, onDone }) {
   const [map, setMap] = useState({});
   const [dateFmt, setDateFmt] = useState("dmy");
   const [planMap, setPlanMap] = useState({});
-  const [opts, setOpts] = useState({ on_duplicate: "skip", import_payments: false });
+  const [opts, setOpts] = useState({ on_duplicate: "skip", import_payments: true });
   const [built, setBuilt] = useState([]);
   const [checked, setChecked] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -265,7 +265,7 @@ export default function ImportMembersModal({ vid, onClose, onDone }) {
             <input type="checkbox" className="mt-1" checked={opts.import_payments} onChange={(e) => setOpts((s) => ({ ...s, import_payments: e.target.checked }))} />
             <span>
               Also bring over the <b>amount already paid</b> as payment history
-              <span className="block text-xs text-gray-500">Off (recommended): only pending dues are imported, so your collection reports start fresh. On: the paid amount counts as collection in the month the plan started.</span>
+              <span className="block text-xs text-gray-500">On (recommended): the paid amount counts as collection in the month the plan started, so your month-wise report is correct. Off: only pending dues are imported and collection reports start fresh.</span>
             </span>
           </label>
 

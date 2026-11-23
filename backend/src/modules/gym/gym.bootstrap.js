@@ -36,6 +36,13 @@ async function ensureGymSchema() {
        ADD COLUMN IF NOT EXISTS parent_name VARCHAR(100)`
   );
 
+  // "Why did this member not continue" note. Safe to run on every start.
+  await models.sequelize.query(
+    `ALTER TABLE gym_members
+       ADD COLUMN IF NOT EXISTS leave_reason VARCHAR(200),
+       ADD COLUMN IF NOT EXISTS leave_reason_at TIMESTAMPTZ`
+  );
+
   // How new member IDs are generated ("sequence" or "random"). Existing gyms keep the sequence.
   // Safe to run on every start.
   await models.sequelize.query(

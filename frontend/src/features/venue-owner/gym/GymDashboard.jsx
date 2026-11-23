@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useVenue } from "../../../context/VenueContext.jsx";
+import { useAuth } from "../../../context/AuthContext";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
 import Button from "../../../components/common/Button";
@@ -15,6 +16,8 @@ import { ShiftOverviewCard } from "./GymShifts.jsx";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { GymPage, StatusPill, inr, fmtDate, errMsg, downloadBlob } from "./gymShared.jsx";
 import { useGymVariant } from "./gymVariant.js";
+import { ReasonLine, ReasonModal } from "./LeaveReason.jsx";
+import RedateCollectionsModal from "./RedateCollectionsModal.jsx";
 import {
   AnimatedNumber, EmptyState, GymSkeleton, InitialsAvatar, ProgressRing, SectionTitle,
   Sparkline, StatTile, Surface, TONES, fadeUp, stagger
@@ -29,12 +32,21 @@ const SERIES = [
 const compact = (v) => (v >= 100000 ? `${Math.round(v / 1000) / 100}L` : v >= 1000 ? `${Math.round(v / 100) / 10}k` : `${v}`);
 const monthTotal = (s) => (Number(s.new) || 0) + (Number(s.renewal) || 0) + (Number(s.other) || 0);
 
+function fmtMonth(ym) {
+  const d = dayjs(`${ym}-01`);
+  return d.isValid() ? d.format("MMM YYYY") : ym;
+}
+function fmtMonthShort(ym) {
+  const d = dayjs(`${ym}-01`);
+  return d.isValid() ? d.format("MMM YY") : ym;
+}
+
 function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((sum, p) => sum + (Number(p.value) || 0), 0);
   return (
     <div className="rounded-xl bg-navy-900 text-white px-3 py-2.5 shadow-card min-w-[150px]">
-      <p className="text-[11px] text-white/60">{label}</p>
+      <p className="text-[11px] text-white/60">{fmtMonth(label)}</p>
       <p className="font-display font-semibold text-sm tabular-nums mb-1.5">{inr(total)}</p>
       {payload.map((p) => (
         <p key={p.dataKey} className="flex items-center justify-between gap-3 text-[11px] text-white/80">
@@ -190,26 +202,33 @@ function MemberHealth({ c }) {
   );
 }
 
-function PersonRow({ to, name, sub, right }) {
+function PersonRow({ to, name, sub, right, footer }) {
   return (
-    <Link to={to} className="tap-scale flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-navy-50/70 transition-colors">
-      <InitialsAvatar name={name} />
-      <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-medium text-navy-900 truncate">{name}</p>
-        <p className="text-xs text-navy-400 mt-0.5 truncate">{sub}</p>
-      </div>
-      <div className="shrink-0">{right}</div>
-      <ChevronRight size={16} className="text-navy-300 shrink-0 hidden sm:block" />
-    </Link>
+    <div>
+      <Link to={to} className="tap-scale flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-navy-50/70 transition-colors">
+        <InitialsAvatar name={name} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13.5px] font-medium text-navy-900 truncate">{name}</p>
+          <p className="text-xs text-navy-400 mt-0.5 truncate">{sub}</p>
+        </div>
+        <div className="shrink-0">{right}</div>
+        <ChevronRight size={16} className="text-navy-300 shrink-0 hidden sm:block" />
+      </Link>
+      {footer && <div className="px-2 pb-2.5 pl-[3.4rem]">{footer}</div>}
+    </div>
   );
 }
 
 export default function GymDashboard() {
   const { venue } = useVenue();
   const { terms } = useGymVariant();
+  const { user } = useAuth();
+  const isOwner = user?.role !== "team_member";
   const vid = venue?.id;
   const { data: d, loading, refetch } = useFetch(vid ? `/venues/${vid}/gym/dashboard` : null, { skip: !vid });
   const [busy, setBusy] = useState(null);
+  const [reasonFor, setReasonFor] = useState(null);
+  const [fixing, setFixing] = useState(false);
 
   const run = async (key, fn, ok) => {
     setBusy(key);
@@ -339,7 +358,7 @@ export default function GymDashboard() {
           <Surface className="p-4 md:p-5">
             <SectionTitle
               title="Collections"
-              hint="Last 6 months"
+              hint="Last 6 months, by payment date"
               action={<p className="font-display font-bold text-lg text-navy-900 tabular-nums">{inr(chartTotal)}</p>}
             />
             {/* Mobile: this month's split in three small cards */}
@@ -359,7 +378,7 @@ export default function GymDashboard() {
                 ))}
               </div>
             </div>
-            {/* Desktop / tablet legend (unchanged) */}
+            {/* Desktop / tablet legend */}
             <div className="hidden md:flex flex-wrap gap-x-4 gap-y-1 mb-2">
               {SERIES.map((s) => (
                 <span key={s.key} className="inline-flex items-center gap-1.5 text-[11.5px] text-navy-500">
@@ -372,7 +391,7 @@ export default function GymDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={series} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap="28%">
                   <CartesianGrid vertical={false} stroke="#e3e5ec" strokeDasharray="3 5" />
-                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#6d7591" }} dy={6} />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#6d7591" }} dy={6} tickFormatter={fmtMonthShort} />
                   <YAxis tickLine={false} axisLine={false} width={40} tick={{ fontSize: 11, fill: "#6d7591" }} tickFormatter={compact} domain={[0, maxY]} />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f3f4f8" }} />
                   <Bar dataKey="new" name="New joinings" stackId="a" fill="#10b981" animationDuration={900} />
@@ -386,6 +405,46 @@ export default function GymDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Month-wise summary: money, and how many members were running / joined / renewed */}
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[520px] text-[12.5px]">
+                <thead>
+                  <tr className="text-left text-[11px] text-navy-400 border-b border-navy-100/70">
+                    <th className="py-2 pr-2 font-medium">Month</th>
+                    <th className="py-2 px-2 font-medium text-right">Collection</th>
+                    <th className="py-2 px-2 font-medium text-right">Active members</th>
+                    <th className="py-2 px-2 font-medium text-right">New joined</th>
+                    <th className="py-2 pl-2 font-medium text-right">Renewed</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-navy-100/50">
+                  {[...series].reverse().map((s) => (
+                    <tr key={s.month}>
+                      <td className="py-2 pr-2 font-medium text-navy-800">{fmtMonth(s.month)}</td>
+                      <td className="py-2 px-2 text-right font-semibold text-navy-900 tabular-nums">{inr(monthTotal(s))}</td>
+                      <td className="py-2 px-2 text-right text-navy-700 tabular-nums">{s.active || 0}</td>
+                      <td className="py-2 px-2 text-right tabular-nums">
+                        <span className="text-navy-800">{s.joined || 0}</span>
+                        <span className="block text-[10.5px] text-navy-400">{inr(s.new)}</span>
+                      </td>
+                      <td className="py-2 pl-2 text-right tabular-nums">
+                        <span className="text-navy-800">{s.renewed || 0}</span>
+                        <span className="block text-[10.5px] text-navy-400">{inr(s.renewal)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-[11px] text-navy-400 leading-snug">
+              Collection is counted in the month the payment was received. Member counts follow the membership start date.
+            </p>
+            {isOwner && (
+              <button type="button" onClick={() => setFixing(true)} className="mt-2 text-[12px] font-semibold text-primary-600 hover:underline">
+                Old members showing in the wrong month? Fix collection months
+              </button>
+            )}
           </Surface>
         </motion.div>
 
@@ -408,8 +467,9 @@ export default function GymDashboard() {
                     key={m.id}
                     to={`/dashboard/gym/members/${m.id}`}
                     name={m.name}
-                    sub={`${m.plan_name} · ${fmtDate(m.end_date)}`}
+                    sub={`${m.member_code} · ${m.phone} · ${m.plan_name} · ${fmtDate(m.end_date)}`}
                     right={<StatusPill status={m.display_status} daysLeft={m.days_left} />}
+                    footer={<ReasonLine member={m} onOpen={setReasonFor} />}
                   />
                 ))}
               </div>
@@ -443,6 +503,9 @@ export default function GymDashboard() {
           </Surface>
         </motion.div>
       </motion.div>
+
+      <ReasonModal vid={vid} member={reasonFor} onClose={() => setReasonFor(null)} onSaved={refetch} />
+      {fixing && <RedateCollectionsModal vid={vid} onClose={() => setFixing(false)} onDone={refetch} />}
     </GymPage>
   );
 }

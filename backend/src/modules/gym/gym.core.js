@@ -79,11 +79,17 @@ async function createMembership(tx, { venueId, member, plan, kind, start, includ
 
 async function syncMemberFromMembership(tx, member, ms) {
   const today = U.todayIST();
-  await member.update({
+  const patch = {
     plan_id: ms.plan_id, plan_name: ms.plan_name, has_pt: ms.has_pt,
     start_date: ms.start_date, end_date: ms.end_date, joined_on: member.joined_on || ms.start_date,
     status: member.status === "frozen" ? "frozen" : ms.end_date < today ? "expired" : "active"
-  }, { transaction: tx });
+  };
+  // The member is running again, so the old "why they left" note no longer applies.
+  if (ms.end_date >= today) {
+    patch.leave_reason = null;
+    patch.leave_reason_at = null;
+  }
+  await member.update(patch, { transaction: tx });
 }
 
 // Single source of truth for money fields on memberships and members.

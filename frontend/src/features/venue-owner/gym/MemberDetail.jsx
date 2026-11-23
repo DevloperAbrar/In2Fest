@@ -30,18 +30,25 @@ import {
 function RenewModal({ isOpen, onClose, vid, member, onDone }) {
   const { data: plans } = useFetch(isOpen ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen });
   const [f, setF] = useState({ plan_id: "", start_date: "", include_pt: false, extra_discount: "", pay_amount: "", pay_mode: "cash" });
+  const [payDate, setPayDate] = useState(""); // empty = follow a back-dated start date, otherwise today
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (isOpen) setF((s) => ({ ...s, plan_id: member.plan_id || "", include_pt: !!member.has_pt })); }, [isOpen, member]);
+  useEffect(() => {
+    if (isOpen) {
+      setF((s) => ({ ...s, plan_id: member.plan_id || "", include_pt: !!member.has_pt }));
+      setPayDate("");
+    }
+  }, [isOpen, member]);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const plan = (plans || []).find((p) => p.id === f.plan_id);
   const total = plan ? Math.max(+plan.price - (+plan.price * (+plan.discount_percent || 0)) / 100 - (+f.extra_discount || 0) + (f.include_pt ? +plan.pt_addon_price : 0), 0) : 0;
+  const effectivePayDate = payDate || (f.start_date && f.start_date < todayISO() ? f.start_date : todayISO());
 
   const submit = async () => {
     setBusy(true);
     try {
       await gymService.renew(vid, member.id, {
         plan_id: f.plan_id, start_date: f.start_date || undefined, include_pt: f.include_pt, extra_discount: f.extra_discount || 0,
-        payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode } : undefined
+        payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, paid_on: effectivePayDate } : undefined
       });
       showSuccess("Membership renewed");
       onDone();
@@ -59,6 +66,9 @@ function RenewModal({ isOpen, onClose, vid, member, onDone }) {
         <div className="grid grid-cols-2 gap-3">
           <Input label="Paid now (₹)" inputMode="decimal" value={f.pay_amount} onChange={set("pay_amount")} />
           <Select label="Mode" value={f.pay_mode} onChange={set("pay_mode")} options={MODES} />
+          <div className="col-span-2">
+            <Input label="Payment date" type="date" max={todayISO()} value={effectivePayDate} onChange={(e) => setPayDate(e.target.value)} />
+          </div>
         </div>
         <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={busy} disabled={!f.plan_id}>Renew</Button></div>
       </div>
@@ -67,13 +77,17 @@ function RenewModal({ isOpen, onClose, vid, member, onDone }) {
 }
 
 function PayModal({ isOpen, onClose, vid, member, onDone }) {
-  const [f, setF] = useState({ amount: "", mode: "cash", reference: "" });
+  const [f, setF] = useState({ amount: "", mode: "cash", reference: "", paid_on: todayISO() });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (isOpen) setF({ amount: member.balance_due > 0 ? member.balance_due : "", mode: "cash", reference: "" }); }, [isOpen, member]);
+  useEffect(() => { if (isOpen) setF({ amount: member.balance_due > 0 ? member.balance_due : "", mode: "cash", reference: "", paid_on: todayISO() }); }, [isOpen, member]);
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
   const submit = async () => {
     setBusy(true);
-    try { await gymService.recordPayment(vid, member.id, { ...f, amount: +f.amount }); showSuccess("Payment recorded"); onDone(); }
+    try {
+      await gymService.recordPayment(vid, member.id, { ...f, amount: +f.amount, paid_on: f.paid_on || undefined });
+      showSuccess("Payment recorded");
+      onDone();
+    }
     catch (e) { showError(errMsg(e)); } finally { setBusy(false); }
   };
   return (
@@ -82,6 +96,7 @@ function PayModal({ isOpen, onClose, vid, member, onDone }) {
         <p className="text-sm text-gray-500">Balance due: <b className="text-gray-900">{inr(member.balance_due)}</b></p>
         <Input label="Amount (₹)" inputMode="decimal" value={f.amount} onChange={set("amount")} />
         <Select label="Mode" value={f.mode} onChange={set("mode")} options={MODES} />
+        <Input label="Payment date" type="date" max={todayISO()} value={f.paid_on} onChange={set("paid_on")} />
         <Input label="Reference / UTR" value={f.reference} onChange={set("reference")} />
         <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={busy} disabled={!+f.amount}>Save</Button></div>
       </div>

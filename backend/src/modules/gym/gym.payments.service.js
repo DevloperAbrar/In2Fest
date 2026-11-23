@@ -1,5 +1,5 @@
 const Razorpay = require("razorpay");
-const { Op } = require("sequelize");
+const { Op, QueryTypes } = require("sequelize");
 const { sequelize, Venue, GymMember, GymMembership, GymPlan, GymPayment, GymSettings } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
@@ -259,4 +259,58 @@ async function listPayments(venueId, q) {
   return { items: rows, total: count, page, pages: Math.max(Math.ceil(count / limit), 1) };
 }
 
-module.exports = { rzpClient, urlFor, createPaidTx, recordManual, createRequest, linkForMember, settlePending, confirm, cancel, refresh, pollPendingLinks, listPayments, editPaid };
+// One-time clean-up for members that were added with an OLD start date while the payment was saved
+// with the day of entry. Only the payment taken together with the membership is moved, and only when it
+// sits in a later month than the membership start. Online (Razorpay) payments and payments the owner
+// already edited are never touched. The old date is kept in meta.redated.
+const REDATE_FROM = `
+  FROM gym_payments p
+  JOIN gym_memberships ms ON ms.id = p.membership_id
+  WHERE p.venue_id = :v AND p.status = 'paid' AND p.rzp_payment_id IS NULL AND p.paid_on IS NOT NULL
+    AND to_char(ms.start_date, 'YYYY-MM') < to_char(p.paid_on, 'YYYY-MM')
+    AND ABS(EXTRACT(EPOCH FROM (p.created_at - ms.created_at))) < 120
+    AND NOT jsonb_exists(p.meta, 'edits') AND NOT jsonb_exists(p.meta, 'redated')
+    AND p.id = (SELECT p2.id FROM gym_payments p2 WHERE p2.membership_id = ms.id AND p2.status = 'paid'
+                ORDER BY p2.created_at ASC, p2.id ASC LIMIT 1)`;
+
+async function redateToMembershipMonth(ctx, { apply = false } = {}) {
+  const { venue, user } = ctx;
+  const pick = (tx) => sequelize.query(
+    `SELECT p.id, p.amount::float AS amount, to_char(p.paid_on, 'YYYY-MM') AS from_month, to_char(ms.start_date, 'YYYY-MM') AS to_month
+     ${REDATE_FROM} ORDER BY p.paid_on DESC LIMIT 2000${tx ? " FOR UPDATE OF p" : ""}`,
+    { replacements: { v: venue.id }, type: QueryTypes.SELECT, transaction: tx }
+  );
+  const summarize = (rows) => {
+    const moves = new Map();
+    let amount = 0;
+    rows.forEach((r) => {
+      const k = `${r.from_month}>${r.to_month}`;
+      const m = moves.get(k) || { from: r.from_month, to: r.to_month, count: 0, amount: 0 };
+      m.count += 1;
+      m.amount = U.money(m.amount + r.amount);
+      amount += r.amount;
+      moves.set(k, m);
+    });
+    return { count: rows.length, amount: U.money(amount), moves: [...moves.values()].sort((a, b) => (a.to < b.to ? 1 : -1)) };
+  };
+
+  if (!apply) return { applied: false, ...summarize(await pick()) };
+
+  return sequelize.transaction(async (tx) => {
+    const rows = await pick(tx);
+    if (rows.length) {
+      await sequelize.query(
+        `UPDATE gym_payments p SET paid_on = ms.start_date, updated_at = now(),
+           meta = COALESCE(p.meta, '{}'::jsonb) || jsonb_build_object('redated', jsonb_build_object(
+             'at', CAST(now() AS text), 'by', CAST(:by AS text), 'from', to_char(p.paid_on, 'YYYY-MM-DD')))
+         FROM gym_memberships ms
+         WHERE ms.id = p.membership_id AND p.id IN (:ids)`,
+        { replacements: { ids: rows.map((r) => r.id), by: (user && user.name) || "owner" }, transaction: tx }
+      );
+    }
+    console.log(`[GYM] Collections re-dated for venue ${venue.id}: ${rows.length} payment(s) by ${(user && (user.id || user.name)) || "unknown"}`);
+    return { applied: true, ...summarize(rows) };
+  });
+}
+
+module.exports = { rzpClient, urlFor, createPaidTx, recordManual, createRequest, linkForMember, settlePending, confirm, cancel, refresh, pollPendingLinks, listPayments, editPaid, redateToMembershipMonth };

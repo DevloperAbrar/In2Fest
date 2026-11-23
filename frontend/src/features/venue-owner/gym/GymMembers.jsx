@@ -22,6 +22,10 @@ import ModalErrorBoundary from "./ModalErrorBoundary.jsx";
 import { MemberAvatar, EmptyMembersArt, SheetSection } from "./memberUi.jsx";
 import { useGymVariant } from "./gymVariant.js";
 import AcademyEnrollSections, { EMPTY_PROFILE, buildProfilePayload, hasProfileData, profileProblem, batchLabel } from "./AcademyMemberForm.jsx";
+import { ReasonLine, ReasonModal } from "./LeaveReason.jsx";
+
+const monthLabel = (ymd) =>
+  ymd ? new Date(`${ymd}T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "";
 
 const TABS = [["all", "All"], ["active", "Active"], ["expiring", "Expiring"], ["expired", "Expired"], ["frozen", "Frozen"], ["dues", "Dues"]];
 // Mobile shows the filters in this order (desktop keeps TABS above).
@@ -66,6 +70,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   const [batchId, setBatchId] = useState("");
   const [config, setConfig] = useState(null);
   const [batches, setBatches] = useState([]);
+  const [payDate, setPayDate] = useState(""); // empty = follow the start date (back-dated members) or today
   const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   useEffect(() => {
@@ -73,6 +78,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
       setF({ ...blank, name: lead?.name || "", phone: lead?.phone || "", goal: isGym ? lead?.goal || "" : "" });
       setPhoto(null);
       setPf(EMPTY_PROFILE);
+      setPayDate("");
       setBatchId("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,13 +88,14 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   useEffect(() => {
     if (!isOpen || !vid || isGym) return undefined;
     let off = false;
-    gymService.acConfig(vid).then((r) => { if (!off) setConfig(r.data.data); }).catch(() => {});
-    gymService.acBatches(vid, false).then((r) => { if (!off) setBatches(r.data.data || []); }).catch(() => {});
+    gymService.acConfig(vid).then((r) => { if (!off) setConfig(r.data.data); }).catch(() => { });
+    gymService.acBatches(vid, false).then((r) => { if (!off) setBatches(r.data.data || []); }).catch(() => { });
     return () => { off = true; };
   }, [isOpen, vid, isGym]);
 
   const plan = (plans || []).find((p) => p.id === f.plan_id);
   const total = previewTotal(plan, f);
+  const effectivePayDate = payDate || (f.start_date && f.start_date < todayISO() ? f.start_date : todayISO());
   const planLabel = isGym ? "Plan" : variant === "academy" ? "Fee plan" : "Package";
   const trainerLabel = isGym ? "Trainer" : variant === "academy" ? "Coach" : "Instructor";
 
@@ -107,7 +114,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
         ...(f.shift_id ? { shift_id: f.shift_id } : {}),
         include_pt: f.include_pt, extra_discount: f.extra_discount || 0, waive_joining: f.waive_joining, lead_id: lead?.id,
         source: lead ? "website_trial" : "walk_in",
-        payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, reference: f.reference } : undefined
+        payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, reference: f.reference, paid_on: effectivePayDate } : undefined
       });
       const memberId = res.data.data.member.id;
       showSuccess(`${terms.person} added`);
@@ -214,9 +221,13 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
             <Input label="Paid now (₹)" inputMode="decimal" value={f.pay_amount} onChange={set("pay_amount")} />
             <Select label="Mode" value={f.pay_mode} onChange={set("pay_mode")} options={MODES} />
             <div className="col-span-2 sm:col-span-1">
+              <Input label="Payment date" type="date" max={todayISO()} value={effectivePayDate} onChange={(e) => setPayDate(e.target.value)} />
+            </div>
+            <div className="col-span-2 sm:col-span-3">
               <Input label="Reference / UTR" value={f.reference} onChange={set("reference")} />
             </div>
           </div>
+          {+f.pay_amount > 0 && <p className="text-xs text-gray-500">This payment will be counted in the <b>{monthLabel(effectivePayDate)}</b> collection.</p>}
           {plan && +f.pay_amount > 0 && <p className="text-xs text-gray-500">Balance due after this payment: {inr(Math.max(total - +f.pay_amount, 0))}</p>}
         </SheetSection>
 
@@ -230,59 +241,64 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
 }
 
 // Mobile member card (desktop keeps the original divided list further below).
-function MobileMemberCard({ m }) {
+function MobileMemberCard({ m, onReason }) {
   const status = m.display_status || "new";
   const hasDue = +m.balance_due > 0;
+  const showReason = status === "expired" || status === "expiring";
   return (
-    <Link
-      to={`/dashboard/gym/members/${m.id}`}
-      className="tap-scale relative block overflow-hidden rounded-2xl bg-white border border-navy-100/70 shadow-card p-3.5 pl-4"
-    >
-      <span className={`absolute left-0 top-3.5 bottom-3.5 w-1 rounded-r-full ${STATUS_ACCENT[status] || STATUS_ACCENT.new}`} aria-hidden="true" />
-      <div className="flex items-start gap-3">
-        <MemberAvatar name={m.name} src={m.photo_url} size={46} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="font-display font-semibold text-[14.5px] text-navy-900 truncate">{m.name}</p>
-              <p className="text-[11px] text-navy-400 tabular-nums mt-0.5">{m.member_code}</p>
+    <div className="overflow-hidden rounded-2xl bg-white border border-navy-100/70 shadow-card">
+      <Link to={`/dashboard/gym/members/${m.id}`} className="tap-scale relative block p-3.5 pl-4">
+        <span className={`absolute left-0 top-3.5 bottom-3.5 w-1 rounded-r-full ${STATUS_ACCENT[status] || STATUS_ACCENT.new}`} aria-hidden="true" />
+        <div className="flex items-start gap-3">
+          <MemberAvatar name={m.name} src={m.photo_url} size={46} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-display font-semibold text-[14.5px] text-navy-900 truncate">{m.name}</p>
+                <p className="text-[11px] text-navy-400 tabular-nums mt-0.5">{m.member_code}</p>
+              </div>
+              <StatusPill status={m.display_status} daysLeft={m.days_left} />
             </div>
-            <StatusPill status={m.display_status} daysLeft={m.days_left} />
-          </div>
-          <div className="mt-2.5 space-y-1.5">
-            <p className="flex items-center gap-2 text-[12.5px] text-navy-600">
-              <Phone size={13} className="text-navy-300 shrink-0" />
-              <span className="tabular-nums">{m.phone}</span>
-            </p>
-            <p className="flex items-center gap-2 text-[12.5px] text-navy-600 min-w-0">
-              <Ticket size={13} className="text-navy-300 shrink-0" />
-              <span className="truncate">{m.plan_name || "No plan"}</span>
-            </p>
-            {m.end_date && (
+            <div className="mt-2.5 space-y-1.5">
               <p className="flex items-center gap-2 text-[12.5px] text-navy-600">
-                <CalendarDays size={13} className="text-navy-300 shrink-0" />
-                <span>Valid till {fmtDate(m.end_date)}</span>
+                <Phone size={13} className="text-navy-300 shrink-0" />
+                <span className="tabular-nums">{m.phone}</span>
               </p>
+              <p className="flex items-center gap-2 text-[12.5px] text-navy-600 min-w-0">
+                <Ticket size={13} className="text-navy-300 shrink-0" />
+                <span className="truncate">{m.plan_name || "No plan"}</span>
+              </p>
+              {m.end_date && (
+                <p className="flex items-center gap-2 text-[12.5px] text-navy-600">
+                  <CalendarDays size={13} className="text-navy-300 shrink-0" />
+                  <span>Valid till {fmtDate(m.end_date)}</span>
+                </p>
+              )}
+            </div>
+            {(hasDue || m.shift_name) && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                {hasDue && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200/70 px-2.5 py-1 text-[11.5px] font-semibold tabular-nums">
+                    <Wallet size={12} /> Due {inr(m.balance_due)}
+                  </span>
+                )}
+                {m.shift_name && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-navy-50 text-navy-600 px-2.5 py-1 text-[11.5px] font-medium">
+                    <Clock size={12} /> {m.shift_name}
+                  </span>
+                )}
+              </div>
             )}
           </div>
-          {(hasDue || m.shift_name) && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              {hasDue && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200/70 px-2.5 py-1 text-[11.5px] font-semibold tabular-nums">
-                  <Wallet size={12} /> Due {inr(m.balance_due)}
-                </span>
-              )}
-              {m.shift_name && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-navy-50 text-navy-600 px-2.5 py-1 text-[11.5px] font-medium">
-                  <Clock size={12} /> {m.shift_name}
-                </span>
-              )}
-            </div>
-          )}
+          <ChevronRight size={16} className="text-navy-300 shrink-0 mt-3" aria-hidden="true" />
         </div>
-        <ChevronRight size={16} className="text-navy-300 shrink-0 mt-3" aria-hidden="true" />
-      </div>
-    </Link>
+      </Link>
+      {showReason && (
+        <div className="border-t border-navy-100/60 px-4 py-2.5">
+          <ReasonLine member={m} onOpen={onReason} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -297,6 +313,7 @@ export default function GymMembers() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(!!state?.lead);
   const [importing, setImporting] = useState(false);
+  const [reasonFor, setReasonFor] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => { setDq(q.trim()); setPage(1); }, 350);
@@ -394,9 +411,8 @@ export default function GymMembers() {
               type="button"
               onClick={() => { setTab(k); setPage(1); }}
               aria-pressed={on}
-              className={`tap-scale inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[12px] font-semibold whitespace-nowrap transition-colors ${
-                on ? `${st.on} text-white` : "bg-white text-navy-700 border-navy-100"
-              }`}
+              className={`tap-scale inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[12px] font-semibold whitespace-nowrap transition-colors ${on ? `${st.on} text-white` : "bg-white text-navy-700 border-navy-100"
+                }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${on ? "bg-white/90" : st.dot}`} />
               {label}
@@ -443,27 +459,30 @@ export default function GymMembers() {
               </p>
             )}
             <div className="space-y-2.5">
-              {items.map((m) => <MobileMemberCard key={m.id} m={m} />)}
+              {items.map((m) => <MobileMemberCard key={m.id} m={m} onReason={setReasonFor} />)}
             </div>
           </div>
 
           {/* Desktop / tablet list (unchanged) */}
           <div className="hidden md:block bg-white rounded-2xl border border-navy-100/60 divide-y">
             {items.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <Link to={`/dashboard/gym/members/${m.id}`} className="flex-1 min-w-0 flex items-center gap-3">
-                  {m.photo_url
-                    ? <img src={m.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                    : <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">{m.name[0]}</div>}
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{m.name} <span className="text-xs text-gray-400">{m.member_code}</span></p>
-                    <p className="text-xs text-gray-500 truncate">{m.phone} · {m.plan_name || "No plan"}{m.end_date ? ` · till ${fmtDate(m.end_date)}` : ""}{m.shift_name ? ` · ${m.shift_name}` : ""}</p>
+              <div key={m.id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Link to={`/dashboard/gym/members/${m.id}`} className="flex-1 min-w-0 flex items-center gap-3">
+                    {m.photo_url
+                      ? <img src={m.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      : <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold">{m.name[0]}</div>}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{m.name} <span className="text-xs text-gray-400">{m.member_code}</span></p>
+                      <p className="text-xs text-gray-500 truncate">{m.phone} · {m.plan_name || "No plan"}{m.end_date ? ` · till ${fmtDate(m.end_date)}` : ""}{m.shift_name ? ` · ${m.shift_name}` : ""}</p>
+                    </div>
+                  </Link>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <StatusPill status={m.display_status} daysLeft={m.days_left} />
+                    {+m.balance_due > 0 && <span className="text-xs font-semibold text-red-600">Due {inr(m.balance_due)}</span>}
                   </div>
-                </Link>
-                <div className="text-right flex flex-col items-end gap-1">
-                  <StatusPill status={m.display_status} daysLeft={m.days_left} />
-                  {+m.balance_due > 0 && <span className="text-xs font-semibold text-red-600">Due {inr(m.balance_due)}</span>}
                 </div>
+                <ReasonLine member={m} onOpen={setReasonFor} className="mt-2 pl-[52px]" />
               </div>
             ))}
           </div>
@@ -486,6 +505,7 @@ export default function GymMembers() {
           <ImportMembersModal vid={vid} onClose={() => setImporting(false)} onDone={() => { setPage(1); refetch(); }} />
         </ModalErrorBoundary>
       )}
+      <ReasonModal vid={vid} member={reasonFor} onClose={() => setReasonFor(null)} onSaved={refetch} />
     </GymPage>
   );
 }
