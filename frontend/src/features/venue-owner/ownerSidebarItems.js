@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Globe, CalendarClock, MessageSquare, CalendarCheck,
-  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag, UtensilsCrossed, Briefcase, Library
+  Users, Receipt, BarChart3, Settings, Store, Star, Gift, Package, Dumbbell, Boxes, ShoppingBag, UtensilsCrossed, Briefcase, Library, Wallet
 } from "lucide-react";
 
 // segmentKey: also shown for Super-Admin-created categories whose functionality (segment) matches.
@@ -23,6 +23,8 @@ export const ownerSidebarItems = [
   { navKey: "reviews",     path: "/dashboard/reviews",             label: "Reviews",             icon: Star,            requiredFeature: "reviews" },
   { navKey: "slots",       path: "/dashboard/slots",               label: "Slots",               icon: CalendarClock,   requiredFeature: "slots" },
   { navKey: "billing",     path: "/dashboard/billing/invoice",     label: "Billing",             icon: Receipt,         requiredFeature: "billing" },
+  // Expenses: every vendor type, owner only (hidden for team members in useVisibleNavItems). No plan feature on purpose.
+  { navKey: "expenses",    path: "/dashboard/expenses",            label: "Expenses",            icon: Wallet },
   { navKey: "referrals",   path: "/dashboard/referrals",           label: "Referrals",           icon: Gift },
   { navKey: "analytics",   path: "/dashboard/analytics",           label: "Analytics",           icon: BarChart3 },
   { navKey: "settings",    path: "/dashboard/settings",            label: "Settings",            icon: Settings }

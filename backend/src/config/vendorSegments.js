@@ -7,7 +7,7 @@ const MODULE_NAV = {
   billing: "billing", gym: "gym", food: "food", library: "library"
 };
 
-const ALWAYS_NAV = ["dashboard", "settings"];
+const ALWAYS_NAV = ["dashboard", "settings", "expenses"];
 const COMMON_NAV = ["website", "marketplace", "reviews", "referrals", "analytics"];
 
 const EVENT_BASE = ["website_builder", "marketplace_profile", "reviews", "inquiries", "bookings", "clients", "billing"];

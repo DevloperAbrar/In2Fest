@@ -4,7 +4,7 @@ import { VenueContext } from "../context/VenueContext.jsx";
 import { useBusinessProfile } from "./useBusinessProfile";
 import { isRestrictedMember } from "../lib/teamScopes";
 
-const OWNER_ONLY_PATHS = ["/dashboard/settings", "/dashboard/analytics", "/dashboard/staff"];
+const OWNER_ONLY_PATHS = ["/dashboard/settings", "/dashboard/analytics", "/dashboard/staff", "/dashboard/expenses"];
 
 // Shown even while the business profile is still loading, so nothing flashes in and out.
 const ALWAYS_NAV = ["dashboard", "settings"];
