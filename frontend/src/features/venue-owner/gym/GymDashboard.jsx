@@ -124,6 +124,14 @@ function Hero({ d, c, series }) {
                 </span>
               )}
               <span className="text-white/55">Last month: {inr(lastMonth)}</span>
+              {typeof d.revenue.today === "number" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/10 ring-1 ring-inset ring-white/10 px-2 py-0.5 text-white/80">
+                  Today:
+                  <b className="font-semibold text-white tabular-nums">
+                    <AnimatedNumber value={d.revenue.today} format={(v) => inr(Math.round(v))} />
+                  </b>
+                </span>
+              )}
             </div>
           </div>
           {/* Desktop / tablet: sparkline on the right (unchanged) */}

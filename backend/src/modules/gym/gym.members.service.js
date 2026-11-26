@@ -90,6 +90,14 @@ function memberFields(b, creating) {
     o.leave_reason = reason || null;
     o.leave_reason_at = reason ? new Date() : null;
   }
+  if (b.pay_by !== undefined) {
+    if (!b.pay_by) o.pay_by = null;
+    else {
+      const d = core.checkDate(b.pay_by, "Payment date");
+      if (d < U.todayIST()) throw new AppError("Payment date cannot be in the past", 400);
+      o.pay_by = d;
+    }
+  }
   if (b.photo_url !== undefined) {
     const base = String(process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
     o.photo_url = b.photo_url && base && String(b.photo_url).startsWith(`${base}/`) ? b.photo_url : null;

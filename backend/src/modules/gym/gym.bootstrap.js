@@ -43,6 +43,9 @@ async function ensureGymSchema() {
        ADD COLUMN IF NOT EXISTS leave_reason_at TIMESTAMPTZ`
   );
 
+  // Date the member promised to pay the remaining balance. Safe to run on every start.
+  await models.sequelize.query(`ALTER TABLE gym_members ADD COLUMN IF NOT EXISTS pay_by DATE`);
+
   // How new member IDs are generated ("sequence" or "random"). Existing gyms keep the sequence.
   // Safe to run on every start.
   await models.sequelize.query(

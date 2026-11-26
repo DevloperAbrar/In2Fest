@@ -113,7 +113,7 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
             <p className="font-display font-bold text-[36px] md:text-[40px] leading-none mt-1.5 tabular-nums truncate">
               <AnimatedNumber value={current} format={(v) => formatCurrency(Math.round(v))} />
             </p>
-            <div className="mt-2.5 inline-flex items-center gap-1.5 text-[11.5px] font-medium">
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11.5px] font-medium">
               {delta !== null ? (
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
@@ -126,6 +126,14 @@ export default function DashboardHero({ userName, venueName, analytics, refreshi
                 </span>
               ) : (
                 <span className="text-white/50">{labels.empty || "Your first booking will show up here"}</span>
+              )}
+              {typeof analytics?.todayRevenue === "number" && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/10 ring-1 ring-inset ring-white/10 px-2 py-0.5 text-white/80">
+                  {labels.today || "Today"}:
+                  <b className="font-semibold text-white tabular-nums">
+                    <AnimatedNumber value={analytics.todayRevenue} format={(v) => formatCurrency(Math.round(v))} />
+                  </b>
+                </span>
               )}
             </div>
           </div>

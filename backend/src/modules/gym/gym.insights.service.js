@@ -144,9 +144,14 @@ async function dashboard(venueId) {
     GymLead.count({ where: { venue_id: venueId, status: "new" } })
   ]);
 
+  const [todayRow] = await q(
+    `SELECT COALESCE(SUM(amount), 0)::float AS total FROM gym_payments
+     WHERE venue_id = :v AND status = 'paid' AND paid_on = :today`
+  );
+
   return {
     counts,
-    revenue: { this_month: sum(series[5]), last_month: sum(series[4]) },
+    revenue: { this_month: sum(series[5]), last_month: sum(series[4]), today: Number(todayRow && todayRow.total) || 0 },
     revenue_series: series,
     renewal_rate: rr.due > 0 ? Math.round((rr.renewed / rr.due) * 100) : null,
     renewals_due_30d: rr.due,

@@ -108,6 +108,11 @@ async function recomputeFinancials(tx, memberId) {
      WHERE m.id = :id`,
     { replacements: { id: memberId }, transaction: tx }
   );
+  // A promised payment date only makes sense while money is still due.
+  await sequelize.query(
+    `UPDATE gym_members SET pay_by = NULL WHERE id = :id AND pay_by IS NOT NULL AND balance_due <= 0`,
+    { replacements: { id: memberId }, transaction: tx }
+  );
 }
 
 // Oldest membership that still has a balance; otherwise the latest one.

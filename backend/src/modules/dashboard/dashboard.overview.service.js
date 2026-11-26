@@ -366,6 +366,53 @@ async function libraryBlock(venueId) {
   };
 }
 
+const TODAY_LABELS = {
+  gym: "Today's collection",
+  library: "Today's collection",
+  food: "Today's sales",
+  retail: "Today's sales",
+  bookings: "Today's revenue"
+};
+
+// Money received today (IST). Same source and rules as each segment's monthly figure above.
+async function todayRevenue(segment, venueId) {
+  const { today } = periods();
+  const q = makeQuery(venueId);
+  const total = async (sql) => {
+    const rows = await q(sql);
+    return num(rows && rows[0] && rows[0].total);
+  };
+
+  switch (segment) {
+    case "gym":
+      return total(
+        `SELECT COALESCE(SUM(amount), 0)::float AS total FROM gym_payments
+         WHERE venue_id = :v AND status = 'paid' AND paid_on = :today`
+      );
+    case "library":
+      return total(
+        `SELECT COALESCE(SUM(amount), 0)::float AS total FROM lib_payments
+         WHERE venue_id = :v AND status = 'paid' AND paid_on = :today`
+      );
+    case "food":
+      return total(
+        `SELECT COALESCE(SUM(total), 0)::float AS total FROM food_orders
+         WHERE venue_id = :v AND status <> 'cancelled' AND order_date = :today`
+      );
+    case "retail":
+      return total(
+        `SELECT COALESCE(SUM(amount_paid), 0)::float AS total FROM invoices
+         WHERE venue_id = :v AND type = 'invoice'
+           AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = :today::date`
+      );
+    default: {
+      const start = new Date(`${today}T00:00:00+05:30`);
+      const end = new Date(`${today}T23:59:59.999+05:30`);
+      return num(await Booking.sum("amount_received", { where: { venue_id: venueId, created_at: { [Op.between]: [start, end] } } }));
+    }
+  }
+}
+
 const BLOCKS = { gym: gymBlock, food: foodBlock, retail: retailBlock, library: libraryBlock };
 
 /* ───────────── handler ───────────── */
@@ -392,9 +439,10 @@ async function getOwnerOverview(req, res, next) {
       });
     }
 
-    const [reviews, inq] = await Promise.all([
+    const [reviews, inq, todayAmount] = await Promise.all([
       safe(reviewStats(venue.id), { avgRating: 0, totalReviews: 0 }),
-      safe(inquiryStats(venue.id), { total: 0, converted: 0, rate: 0 })
+      safe(inquiryStats(venue.id), { total: 0, converted: 0, rate: 0 }),
+      safe(todayRevenue(segment, venue.id), 0)
     ]);
 
     const block = segment === "bookings" ? await bookingsBlock(venue.id, inq) : await BLOCKS[segment](venue.id);
@@ -416,11 +464,12 @@ async function getOwnerOverview(req, res, next) {
       success: true,
       data: {
         segment,
-        labels: block.labels,
+        labels: { ...block.labels, today: TODAY_LABELS[segment] || "Today" },
         heroStats: block.heroStats,
         tiles,
         pulse: block.pulse,
         ...block.legacy,
+        todayRevenue: num(todayAmount),
         totalInquiries: inq.total,
         convertedInquiries: inq.converted,
         conversionRate: inq.rate,

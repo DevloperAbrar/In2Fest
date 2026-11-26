@@ -62,7 +62,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   const { data: plans } = useFetch(isOpen && vid ? `/venues/${vid}/gym/plans` : null, { skip: !isOpen || !vid });
   const { data: shiftData } = useFetch(isOpen && vid && isGym ? `/venues/${vid}/gym/shifts` : null, { skip: !isOpen || !vid || !isGym });
   const shifts = shiftData?.items || [];
-  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", dob: "", weight: "", height: "", address: "", health_notes: "", emergency_name: "", emergency_phone: "", parent_name: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "" };
+  const blank = { shift_id: "", name: "", phone: "", gender: "", goal: "", dob: "", weight: "", height: "", address: "", health_notes: "", emergency_name: "", emergency_phone: "", parent_name: "", trainer_name: "", plan_id: "", start_date: todayISO(), include_pt: false, extra_discount: "", waive_joining: false, pay_amount: "", pay_mode: "cash", reference: "", pay_by: "" };
   const [f, setF] = useState(blank);
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -96,6 +96,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   const plan = (plans || []).find((p) => p.id === f.plan_id);
   const total = previewTotal(plan, f);
   const effectivePayDate = payDate || (f.start_date && f.start_date < todayISO() ? f.start_date : todayISO());
+  const balanceAfter = plan ? Math.max(total - (+f.pay_amount || 0), 0) : 0;
   const planLabel = isGym ? "Plan" : variant === "academy" ? "Fee plan" : "Package";
   const trainerLabel = isGym ? "Trainer" : variant === "academy" ? "Coach" : "Instructor";
 
@@ -113,6 +114,7 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
         ...(isGym ? { goal: f.goal } : { dob: f.dob }),
         ...(f.shift_id ? { shift_id: f.shift_id } : {}),
         include_pt: f.include_pt, extra_discount: f.extra_discount || 0, waive_joining: f.waive_joining, lead_id: lead?.id,
+        pay_by: balanceAfter > 0 && f.pay_by ? f.pay_by : undefined,
         source: lead ? "website_trial" : "walk_in",
         payment: +f.pay_amount > 0 ? { amount: +f.pay_amount, mode: f.pay_mode, reference: f.reference, paid_on: effectivePayDate } : undefined
       });
@@ -226,6 +228,14 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
             <div className="col-span-2 sm:col-span-3">
               <Input label="Reference / UTR" value={f.reference} onChange={set("reference")} />
             </div>
+            {balanceAfter > 0 && (
+              <div className="col-span-2 sm:col-span-3">
+                <Input label="Remaining payment date (optional)" type="date" min={todayISO()} value={f.pay_by} onChange={set("pay_by")} />
+                <p className="mt-1 text-xs text-gray-500">
+                  Balance {inr(balanceAfter)}. Member will pay on this date. It shows on the member list so you can follow up.
+                </p>
+              </div>
+            )}
           </div>
           {+f.pay_amount > 0 && <p className="text-xs text-gray-500">This payment will be counted in the <b>{monthLabel(effectivePayDate)}</b> collection.</p>}
           {plan && +f.pay_amount > 0 && <p className="text-xs text-gray-500">Balance due after this payment: {inr(Math.max(total - +f.pay_amount, 0))}</p>}
@@ -280,6 +290,11 @@ function MobileMemberCard({ m, onReason }) {
                 {hasDue && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200/70 px-2.5 py-1 text-[11.5px] font-semibold tabular-nums">
                     <Wallet size={12} /> Due {inr(m.balance_due)}
+                  </span>
+                )}
+                {hasDue && m.pay_by && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${m.pay_by < todayISO() ? "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200/70" : "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200/70"}`}>
+                    <CalendarDays size={12} /> Pay by {fmtDate(m.pay_by)}
                   </span>
                 )}
                 {m.shift_name && (
@@ -480,6 +495,11 @@ export default function GymMembers() {
                   <div className="text-right flex flex-col items-end gap-1">
                     <StatusPill status={m.display_status} daysLeft={m.days_left} />
                     {+m.balance_due > 0 && <span className="text-xs font-semibold text-red-600">Due {inr(m.balance_due)}</span>}
+                    {+m.balance_due > 0 && m.pay_by && (
+                      <span className={`text-[11.5px] font-medium ${m.pay_by < todayISO() ? "text-red-600" : "text-amber-600"}`}>
+                        Pay by {fmtDate(m.pay_by)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <ReasonLine member={m} onOpen={setReasonFor} className="mt-2 pl-[52px]" />

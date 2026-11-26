@@ -77,7 +77,9 @@ module.exports = (sequelize, DataTypes) => {
         is_archived: { type: BOOLEAN, allowNull: false, defaultValue: false },
         // Why the member did not continue (typed by the vendor). Cleared automatically on renewal.
         leave_reason: STRING(200),
-        leave_reason_at: DATE
+        leave_reason_at: DATE,
+        // Date the member promised to pay the remaining balance (typed by the vendor). Cleared automatically when nothing is due.
+        pay_by: DATEONLY
     }, {
         tableName: "gym_members",
         indexes: [
