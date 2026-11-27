@@ -134,5 +134,13 @@ export const gymService = {
   acEventAdd: (v, id, member_ids) => api.post(`${b(v)}/academy/events/${id}/participants`, { member_ids }),
   acEventPart: (v, id, memberId, body) => api.patch(`${b(v)}/academy/events/${id}/participants/${memberId}`, body),
   acEventRemove: (v, id, memberId) => api.delete(`${b(v)}/academy/events/${id}/participants/${memberId}`),
-  acCertificate: (v, id, memberId) => api.get(`${b(v)}/academy/events/${id}/participants/${memberId}/certificate`, { responseType: "blob" })
+  acCertificate: (v, id, memberId) => api.get(`${b(v)}/academy/events/${id}/participants/${memberId}/certificate`, { responseType: "blob" }),
+
+  // gym body measurement
+  bodyConfig: (v) => api.get(`${b(v)}/body/config`),
+  bodySummary: (v, ids) => api.get(`${b(v)}/body/summary`, { params: { ids: ids.join(",") } }),
+  bodyMember: (v, id) => api.get(`${b(v)}/body/members/${id}`),
+  bodySave: (v, id, body) => api.post(`${b(v)}/body/members/${id}/records`, body),
+  bodyDelete: (v, recordId) => api.delete(`${b(v)}/body/records/${recordId}`),
+  bodyReport: (v, id, unit) => api.get(`${b(v)}/body/members/${id}/report`, { params: { unit }, responseType: "blob" })
 };

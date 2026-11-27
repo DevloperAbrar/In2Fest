@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings, Clock, CalendarCheck, Layers, TrendingUp, BookOpen, Trophy } from "lucide-react";
+import { LayoutGrid, Users, Ticket, Dumbbell, UserPlus, MessageCircle, ShoppingBag, Settings, Clock, CalendarCheck, Layers, TrendingUp, BookOpen, Trophy, Ruler } from "lucide-react";
 import { useGymVariant, VARIANT_TERMS } from "./gymVariant.js";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
@@ -171,6 +171,7 @@ const TAB_DEFS = [
   { to: "/dashboard/gym/plans", label: "Plans", icon: Ticket, tone: "violet" },
   { to: "/dashboard/gym/shifts", label: "Shifts", icon: Clock, tone: "amber" },
   { to: "/dashboard/gym/attendance", label: "Attendance", icon: CalendarCheck, tone: "sky" },
+  { to: "/dashboard/gym/body", label: "Body Measurement", icon: Ruler, tone: "emerald" },
   { to: "/dashboard/gym/workouts", label: "Workouts", icon: Dumbbell, tone: "red" },
   { to: "/dashboard/gym/leads", label: "Leads", icon: UserPlus, tone: "sky" },
   { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle, tone: "emerald" },

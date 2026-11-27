@@ -70,6 +70,7 @@ router.use(["/exercises", "/workout-plans", "/store"], gymOnlyTools);
 
 // Sports Academy / Studio tools (batches, sport profile, tests, progress). Isolated in its own file.
 router.use("/academy", require("./academy.routes"));
+router.use("/body", require("./body.routes"));
 
 // overview + settings
 router.get("/dashboard", h((req) => insights.dashboard(req.gymVenue.id)));
@@ -150,6 +151,7 @@ router.delete("/members/:id/permanent", ownerOnly, h(async (req) => {
   const out = await members.deleteMember(req.gymVenue.id, req.params.id, req.query.confirm);
   await shifts.unassign(req.gymVenue.id, req.params.id).catch(() => {});
   await require("./academy.service").cleanupMember(req.gymVenue.id, req.params.id).catch(() => {});
+  await require("./body.service").cleanupMember(req.gymVenue.id, req.params.id).catch(() => {});
   await require("./academy.models").GymEventParticipant.destroy({ where: { venue_id: req.gymVenue.id, member_id: req.params.id } }).catch(() => {});
   return out;
 }));

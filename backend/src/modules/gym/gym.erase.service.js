@@ -35,6 +35,7 @@ const SCOPE_META = {
 // photos = column holding an image URL that is removed from storage after the erase.
 const STEPS = [
   { scope: "members", table: "gym_assessments", label: "Progress records" },
+  { scope: "members", table: "gym_body_records", label: "Body measurements" },
   { scope: "members", table: "gym_batch_members", label: null },
   { scope: "members", table: "gym_event_participants", label: null },
   { scope: "members", table: "gym_member_profiles", label: "Sport / class profiles" },

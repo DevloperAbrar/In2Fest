@@ -34,6 +34,7 @@ export const GYM_TAB_SCOPES = {
   "/dashboard/gym/shifts": ["members"],
   "/dashboard/gym/batches": ["members"],
   "/dashboard/gym/progress": ["members"],
+  "/dashboard/gym/body": ["members"],
   "/dashboard/gym/drills": ["members"],
   "/dashboard/gym/events": ["members"],
   "/dashboard/gym/attendance": ["attendance"],

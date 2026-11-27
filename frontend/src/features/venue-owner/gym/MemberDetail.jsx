@@ -630,6 +630,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         actions={(
           <div className="flex gap-2">
             {!isGym && <Link to={`/dashboard/gym/progress/${m.id}`} className="tap-scale inline-flex items-center px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">Progress</Link>}
+            {isGym && <Link to={`/dashboard/gym/body/${m.id}`} className="tap-scale inline-flex items-center px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">Body</Link>}
             <Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit</Button>
           </div>
         )}>

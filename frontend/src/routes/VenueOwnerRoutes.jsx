@@ -63,6 +63,8 @@ import GymMessages from "../features/venue-owner/gym/GymMessages.jsx";
 import GymStore from "../features/venue-owner/gym/GymStore.jsx";
 import AcademyBatches from "../features/venue-owner/gym/AcademyBatches.jsx";
 import AcademyProgress from "../features/venue-owner/gym/AcademyProgress.jsx";
+import BodyMeasurements from "../features/venue-owner/gym/BodyMeasurements.jsx";
+import BodyMeasurementDetail from "../features/venue-owner/gym/BodyMeasurementDetail.jsx";
 import StudentProgress from "../features/venue-owner/gym/StudentProgress.jsx";
 import AcademyBatchAttendance from "../features/venue-owner/gym/AcademyBatchAttendance.jsx";
 import AcademyDrills from "../features/venue-owner/gym/AcademyDrills.jsx";
@@ -161,6 +163,8 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/batches" element={<RequireFeature feature="gym"><AcademyBatches /></RequireFeature>} />
         <Route path="gym/progress" element={<RequireFeature feature="gym"><AcademyProgress /></RequireFeature>} />
         <Route path="gym/progress/:id" element={<RequireFeature feature="gym"><StudentProgress /></RequireFeature>} />
+        <Route path="gym/body" element={<RequireFeature feature="gym"><BodyMeasurements /></RequireFeature>} />
+        <Route path="gym/body/:id" element={<RequireFeature feature="gym"><BodyMeasurementDetail /></RequireFeature>} />
         <Route path="gym/batches/:id/attendance" element={<RequireFeature feature="gym"><AcademyBatchAttendance /></RequireFeature>} />
         <Route path="gym/drills" element={<RequireFeature feature="gym"><AcademyDrills /></RequireFeature>} />
         <Route path="gym/events" element={<RequireFeature feature="gym"><AcademyEvents /></RequireFeature>} />
