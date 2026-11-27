@@ -7,6 +7,7 @@ import RequireOwner from "../components/layout/RequireOwner.jsx";
 import OwnerDashboard from "../features/venue-owner/dashboard/OwnerDashboard.jsx";
 import VenueDetailsForm from "../features/venue-owner/onboarding/VenueDetailsForm.jsx";
 import PlanSelection from "../features/venue-owner/onboarding/PlanSelection.jsx";
+import BusinessTypeSelection from "../features/venue-owner/onboarding/BusinessTypeSelection.jsx";
 
 import TemplatePicker from "../features/venue-owner/website-builder/TemplatePicker.jsx";
 import HeroEditor from "../features/venue-owner/website-builder/HeroEditor.jsx";
@@ -104,6 +105,7 @@ export default function VenueOwnerRoutes() {
     <VenueProvider>
       <Routes>
         <Route index element={<HomeGate><OwnerDashboard /></HomeGate>} />
+        <Route path="onboarding/type" element={<RequireOwner><BusinessTypeSelection /></RequireOwner>} />
         <Route path="onboarding/plan" element={<RequireOwner><PlanSelection /></RequireOwner>} />
         <Route path="onboarding/details" element={<RequireOwner><VenueDetailsForm /></RequireOwner>} />
 
@@ -159,7 +161,7 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><RequireAddon feature="gym_workouts" label="Workouts" planOnly><WorkoutBuilder /></RequireAddon></RequireFeature>} />
         <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
         <Route path="gym/messages" element={<RequireFeature feature="gym"><GymMessages /></RequireFeature>} />
-        <Route path="gym/store" element={<RequireFeature feature="gym"><RequireAddon feature="gym_store" label="Store" planOnly><GymStore /></RequireAddon></RequireFeature>} />
+        <Route path="gym/store" element={<RequireFeature feature="gym"><RequireAddon feature="gym_store" label="Store"><GymStore /></RequireAddon></RequireFeature>} />
         <Route path="gym/batches" element={<RequireFeature feature="gym"><AcademyBatches /></RequireFeature>} />
         <Route path="gym/progress" element={<RequireFeature feature="gym"><AcademyProgress /></RequireFeature>} />
         <Route path="gym/progress/:id" element={<RequireFeature feature="gym"><StudentProgress /></RequireFeature>} />

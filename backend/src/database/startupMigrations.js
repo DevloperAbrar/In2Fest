@@ -191,6 +191,9 @@ const SCHEMA_STATEMENTS = [
   // ---- Plans: price can be entered GST-inclusive. Default false keeps every old plan exactly as before. ----
   `ALTER TABLE plans ADD COLUMN IF NOT EXISTS gst_inclusive BOOLEAN NOT NULL DEFAULT false`,
 
+  // ---- Plans: which business types can pick the plan. [] = everyone, so every old plan stays exactly as before. ----
+  `ALTER TABLE plans ADD COLUMN IF NOT EXISTS segments JSONB NOT NULL DEFAULT '[]'::jsonb`,
+
   // ---- Users: when a vendor's login email is changed by Super Admin, every session issued before this
   // time stops working. NULL (everyone today) means "no restriction", so existing logins are untouched. ----
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_valid_after TIMESTAMPTZ`
@@ -323,6 +326,40 @@ async function applyAll() {
     } catch (e) {
       if (errCode(e) === "42P01") missingTable = true;
       else console.error("[MIGRATE] category seed failed:", e.message);
+    }
+  }
+
+  // Sports Academy and Studio: one centralized category each. The sport / class type is chosen inside the vendor dashboard.
+  // Safe to run on every start: an existing category is never renamed, and its segment is only filled in
+  // when it is still empty AND no vendor uses it (so no live vendor's dashboard can change).
+  const SIGNUP_SEED = [
+    { name: "Sports Academy", slug: "academy", icon: "trophy", order: 150, segment: "academy", group: "sports", tagline: "Cricket, football, swimming, badminton and more" },
+    { name: "Studio", slug: "studio", icon: "music", order: 151, segment: "studio", group: "studios", tagline: "Dance, music, art, yoga and martial arts" }
+  ];
+  for (const c of SIGNUP_SEED) {
+    try {
+      await sequelize.query(
+        `INSERT INTO categories (name, slug, icon, display_order, active, is_venue_type, business_type, segment, tagline, show_on_home, max_secondary_categories, launch_status, launch_group)
+         SELECT :name, :slug, :icon, :order, true, false, 'education', :segment, :tagline, true, 0, 'live', :group
+         WHERE NOT EXISTS (SELECT 1 FROM categories WHERE slug = :slug)`,
+        { replacements: c }
+      );
+      await sequelize.query(
+        `UPDATE categories SET segment = :segment
+          WHERE slug = :slug AND segment IS NULL
+            AND NOT EXISTS (SELECT 1 FROM venues WHERE business_category = :slug)`,
+        { replacements: c }
+      );
+      await sequelize.query(
+        `UPDATE categories
+            SET launch_status = COALESCE(launch_status, 'live'),
+                launch_group = COALESCE(launch_group, :group)
+          WHERE slug = :slug`,
+        { replacements: c }
+      );
+    } catch (e) {
+      if (errCode(e) === "42P01") missingTable = true;
+      else console.error("[MIGRATE] sign-up category seed failed:", e.message);
     }
   }
 

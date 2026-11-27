@@ -6,7 +6,7 @@ import Input from "../../../components/common/Input";
 import Button from "../../../components/common/Button";
 import { planService } from "../../../services/planService";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { PLAN_FEATURES, PLAN_PILLARS, PLAN_PRESETS } from "../../../lib/planFeatures";
+import { PLAN_FEATURES, PLAN_PILLARS, PLAN_PRESETS, PLAN_SEGMENTS, segmentsText } from "../../../lib/planFeatures";
 import { OFFER_PRESETS } from "../../../lib/planPricing";
 import { formatCurrency } from "../../../lib/formatters";
 
@@ -34,6 +34,9 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
   });
 
   const [selectedFeatures, setSelectedFeatures] = useState(existingPlan?.features || []);
+  const [selectedSegments, setSelectedSegments] = useState(
+    Array.isArray(existingPlan?.segments) ? existingPlan.segments : []
+  );
   const [isActive, setIsActive] = useState(existingPlan?.is_active ?? true);
   const [gstInclusive, setGstInclusive] = useState(existingPlan?.gst_inclusive === true);
 
@@ -55,6 +58,12 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
     );
   }
 
+  function toggleSegment(key) {
+    setSelectedSegments((prev) =>
+      prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]
+    );
+  }
+
   function applyPreset(preset) {
     const v = preset.values;
     const opts = { shouldDirty: true, shouldValidate: false };
@@ -67,6 +76,7 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
     setValue("offer_name", v.offer_name, opts);
     setValue("offer_ends_at", "", opts);
     setGstInclusive(v.gst_inclusive === true);
+    setSelectedSegments(v.segments || []);
     setSelectedFeatures(v.features);
   }
 
@@ -81,6 +91,7 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
         offer_ends_at: hasDiscount ? values.offer_ends_at || null : null,
         gst_inclusive: gstInclusive,
         features: selectedFeatures,
+        segments: selectedSegments,
         is_active: isActive
       };
       if (existingPlan) {
@@ -249,6 +260,28 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
         Visible to new vendors (untick to hide it; vendors already on this plan are not affected)
       </label>
 
+      {/* Business types that can pick this plan */}
+      <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3.5">
+        <p className="text-sm font-semibold text-gray-800">Available for</p>
+        <p className="text-xs text-gray-500 mb-2.5 leading-relaxed">
+          Tick the business types that can choose this plan. Leave all unticked to show it to every business type.
+          This only decides who can pick the plan; vendors already on it keep it.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+          {PLAN_SEGMENTS.map((s) => (
+            <label key={s.key} className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={selectedSegments.includes(s.key)}
+                onChange={() => toggleSegment(s.key)}
+              />
+              {s.label}
+            </label>
+          ))}
+        </div>
+        <p className="text-[11px] text-sky-700 font-medium mt-2.5">Shown to: {segmentsText(selectedSegments)}</p>
+      </div>
+
       <div className="space-y-4">
         <label className="block text-sm font-medium text-gray-700">Features included in this plan</label>
         {PLAN_PILLARS.map((pillar) => (
@@ -256,7 +289,9 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
             <p className="text-sm font-semibold text-gray-800">{pillar.title}</p>
             <p className="text-xs text-gray-400 mb-2.5">{pillar.hint}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-              {PLAN_FEATURES.filter((f) => f.pillar === pillar.key).map((f) => (
+              {PLAN_FEATURES.filter(
+                (f) => f.pillar === pillar.key && (!f.adminHidden || selectedFeatures.includes(f.key))
+              ).map((f) => (
                 <label key={f.key} className="flex items-start gap-2 text-sm text-gray-700">
                   <input
                     type="checkbox"
@@ -267,6 +302,9 @@ export default function PlanForm({ existingPlan, onSaved, onCancel }) {
                   <span>
                     {f.label}
                     {f.hint && <span className="block text-[11px] text-gray-400 leading-snug">{f.hint}</span>}
+                    {f.segments && (
+                      <span className="block text-[11px] text-primary-500 leading-snug">For: {segmentsText(f.segments)}</span>
+                    )}
                   </span>
                 </label>
               ))}

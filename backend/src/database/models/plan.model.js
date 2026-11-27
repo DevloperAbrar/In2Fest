@@ -23,6 +23,9 @@ module.exports = (sequelize, DataTypes) => {
     // false = GST is added on top at checkout (all old plans).
     gst_inclusive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     features: { type: DataTypes.JSONB, defaultValue: [] },
+    // Business types that can pick this plan: any of "gym", "academy", "studio", "library".
+    // [] = every business type (all old plans).
+    segments: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     trial_days: { type: DataTypes.INTEGER, defaultValue: 0 },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true }
   }, {

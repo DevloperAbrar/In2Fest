@@ -2,9 +2,9 @@ import React from "react";
 import { Check } from "lucide-react";
 import logo from "../../../assets/logo.png";
 
-const STEPS = ["Plan", "Business type", "Details"];
+const STEPS = ["Business type", "Plan", "Details"];
 
-/* Logo + 3-step progress. step = 1 (plan), 2 (business type), 3 (details). */
+/* Logo + 3-step progress. step = 1 (business type), 2 (plan), 3 (details). */
 export function OnboardingHeader({ step }) {
   return (
     <div className="text-center">

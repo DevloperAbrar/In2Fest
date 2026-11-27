@@ -19,6 +19,7 @@ const GROUPS = {
   const DEFAULT_LIVE = {
     "gym-fitness": "gym",
     academy: "sports",
+    studio: "studios",
     "yoga-studio": "studios",
     "yoga-center": "studios",
     "study-library": "library"

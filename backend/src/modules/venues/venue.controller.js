@@ -3,6 +3,14 @@ const { AppError } = require("../../middleware/error.middleware");
 
 async function createVenue(req, res, next) {
   try {
+    // A plan can be limited to some business types (Admin > Plans > "Available for").
+    // Checked here too, so a hand-made request cannot pick a plan that is not meant for this business type.
+    // Super Admin "Add vendor" uses adminCreateVenue, so it is not affected.
+    if (req.body && req.body.plan_id) {
+      const planService = require("../plans/plan.service");
+      const plan = await planService.getPlanById(req.body.plan_id);
+      planService.assertPlanAllowedForCategory(plan, req.body.business_category);
+    }
     const venue = await venueService.createVenue({ ...req.body, owner_id: req.user.id });
     res.status(201).json({ success: true, data: venue });
   } catch (error) {

@@ -17,9 +17,11 @@ async function getAllPlans(req, res, next) {
     res.set("Vary", "Authorization");
     if (isAdmin) res.set("Cache-Control", "no-store");
 
-    // Super admin: every plan (including hidden ones) + subscriber counts.
-    // Everyone else: visible plans only.
-    const plans = await planService.getAllPlans(isAdmin);
+    // Super admin: every plan (including hidden ones) + subscriber counts. Never filtered.
+    // Everyone else: visible plans only. ?category=<slug> (onboarding) or ?venueId=<id> (subscription page)
+    // limits them to the plans meant for that business type.
+    const filter = { category: req.query.category, venueId: req.query.venueId };
+    const plans = await planService.getAllPlans(isAdmin, filter);
     res.json({ success: true, data: plans });
   } catch (error) {
     next(error);

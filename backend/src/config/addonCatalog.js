@@ -12,21 +12,29 @@
 //            "gym" = Gym & Fitness, "academy" = Sports Academy, "studio" = Classes & Studios.
 // parent   : the base plan feature the vendor must already have (Academy and Studio also use "gym").
 const ADDONS = [
-    {
-      key: "gym_body",
-      label: "Body Measurement",
-      description: "Full body size, health, treadmill and strength readings for every member, with progress charts and a professional PDF report.",
-      parent: "gym",
-      segments: ["gym"],
-      sort: 10
-    }
-  ];
-  
-  const BY_KEY = new Map(ADDONS.map((a) => [a.key, a]));
-  
-  module.exports = {
-    ADDONS,
-    ADDON_KEYS: ADDONS.map((a) => a.key),
-    get: (key) => BY_KEY.get(key) || null,
-    isAddonKey: (key) => BY_KEY.has(key)
-  };
+  {
+    key: "gym_body",
+    label: "Body Measurement",
+    description: "Full body size, health, treadmill and strength readings for every member, with progress charts and a professional PDF report.",
+    parent: "gym",
+    segments: ["gym"],
+    sort: 10
+  },
+  {
+    key: "gym_store",
+    label: "Gym Store",
+    description: "Sell supplements and merchandise from your gym: product catalog, point of sale, stock tracking and printable invoices.",
+    parent: "gym",
+    segments: ["gym"],
+    sort: 20
+  }
+];
+
+const BY_KEY = new Map(ADDONS.map((a) => [a.key, a]));
+
+module.exports = {
+  ADDONS,
+  ADDON_KEYS: ADDONS.map((a) => a.key),
+  get: (key) => BY_KEY.get(key) || null,
+  isAddonKey: (key) => BY_KEY.has(key)
+};

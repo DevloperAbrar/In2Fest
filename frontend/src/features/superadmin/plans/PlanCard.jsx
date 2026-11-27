@@ -2,7 +2,7 @@ import React from "react";
 import Card from "../../../components/common/Card";
 import Badge from "../../../components/common/Badge";
 import { formatCurrency } from "../../../lib/formatters";
-import { PLAN_FEATURES } from "../../../lib/planFeatures";
+import { PLAN_FEATURES, segmentsText } from "../../../lib/planFeatures";
 import { getCyclePricing, getDaysLeft } from "../../../lib/planPricing";
 import { Check, Edit2, Trash2, Tag, Eye, EyeOff, Users } from "lucide-react";
 
@@ -76,6 +76,8 @@ export default function PlanCard({ plan, onEdit, onDelete, onToggleVisibility, b
             <Users size={12} /> {subscribers} {subscribers === 1 ? "vendor" : "vendors"} on this plan
           </span>
         </div>
+
+        <p className="mt-2 text-xs text-sky-700 font-medium">For: {segmentsText(plan.segments)}</p>
 
         <button
           type="button"

@@ -18,9 +18,10 @@ import { getCategoryIcon, getGroup, getGroupKey } from "../../../lib/onboardingG
 import { getCyclePricing } from "../../../lib/planPricing";
 import { formatCurrency } from "../../../lib/formatters";
 import { BASE_DOMAIN, DISCOVERY_URL } from "../../../lib/constants";
-import BusinessTypePicker from "./BusinessTypePicker";
+import { getOnboardingSegment } from "../../../lib/onboardingSegments";
 import { OnboardingHeader, Field, TextInput, SelectInput } from "./OnboardingKit";
 
+const TYPE_PAGE = "/dashboard/onboarding/type";
 const PLAN_PAGE = "/dashboard/onboarding/plan";
 
 // Team size and starting price are not asked here any more. Owners add them later
@@ -28,6 +29,11 @@ const PLAN_PAGE = "/dashboard/onboarding/plan";
 const HIDDEN_FIELDS = ["hall_name", "team_size", "starting_price"];
 
 const NAME_UI = {
+  // by business type (segment)
+  gym: { label: "Gym / fitness centre name", placeholder: "e.g. Fit Zone Gym" },
+  academy: { label: "Academy name", placeholder: "e.g. Star Cricket Academy" },
+  studio: { label: "Studio name", placeholder: "e.g. Rhythm Dance Studio" },
+  // older groups (kept for categories without a segment)
   fitness: { label: "Gym / fitness centre name", placeholder: "e.g. Fit Zone Gym" },
   library: { label: "Library / study room name", placeholder: "e.g. Knowledge Hub Library" },
   shop: { label: "Shop name", placeholder: "e.g. Sharma Garments" },
@@ -63,6 +69,10 @@ export default function VenueDetailsForm() {
   const { user } = useAuth();
   const { refetchVenue } = useVenue();
 
+  // Business type and plan are chosen on the earlier pages and arrive through the router state.
+  const primaryCategory = location.state?.category || null;
+  const segment = location.state?.segment || null;
+  const planBackState = { category: primaryCategory, segment, categoryName: location.state?.categoryName };
   const plan = location.state?.plan;
   const planId = plan?.id;
   const billingCycle = location.state?.billingCycle === "yearly" ? "yearly" : "monthly";
@@ -74,9 +84,6 @@ export default function VenueDetailsForm() {
   const price = plan ? getCyclePricing(plan, billingCycle) : null;
   const hasWebsite = (plan?.features || []).includes("website_builder");
 
-  // 1 = business type, 2 = business details
-  const [step, setStep] = useState(1);
-  const [primaryCategory, setPrimaryCategory] = useState(null);
   const [payingNow, setPayingNow] = useState(false);
 
   // Referral code from URL or localStorage
@@ -92,7 +99,7 @@ export default function VenueDetailsForm() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
-  }, [step]);
+  }, []);
 
   const { data: categories, loading: categoriesLoading } = useFetch("/meta/categories");
 
@@ -100,7 +107,7 @@ export default function VenueDetailsForm() {
   const group = getGroupForCategories(primaryCategory ? [primaryCategory] : [], categories || []);
   const groupConfig = CATEGORY_FIELD_CONFIG[group];
   const groupKey = primaryRow ? getGroupKey(primaryRow) : "other";
-  const nameUi = group === "venue" ? null : NAME_UI[groupKey];
+  const nameUi = group === "venue" ? null : NAME_UI[segment] || NAME_UI[groupKey];
 
   const {
     register, handleSubmit, setValue, watch,
@@ -219,34 +226,13 @@ export default function VenueDetailsForm() {
     }
   };
 
-  // Details need the plan chosen on the previous page. Without it, start again from plans.
-  if (!plan) return <Navigate to={PLAN_PAGE} replace />;
-
-  // ───────────────────────── Step 2 of 3: business type ─────────────────────────
-  if (step === 1) {
-    return (
-      <BusinessTypePicker
-        categories={(categories || []).filter(
-          (c) => !c.launch_status || c.launch_status === "live" || c.slug === primaryCategory
-        )}
-        loading={categoriesLoading}
-        selected={primaryCategory}
-        onSelect={setPrimaryCategory}
-        onBack={() => navigate(PLAN_PAGE)}
-        onContinue={() => {
-          if (!primaryCategory) {
-            showError("Select your business type to continue");
-            return;
-          }
-          setStep(2);
-        }}
-      />
-    );
-  }
+  // Details need the business type and the plan from the earlier pages. If one is missing, go back to that step.
+  if (!primaryCategory) return <Navigate to={TYPE_PAGE} replace />;
+  if (!plan) return <Navigate to={PLAN_PAGE} state={planBackState} replace />;
 
   // ───────────────────────── Step 3 of 3: business details ─────────────────────────
   const TypeIcon = getCategoryIcon(primaryRow || {});
-  const typeGroup = getGroup(groupKey);
+  const typeGroup = getOnboardingSegment(segment) || getGroup(groupKey);
   const extraFields = groupConfig.fields.filter((f) => !HIDDEN_FIELDS.includes(f.name));
   const hallField = groupConfig.fields.find((f) => f.name === "hall_name");
 
@@ -266,7 +252,7 @@ export default function VenueDetailsForm() {
           <div className="bg-white rounded-3xl border border-gray-200 shadow-card p-6 md:p-8">
             <button
               type="button"
-              onClick={() => setStep(1)}
+              onClick={() => navigate(TYPE_PAGE, { state: { category: primaryCategory } })}
               className="group flex items-center gap-1.5 text-sm text-gray-400 hover:text-primary-600 mb-5 transition-colors"
             >
               <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
@@ -282,7 +268,7 @@ export default function VenueDetailsForm() {
                 <TypeIcon size={14} strokeWidth={2} />
               </span>
               <p className="text-sm text-gray-500">
-                Setting up as <span className="font-semibold text-navy-900">{primaryRow?.name}</span>
+                Setting up as <span className="font-semibold text-navy-900">{primaryRow?.name || location.state?.categoryName}</span>
               </p>
             </div>
 
@@ -425,7 +411,7 @@ export default function VenueDetailsForm() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(PLAN_PAGE)}
+                  onClick={() => navigate(PLAN_PAGE, { state: planBackState })}
                   className="text-xs font-semibold text-gold-400 hover:underline"
                 >
                   Change

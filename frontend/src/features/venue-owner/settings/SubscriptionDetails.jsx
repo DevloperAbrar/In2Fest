@@ -13,7 +13,8 @@ import OfferBanner from "../../../components/common/OfferBanner";
 import { showSuccess, showError } from "../../../components/common/Toast";
 import { formatCurrency, formatDate } from "../../../lib/formatters";
 import { translatePlanName } from "../../../lib/i18nLabels";
-import { PLAN_FEATURES } from "../../../lib/planFeatures";
+import { PLAN_FEATURES, featuresForSegment, vendorFeatureLabel } from "../../../lib/planFeatures";
+import { useBusinessProfile } from "../../../hooks/useBusinessProfile";
 import { getCyclePricing, getBestOffer, getMaxYearlySavings } from "../../../lib/planPricing";
 import { paymentService } from "../../../services/paymentService";
 import { openCashfreeCheckout } from "../../../lib/cashfree";
@@ -33,7 +34,9 @@ const PLAN_STYLE = {
 
 function getPlanStyle(name) { return PLAN_STYLE[name] || PLAN_STYLE.Basic; }
 
-function featureLabel(key) {
+function featureLabel(key, segmentKey) {
+  const custom = vendorFeatureLabel(key, segmentKey);
+  if (custom) return custom;
   const found = PLAN_FEATURES.find((f) => f.key === key);
   if (found) return found.label;
   return String(key).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -118,11 +121,18 @@ function GstBreakdown({ quote }) {
 export default function SubscriptionDetails() {
   const { t, i18n } = useTranslation();
   const { venue, refetchVenue } = useVenue();
+  // The vendor's business type (gym | academy | studio | library ...), used to show only the features that apply.
+  const { profile } = useBusinessProfile();
+  const segmentKey = profile?.segment?.key || null;
   const { data: subscription, loading, refetch: refetchSub } = useFetch(
     venue ? `/subscriptions/${venue.id}` : null,
     { skip: !venue }
   );
-  const { data: plans, loading: plansLoading } = useFetch("/plans");
+  // Only the plans meant for this vendor's business type. The vendor's current plan is always kept in the list.
+  const { data: plans, loading: plansLoading } = useFetch(
+    venue ? `/plans?venueId=${venue.id}` : null,
+    { skip: !venue }
+  );
   const { data: payments, loading: paymentsLoading, refetch: refetchPayments } = useFetch(
     venue ? `/payments?venueId=${venue.id}` : null,
     { skip: !venue }
@@ -441,10 +451,10 @@ export default function SubscriptionDetails() {
                 )}
 
                 <ul className="space-y-1.5 mb-5 mt-2 flex-1">
-                  {(plan.features || []).map((f, i) => (
+                  {featuresForSegment(plan.features, segmentKey).map((f, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs text-navy-600">
                       <Check size={13} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span>{featureLabel(f)}</span>
+                      <span>{featureLabel(f, segmentKey)}</span>
                     </li>
                   ))}
                 </ul>

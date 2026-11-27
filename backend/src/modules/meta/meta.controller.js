@@ -6,6 +6,7 @@ const { buildDefaultSections } = require("../../utils/pageSections");
 const pincodeService = require("./pincode.service");
 const cscService = require("./csc.service");
 const { resolveLaunch } = require("../../config/launchGroups");
+const { segmentForCategory } = require("../../config/vendorSegments");
 
 async function listCities(req, res, next) {
   try {
@@ -43,7 +44,13 @@ async function listCategories(req, res, next) {
         ...resolveLaunch(category),
         business_type: typeKey,
         business_type_label: type.label,
-        business_type_order: Math.max(typeKeys.indexOf(typeKey), 0)
+        business_type_order: Math.max(typeKeys.indexOf(typeKey), 0),
+        // gym | academy | studio | library | ... The built-in categories have no segment column value,
+        // so it is resolved here. The onboarding pages group categories by this.
+        segment_key: (() => {
+          const seg = segmentForCategory(category.slug);
+          return seg ? seg.key : category.segment || null;
+        })()
       };
     });
 

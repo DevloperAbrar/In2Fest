@@ -216,11 +216,31 @@ async function updateCity(cityId, payload) {
 async function listAllCategories() {
   // Admin list  - includes inactive ones so admin can re-enable them.
   // launch_status / launch_group come back already resolved, so the admin sees what visitors see.
+  // segment_key = the functionality the vendor really gets (built-in categories have no segment column value).
+  // vendor_count = how many vendors have this as their main category.
   const { resolveLaunch } = require("../../config/launchGroups");
+  const { segmentForCategory } = require("../../config/vendorSegments");
   const rows = await Category.findAll({ order: [["display_order", "ASC"], ["name", "ASC"]] });
+
+  const counts = {};
+  const grouped = await Venue.findAll({
+    attributes: ["business_category", [fn("COUNT", col("id")), "n"]],
+    group: ["business_category"],
+    raw: true
+  });
+  grouped.forEach((g) => {
+    counts[g.business_category] = Number(g.n) || 0;
+  });
+
   return rows.map((r) => {
     const plain = r.toJSON();
-    return { ...plain, ...resolveLaunch(plain) };
+    const seg = segmentForCategory(plain.slug);
+    return {
+      ...plain,
+      ...resolveLaunch(plain),
+      segment_key: seg ? seg.key : plain.segment || null,
+      vendor_count: counts[plain.slug] || 0
+    };
   });
 }
 

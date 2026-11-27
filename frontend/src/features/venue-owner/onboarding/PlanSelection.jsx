@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
   Minus,
@@ -19,6 +19,9 @@ import {
   RefreshCw,
   MessageCircle,
   ChevronDown,
+  ArrowLeft,
+  ListChecks,
+  ShoppingBag,
 } from "lucide-react";
 import { useFetch } from "../../../hooks/useFetch";
 import Loader from "../../../components/common/Loader";
@@ -27,10 +30,13 @@ import BillingToggle from "../../../components/common/BillingToggle";
 import OfferBanner from "../../../components/common/OfferBanner";
 import { formatCurrency } from "../../../lib/formatters";
 import { getCyclePricing, getBestOffer, getMaxYearlySavings } from "../../../lib/planPricing";
+import { featuresForSegment, vendorFeatureLabel } from "../../../lib/planFeatures";
 import { OnboardingHeader } from "./OnboardingKit";
 
 // Business WhatsApp number used for "Need help choosing?"
 const SUPPORT_WHATSAPP = "917770972867";
+
+const TYPE_PAGE = "/dashboard/onboarding/type";
 
 const GROUPS = [
   { key: "found", title: "Get found online" },
@@ -50,11 +56,17 @@ const FEATURE_META = {
   slots: { label: "Live booking calendar", icon: CalendarClock, group: "run" },
   billing: { label: "Invoicing & billing", icon: Receipt, group: "run" },
   gym: { label: "Members, plans & payments", tag: "Gym", icon: Dumbbell, group: "industry" },
-  gym_pro: { label: "Workouts, payment links & member card", tag: "Gym Pro", icon: Crown, group: "industry" },
+  gym_pro: { label: "Payment links & member card", tag: "Pro", icon: Crown, group: "industry" },
+  gym_workouts: { label: "Workout plans for members", tag: "Gym", icon: ListChecks, group: "industry" },
+  gym_store: { label: "Supplement store, POS & stock", tag: "Gym", icon: ShoppingBag, group: "industry" },
   library: { label: "Seats, shifts & attendance", tag: "Library", icon: BookOpen, group: "industry" },
   food: { label: "Menu, orders & table QR", tag: "Restaurant", icon: Utensils, group: "industry" },
   food_pro: { label: "POS, stock, offers & reports", tag: "Restaurant Pro", icon: Crown, group: "industry" },
 };
+
+// The small tag next to "gym" and "library" follows the vendor's business type.
+const SEGMENT_TAG = { gym: "Gym", academy: "Academy", studio: "Studio", library: "Library" };
+const TAGGED_BY_SEGMENT = ["gym", "library"];
 
 const META_ORDER = Object.keys(FEATURE_META);
 
@@ -63,6 +75,16 @@ function getFeatureMeta(key) {
   // A feature added later by Super Admin still shows up, with a readable name.
   const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return { label, icon: Check, group: "more" };
+}
+
+function featureLabelFor(key, segmentKey) {
+  return vendorFeatureLabel(key, segmentKey) || getFeatureMeta(key).label;
+}
+
+function featureTagFor(key, segmentKey) {
+  const meta = getFeatureMeta(key);
+  if (TAGGED_BY_SEGMENT.includes(key) && SEGMENT_TAG[segmentKey]) return SEGMENT_TAG[segmentKey];
+  return meta.tag;
 }
 
 function sortFeatures(keys) {
@@ -74,8 +96,9 @@ function sortFeatures(keys) {
   return [...keys].sort((a, b) => groupIndex(a) - groupIndex(b) || metaIndex(a) - metaIndex(b));
 }
 
-function FeatureRow({ featureKey, dark }) {
-  const meta = getFeatureMeta(featureKey);
+function FeatureRow({ featureKey, dark, segmentKey }) {
+  const label = featureLabelFor(featureKey, segmentKey);
+  const tag = featureTagFor(featureKey, segmentKey);
   return (
     <li className="flex items-start gap-2.5 text-[13px] leading-snug">
       <span
@@ -86,14 +109,14 @@ function FeatureRow({ featureKey, dark }) {
         <Check size={10} strokeWidth={3.5} />
       </span>
       <span className={dark ? "text-white/85" : "text-gray-600"}>
-        {meta.label}
-        {meta.tag && (
+        {label}
+        {tag && (
           <span
             className={`ml-1.5 align-middle text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
               dark ? "bg-white/10 text-gold-400" : "bg-gold-500/15 text-gold-600"
             }`}
           >
-            {meta.tag}
+            {tag}
           </span>
         )}
       </span>
@@ -101,7 +124,7 @@ function FeatureRow({ featureKey, dark }) {
   );
 }
 
-function PlanCard({ plan, previous, cycle, recommended, onChoose }) {
+function PlanCard({ plan, previous, cycle, recommended, onChoose, segmentKey }) {
   const price = getCyclePricing(plan, cycle);
   const isFree = Number(plan.monthly_price) === 0;
   const yearly = cycle === "yearly";
@@ -218,14 +241,14 @@ function PlanCard({ plan, previous, cycle, recommended, onChoose }) {
       )}
       <ul className="space-y-2.5 flex-1">
         {shown.map((f) => (
-          <FeatureRow key={f} featureKey={f} dark={dark} />
+          <FeatureRow key={f} featureKey={f} dark={dark} segmentKey={segmentKey} />
         ))}
       </ul>
     </div>
   );
 }
 
-function CompareTable({ plans, keys }) {
+function CompareTable({ plans, keys, segmentKey }) {
   const rows = GROUPS.map((g) => ({
     ...g,
     items: keys.filter((k) => getFeatureMeta(k).group === g.key),
@@ -255,14 +278,14 @@ function CompareTable({ plans, keys }) {
                 </td>
               </tr>
               {g.items.map((k) => {
-                const meta = getFeatureMeta(k);
+                const tag = featureTagFor(k, segmentKey);
                 return (
                   <tr key={k} className="border-b border-gray-50 last:border-0">
                     <td className="px-4 py-3 text-gray-700">
-                      {meta.label}
-                      {meta.tag && (
+                      {featureLabelFor(k, segmentKey)}
+                      {tag && (
                         <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gold-500/15 text-gold-600">
-                          {meta.tag}
+                          {tag}
                         </span>
                       )}
                     </td>
@@ -287,14 +310,28 @@ function CompareTable({ plans, keys }) {
 }
 
 export default function PlanSelection() {
-  const { data: plans, loading, error, refetch } = useFetch("/plans");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // The business type is chosen on the previous page and arrives here through the router state.
+  const categorySlug = location.state?.category || null;
+  const segmentKey = location.state?.segment || null;
+  const categoryName = location.state?.categoryName || "";
+
+  const { data: plans, loading, error, refetch } = useFetch(
+    categorySlug ? `/plans?category=${encodeURIComponent(categorySlug)}` : null,
+    { skip: !categorySlug }
+  );
   const [cycle, setCycle] = useState("yearly");
   const [showCompare, setShowCompare] = useState(false);
-  const navigate = useNavigate();
 
+  // Cards show only the features that apply to this business type (no Gym Store on an Academy card).
   const planList = useMemo(
-    () => [...(plans || [])].sort((a, b) => Number(a.monthly_price) - Number(b.monthly_price)),
-    [plans]
+    () =>
+      [...(plans || [])]
+        .sort((a, b) => Number(a.monthly_price) - Number(b.monthly_price))
+        .map((p) => ({ ...p, features: featuresForSegment(p.features, segmentKey) })),
+    [plans, segmentKey]
   );
   const allFeatureKeys = useMemo(
     () => sortFeatures(Array.from(new Set(planList.flatMap((p) => p.features || [])))),
@@ -306,8 +343,15 @@ export default function PlanSelection() {
   const bestOffer = getBestOffer(planList);
   const maxSavings = getMaxYearlySavings(planList);
 
+  // No business type yet (page opened directly): go to the first step.
+  if (!categorySlug) return <Navigate to={TYPE_PAGE} replace />;
+
   const handleChoose = (plan) => {
-    navigate("/dashboard/onboarding/details", { state: { plan, billingCycle: cycle } });
+    // Send the plan exactly as the server returned it (with all its features).
+    const original = (plans || []).find((p) => p.id === plan.id) || plan;
+    navigate("/dashboard/onboarding/details", {
+      state: { plan: original, billingCycle: cycle, category: categorySlug, segment: segmentKey, categoryName }
+    });
   };
 
   if (loading) return <Loader fullScreen />;
@@ -328,15 +372,23 @@ export default function PlanSelection() {
   return (
     <div className="min-h-screen bg-[#FBF7F1]">
       <div className="max-w-6xl mx-auto px-4 pt-10 pb-16">
-        <OnboardingHeader step={1} />
+        <OnboardingHeader step={2} />
 
         <div className="text-center mt-10">
           <h1 className="font-display font-bold text-navy-900 text-3xl md:text-4xl tracking-tight">
             Choose your plan
           </h1>
           <p className="text-gray-500 mt-3 max-w-md mx-auto">
-            Pick the plan that fits your business. Switch or upgrade anytime, no long-term contracts.
+            {categoryName ? `Plans for ${categoryName}. ` : ""}Switch or upgrade anytime, no long-term contracts.
           </p>
+          <button
+            type="button"
+            onClick={() => navigate(TYPE_PAGE, { state: { category: categorySlug } })}
+            className="group mt-3 inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-primary-600 transition-colors"
+          >
+            <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
+            Change business type
+          </button>
         </div>
 
         {bestOffer && (
@@ -361,6 +413,13 @@ export default function PlanSelection() {
               Try again
             </Button>
           </div>
+        ) : planList.length === 0 ? (
+          <div className="max-w-md mx-auto mt-12 text-center bg-white border border-dashed border-gray-200 rounded-2xl py-10 px-5">
+            <p className="text-sm text-gray-600">No plans are open for {categoryName || "this business type"} yet.</p>
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-semibold text-primary-600 hover:text-primary-700">
+              Chat with us on WhatsApp
+            </a>
+          </div>
         ) : (
           <div className={`grid gap-6 mx-auto mt-12 items-stretch ${gridClass}`}>
             {planList.map((plan, i) => (
@@ -371,6 +430,7 @@ export default function PlanSelection() {
                 cycle={cycle}
                 recommended={plan.id === recommendedId}
                 onChoose={handleChoose}
+                segmentKey={segmentKey}
               />
             ))}
           </div>
@@ -389,7 +449,7 @@ export default function PlanSelection() {
             </button>
             {showCompare && (
               <div className="mt-5">
-                <CompareTable plans={planList} keys={allFeatureKeys} />
+                <CompareTable plans={planList} keys={allFeatureKeys} segmentKey={segmentKey} />
               </div>
             )}
           </div>

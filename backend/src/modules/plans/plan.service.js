@@ -1,7 +1,10 @@
 const { Op } = require("sequelize");
-const { Plan, Subscription } = require("../../database/models");
+const { Plan, Subscription, Venue } = require("../../database/models");
 const { AppError } = require("../../middleware/error.middleware");
 const { getPlanPricing, MAX_DISCOUNT } = require("./planPricing");
+const { normalizeSegments, segmentKeyForCategory, planAvailableFor } = require("../../config/planSegments");
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Plain JSON of the plan + computed pricing (final prices, offer status, savings)
 function withPricing(plan) {
@@ -87,11 +90,13 @@ async function assertCanHide(plan) {
 }
 
 async function createPlan(payload) {
+  const segments = normalizeSegments(payload.segments);
   const plan = await Plan.create({
     name: payload.name,
     description: payload.description,
     monthly_price: payload.monthly_price,
     features: payload.features || [],
+    segments: segments || [],
     trial_days: payload.trial_days || 0,
     is_active: payload.is_active !== undefined ? toBool(payload.is_active) : true,
     gst_inclusive: toBool(payload.gst_inclusive),
@@ -101,14 +106,43 @@ async function createPlan(payload) {
 }
 
 /**
- * includeInactive = true  (super admin): all plans, hidden ones too, with subscriber_count.
- * includeInactive = false (everyone else): visible plans only.
+ * Who is asking for the plans?
+ *   { venueId }  -> a vendor already in the dashboard: that vendor's business type, and their current plan is always kept.
+ *   { category } -> a new vendor in onboarding who just picked this category.
+ *   nothing      -> no business-type filter (marketing site).
  */
-async function getAllPlans(includeInactive = false) {
+async function resolveAudience(filter = {}) {
+  if (filter.venueId && UUID_RE.test(String(filter.venueId))) {
+    const venue = await Venue.findByPk(filter.venueId, { attributes: ["id", "business_category"] });
+    if (!venue) return { applies: false };
+    const sub = await Subscription.findOne({ where: { venue_id: venue.id }, attributes: ["plan_id"] });
+    return {
+      applies: true,
+      segmentKey: segmentKeyForCategory(venue.business_category),
+      keepPlanId: sub ? sub.plan_id : null
+    };
+  }
+  if (filter.category) {
+    return { applies: true, segmentKey: segmentKeyForCategory(String(filter.category)), keepPlanId: null };
+  }
+  return { applies: false };
+}
+
+/**
+ * includeInactive = true  (super admin): all plans, hidden ones too, with subscriber_count. Never filtered.
+ * includeInactive = false (everyone else): visible plans only, optionally limited to one business type.
+ */
+async function getAllPlans(includeInactive = false, filter = {}) {
   const where = includeInactive ? {} : { is_active: true };
   const plans = await Plan.findAll({ where, order: [["monthly_price", "ASC"]] });
 
-  if (!includeInactive) return plans.map(withPricing);
+  if (!includeInactive) {
+    const audience = await resolveAudience(filter);
+    const visible = audience.applies
+      ? plans.filter((p) => p.id === audience.keepPlanId || planAvailableFor(p, audience.segmentKey))
+      : plans;
+    return visible.map(withPricing);
+  }
 
   const counts = await getSubscriberCounts();
   return plans.map((plan) => ({ ...withPricing(plan), subscriber_count: counts[plan.id] || 0 }));
@@ -118,6 +152,13 @@ async function getPlanById(id) {
   const plan = await Plan.findByPk(id);
   if (!plan) throw new AppError("Plan not found", 404);
   return plan;
+}
+
+// Server-side check for a new vendor: the plan must be meant for the business type they picked.
+function assertPlanAllowedForCategory(plan, categorySlug) {
+  if (!planAvailableFor(plan, segmentKeyForCategory(categorySlug))) {
+    throw new AppError("This plan is not available for your business type. Please pick another plan.", 400);
+  }
 }
 
 async function updatePlan(id, updates) {
@@ -130,6 +171,9 @@ async function updatePlan(id, updates) {
     if (updates[field] !== undefined) plan[field] = updates[field];
   });
   Object.assign(plan, sanitizePricingFields(updates));
+
+  // "Available for" only decides who can pick the plan. Vendors already on it keep it.
+  if (updates.segments !== undefined) plan.segments = normalizeSegments(updates.segments);
 
   // Visible / hidden
   if (updates.is_active !== undefined) {
@@ -201,5 +245,6 @@ module.exports = {
   updatePlan,
   setPlanVisibility,
   deletePlan,
-  withPricing
+  withPricing,
+  assertPlanAllowedForCategory
 };
