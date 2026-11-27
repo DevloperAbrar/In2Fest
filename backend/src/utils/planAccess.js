@@ -1,5 +1,7 @@
 const { Venue, Subscription, Plan } = require("../database/models");
 const { AppError } = require("../middleware/error.middleware");
+const { activeAddonKeys } = require("../modules/addons/addon.access");
+const addonCatalog = require("../config/addonCatalog");
 
 const ACTIVE_STATUSES = ["trial", "active", "expiring_soon"];
 
@@ -27,9 +29,9 @@ function featuresFromSubscription(subscription) {
 }
 
 /**
- * Features a venue can use RIGHT NOW. Empty array when the venue has no
- * subscription or it is expired/suspended. Never throws for missing data, so
- * it is safe to use on public (unauthenticated) endpoints.
+ * Features a venue can use RIGHT NOW = the features of its plan + its live add-ons.
+ * Empty array when the venue has no subscription or it is expired/suspended.
+ * Never throws for missing data, so it is safe to use on public (unauthenticated) endpoints.
  */
 async function getActiveFeatures(venueId) {
   if (!venueId) return [];
@@ -37,7 +39,10 @@ async function getActiveFeatures(venueId) {
     where: { venue_id: venueId },
     include: [{ model: Plan, as: "plan" }]
   });
-  return featuresFromSubscription(subscription);
+  if (!isSubscriptionLive(subscription)) return [];
+  const planFeatures = featuresFromSubscription(subscription);
+  const addons = await activeAddonKeys(venueId);
+  return addons.length ? [...new Set([...planFeatures, ...addons])] : planFeatures;
 }
 
 async function venueHasFeatureFlag(venueId, featureKey) {
@@ -56,11 +61,17 @@ async function venueHasFeature(venueId, featureKey) {
   }
 
   const features = venue.subscription?.plan?.features || [];
-  if (!features.includes(featureKey)) {
-    throw new AppError("Your current plan does not include this feature. Please upgrade your plan.", 403);
+  if (features.includes(featureKey)) return venue;
+
+  // Add-on features (sold separately): only look them up when the plan itself does not include the key,
+  // so every normal feature check stays exactly as fast as before.
+  if (addonCatalog.isAddonKey(featureKey)) {
+    const addons = await activeAddonKeys(venueId);
+    if (addons.includes(featureKey)) return venue;
+    throw new AppError("This feature is an add-on and is not active for your account. Please activate it from Settings > Subscription.", 403);
   }
 
-  return venue;
+  throw new AppError("Your current plan does not include this feature. Please upgrade your plan.", 403);
 }
 
 module.exports = { venueHasFeature, venueHasFeatureFlag, getActiveFeatures, isSubscriptionLive };

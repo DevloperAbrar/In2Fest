@@ -6,6 +6,8 @@ import { useGymVariant, VARIANT_TERMS } from "./gymVariant.js";
 import DashboardLayout from "../../../components/layout/DashboardLayout.jsx";
 import { ownerSidebarItems } from "../ownerSidebarItems.js";
 import { useAuth } from "../../../context/AuthContext";
+import { useVenue } from "../../../context/VenueContext.jsx";
+import { hasVenueFeature } from "../../../lib/venueFeatures";
 import { gymService } from "../../../services/gymService";
 import Modal from "../../../components/common/Modal";
 import Button from "../../../components/common/Button";
@@ -177,6 +179,13 @@ const TAB_DEFS = [
   { to: "/dashboard/gym/messages", label: "Messages", icon: MessageCircle, tone: "emerald" },
   { to: "/dashboard/gym/store", label: "Store", icon: ShoppingBag, tone: "violet" }
 ];
+
+// Tabs that need an extra plan feature (or add-on) on top of "gym".
+const TAB_FEATURE = {
+  "/dashboard/gym/body": "gym_body",
+  "/dashboard/gym/workouts": "gym_workouts",
+  "/dashboard/gym/store": "gym_store"
+};
 const SETTINGS_TAB = { to: "/dashboard/gym/settings", label: "Settings", icon: Settings, tone: "navy" };
 
 // Sports Academy and Studio accounts: no workouts, no store; batches and progress instead.
@@ -204,7 +213,9 @@ export function GymTabs() {
   const reduce = useReducedMotion();
   const rowRef = useRef(null);
   const { variant } = useGymVariant();
-  const defs = tabsFor(variant);
+  const { venue } = useVenue();
+  // Optional modules: the tab shows only when the vendor's plan (or add-on) includes that feature.
+  const defs = tabsFor(variant).filter((tb) => !TAB_FEATURE[tb.to] || hasVenueFeature(venue, TAB_FEATURE[tb.to]));
   const baseTabs = user?.role !== "team_member" || user?.isDemo ? [...defs, SETTINGS_TAB] : defs;
   const tabs = baseTabs.filter((tb) => tb === SETTINGS_TAB || hasScope(user, "gym", GYM_TAB_SCOPES[tb.to] || []));
 

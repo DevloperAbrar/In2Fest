@@ -289,6 +289,20 @@ async function applyAll() {
     else console.error("[MIGRATE] expense schema failed:", e.message);
   }
 
+  try {
+    await require("../modules/addons/addon.bootstrap").ensureAddonSchema();
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] add-on schema failed:", e.message);
+  }
+
+  try {
+    await require("./grandfatherGymModules").grandfatherGymModules();
+  } catch (e) {
+    if (errCode(e) === "42P01") missingTable = true;
+    else console.error("[MIGRATE] gym modules split failed:", e.message);
+  }
+
   for (let i = 0; i < NEW_CATEGORIES.length; i++) {
     const c = NEW_CATEGORIES[i];
     try {

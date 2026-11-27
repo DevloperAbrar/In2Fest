@@ -4,6 +4,7 @@ const express = require("express");
 const { AppError } = require("../../middleware/error.middleware");
 const svc = require("./body.service");
 const report = require("./body.report");
+const { venueHasFeature } = require("../../utils/planAccess");
 
 const router = express.Router({ mergeParams: true });
 
@@ -14,6 +15,17 @@ const h = (fn, status = 200) => async (req, res, next) => {
 // Sports Academy and Studio accounts have their own Progress tool.
 router.use((req, res, next) =>
   req.gymVariant === "gym" ? next() : next(new AppError("Body measurement is available for Gym accounts only", 403)));
+
+// Body Measurement is a paid add-on: only a vendor who has "gym_body" (in the plan, bought, or given by the
+// Super Admin) gets in. This is the real lock; hiding the menu on the frontend is only for looks.
+router.use(async (req, res, next) => {
+  try {
+    await venueHasFeature(req.gymVenue.id, "gym_body");
+    next();
+  } catch (e) {
+    next(e);
+  }
+});
 
 const vid = (req) => req.gymVenue.id;
 

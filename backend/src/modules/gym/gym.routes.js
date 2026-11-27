@@ -67,6 +67,15 @@ router.use("/data-erase", require("./gym.erase.routes"));
 // Sports Academy / Studio accounts do not use workouts or the supplement store.
 const gymOnlyTools = (req, res, next) => (req.gymVariant === "gym" ? next() : next(new AppError("This section is not available for your account type", 403)));
 router.use(["/exercises", "/workout-plans", "/store"], gymOnlyTools);
+// Workouts and Store are separate plan features now (existing plans got both from the startup migration).
+router.use(["/exercises", "/workout-plans"], requirePlanFeature("gym_workouts"));
+router.use("/store", requirePlanFeature("gym_store"));
+// Workouts and Store are separate plan features now (existing plans got both from the startup migration).
+router.use(["/exercises", "/workout-plans"], requirePlanFeature("gym_workouts"));
+router.use("/store", requirePlanFeature("gym_store"));
+// Workouts and Store are separate plan features now (existing plans get both from the startup migration).
+router.use(["/exercises", "/workout-plans"], requirePlanFeature("gym_workouts"));
+router.use("/store", requirePlanFeature("gym_store"));
 
 // Sports Academy / Studio tools (batches, sport profile, tests, progress). Isolated in its own file.
 router.use("/academy", require("./academy.routes"));

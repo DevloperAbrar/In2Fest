@@ -6,6 +6,8 @@ import {
   CalendarDays, Target, Ruler, MapPin, HeartPulse, UserRound, Receipt, ChevronRight, Clock, Check, X, ArrowLeft
 } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
+import { hasVenueFeature } from "../../../lib/venueFeatures";
+
 import { useAuth } from "../../../context/AuthContext";
 import { useFetch } from "../../../hooks/useFetch";
 import { gymService } from "../../../services/gymService";
@@ -630,7 +632,7 @@ function AssignWorkoutModal({ isOpen, onClose, vid, member, onDone }) {
         actions={(
           <div className="flex gap-2">
             {!isGym && <Link to={`/dashboard/gym/progress/${m.id}`} className="tap-scale inline-flex items-center px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">Progress</Link>}
-            {isGym && <Link to={`/dashboard/gym/body/${m.id}`} className="tap-scale inline-flex items-center px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">Body</Link>}
+            {isGym && hasVenueFeature(venue, "gym_body") && <Link to={`/dashboard/gym/body/${m.id}`} className="tap-scale inline-flex items-center px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">Body</Link>}
             <Button variant="outline" onClick={() => setModal("edit")}><Pencil size={14} /> Edit</Button>
           </div>
         )}>

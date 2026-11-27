@@ -14,8 +14,11 @@ export const PLAN_FEATURES = [
   { key: "bookings", label: "Bookings", group: "common", pillar: "run" },
   { key: "slots", label: "Slots", group: "common", pillar: "run", hint: "Live booking calendar" },
   { key: "billing", label: "Billing", group: "common", pillar: "run", hint: "Invoices, quotations, GST" },
-  { key: "gym", label: "Gym Management", group: "gym", pillar: "run", hint: "Members, plans, payments, leads" },
-  { key: "gym_pro", label: "Gym Pro", group: "gym", pillar: "run", parent: "gym", hint: "Workouts, payment links, member card" },
+  { key: "gym", label: "Gym Management", group: "gym", pillar: "run", hint: "Members, plans, payments, attendance, leads, messages" },
+  { key: "gym_pro", label: "Gym Pro", group: "gym", pillar: "run", parent: "gym", hint: "Payment links, member card" },
+  { key: "gym_workouts", label: "Gym Workouts", group: "gym", pillar: "run", parent: "gym", hint: "Exercises, workout plans, assign to members" },
+  { key: "gym_store", label: "Gym Store", group: "gym", pillar: "run", parent: "gym", hint: "Supplement store, POS, stock, invoices" },
+  { key: "gym_body", label: "Body Measurement", group: "gym", pillar: "run", parent: "gym", hint: "Body readings, progress charts, PDF report. Also sold as an add-on" },
   { key: "food", label: "Restaurant Suite", group: "food", pillar: "run", hint: "Menu, live orders, QR, setup" },
   { key: "food_pro", label: "Restaurant Pro", group: "food", pillar: "run", parent: "food", hint: "POS, stock, offers, customers, reports" },
   { key: "library", label: "Library Management", group: "library", pillar: "run", hint: "Halls, shifts, students, attendance, books" },
@@ -42,7 +45,8 @@ export const PLAN_PILLARS = [
 ];
 
 const FOUND = ["marketplace_profile", "reviews", "inquiries"];
-const RUN = ["clients", "bookings", "slots", "billing", "gym", "gym_pro", "food", "food_pro", "library"];
+// gym_body is NOT here on purpose: Body Measurement is sold separately as an add-on.
+const RUN = ["clients", "bookings", "slots", "billing", "gym", "gym_pro", "gym_workouts", "gym_store", "food", "food_pro", "library"];
 
 // One-click fill for Admin > Plans > New Plan. Edit the numbers here to change the defaults.
 export const PLAN_PRESETS = [
@@ -95,7 +99,7 @@ export const PLAN_PRESETS = [
 /**
  * Features that make sense for a vendor's business type.
  * `modules` comes from the business profile (useBusinessProfile().profile.modules).
- * A gym gets gym + gym_pro but never food or slots.
+ * A gym gets gym + gym_pro + gym_workouts + gym_store + gym_body but never food or slots.
  */
 export function getRelevantFeatures(modules) {
   if (!modules) return [];

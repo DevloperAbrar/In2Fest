@@ -18,6 +18,7 @@ import { getCyclePricing, getBestOffer, getMaxYearlySavings } from "../../../lib
 import { paymentService } from "../../../services/paymentService";
 import { openCashfreeCheckout } from "../../../lib/cashfree";
 import api from "../../../services/api";
+import AddonsSection from "./AddonsSection.jsx";
 import {
   Check, Zap, Star, Crown, Rocket, CalendarDays, CreditCard, ArrowRight, CheckCircle2, RefreshCw
 } from "lucide-react";
@@ -476,6 +477,9 @@ export default function SubscriptionDetails() {
           })}
         </div>
       </div>
+
+      {/* Add-ons (extra features sold on top of the plan) */}
+      <AddonsSection />
 
       {/* Payment history */}
       <div className="bg-white rounded-2xl shadow-card border border-navy-100/60 p-4 md:p-5">

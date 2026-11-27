@@ -95,7 +95,7 @@ import LibraryPayments from "../features/venue-owner/library/LibraryPayments.jsx
 import LibrarySettings from "../features/venue-owner/library/LibrarySettings.jsx";
 import LibraryBooks from "../features/venue-owner/library/LibraryBooks.jsx";
 import LibraryReminders from "../features/venue-owner/library/LibraryReminders.jsx";
-
+import RequireAddon from "../components/layout/RequireAddon.jsx";
 import { HomeGate, ScopeGate } from "../components/layout/ScopeGate.jsx";
 
 
@@ -155,16 +155,16 @@ export default function VenueOwnerRoutes() {
         <Route path="gym/plans" element={<RequireFeature feature="gym"><GymPlans /></RequireFeature>} />
         <Route path="gym/shifts" element={<RequireFeature feature="gym"><GymShifts /></RequireFeature>} />
         <Route path="gym/attendance" element={<RequireFeature feature="gym"><GymAttendance /></RequireFeature>} />
-        <Route path="gym/workouts" element={<RequireFeature feature="gym"><WorkoutPlans /></RequireFeature>} />
-        <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><WorkoutBuilder /></RequireFeature>} />
+        <Route path="gym/workouts" element={<RequireFeature feature="gym"><RequireAddon feature="gym_workouts" label="Workouts" planOnly><WorkoutPlans /></RequireAddon></RequireFeature>} />
+        <Route path="gym/workouts/:id" element={<RequireFeature feature="gym"><RequireAddon feature="gym_workouts" label="Workouts" planOnly><WorkoutBuilder /></RequireAddon></RequireFeature>} />
         <Route path="gym/leads" element={<RequireFeature feature="gym"><GymLeads /></RequireFeature>} />
         <Route path="gym/messages" element={<RequireFeature feature="gym"><GymMessages /></RequireFeature>} />
-        <Route path="gym/store" element={<RequireFeature feature="gym"><GymStore /></RequireFeature>} />
+        <Route path="gym/store" element={<RequireFeature feature="gym"><RequireAddon feature="gym_store" label="Store" planOnly><GymStore /></RequireAddon></RequireFeature>} />
         <Route path="gym/batches" element={<RequireFeature feature="gym"><AcademyBatches /></RequireFeature>} />
         <Route path="gym/progress" element={<RequireFeature feature="gym"><AcademyProgress /></RequireFeature>} />
         <Route path="gym/progress/:id" element={<RequireFeature feature="gym"><StudentProgress /></RequireFeature>} />
-        <Route path="gym/body" element={<RequireFeature feature="gym"><BodyMeasurements /></RequireFeature>} />
-        <Route path="gym/body/:id" element={<RequireFeature feature="gym"><BodyMeasurementDetail /></RequireFeature>} />
+        <Route path="gym/body" element={<RequireFeature feature="gym"><RequireAddon feature="gym_body" label="Body Measurement"><BodyMeasurements /></RequireAddon></RequireFeature>} />
+        <Route path="gym/body/:id" element={<RequireFeature feature="gym"><RequireAddon feature="gym_body" label="Body Measurement"><BodyMeasurementDetail /></RequireAddon></RequireFeature>} />
         <Route path="gym/batches/:id/attendance" element={<RequireFeature feature="gym"><AcademyBatchAttendance /></RequireFeature>} />
         <Route path="gym/drills" element={<RequireFeature feature="gym"><AcademyDrills /></RequireFeature>} />
         <Route path="gym/events" element={<RequireFeature feature="gym"><AcademyEvents /></RequireFeature>} />

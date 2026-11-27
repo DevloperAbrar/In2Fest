@@ -11,6 +11,7 @@ const { createFreeSubscription, createSubscription, adminAssignPlan } = require(
 const { sanitizeBusinessHours, sanitizeServices, sanitizeNavConfig } = require("../../utils/venueContentSanitizer");
 const otherBiz = require("../../config/otherBusinessTaxonomy");
 const { getBusinessTypeKey: bizTypeKey } = require("../../config/businessTypes");
+const { activeAddonKeys } = require("../addons/addon.access");
 
 function slugify(text) {
   return text
@@ -312,6 +313,8 @@ async function getVenueById(venueId) {
   const { percentage, missing_fields } = calculateCompletion(venue);
   venue.setDataValue("marketplace_completion", { percentage, missing_fields });
   venue.setDataValue("page_sections", normalizeSections(venue));
+  // Add-ons the vendor has right now (frontend adds them to the plan's features).
+  venue.setDataValue("active_addons", await activeAddonKeys(venue.id));
 
   return venue;
 }
@@ -329,6 +332,7 @@ async function getVenuesByOwner(ownerId) {
     // Self-heal stale checklist data (only writes if something changed)
     await recalculateSetupChecklist(venue);
     venue.setDataValue("page_sections", normalizeSections(venue));
+    venue.setDataValue("active_addons", await activeAddonKeys(venue.id));
   }
   return venues;
 }
