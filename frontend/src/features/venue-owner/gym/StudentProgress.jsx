@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Plus } from "lucide-react";
+import { ArrowLeft, Download, MessageCircle, Plus } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useAuth } from "../../../context/AuthContext";
 import { gymService } from "../../../services/gymService";
@@ -10,7 +10,7 @@ import Select from "../../../components/common/Select";
 import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { GymPage, errMsg, todayISO, fmtDate, waUrl, TextArea } from "./gymShared.jsx";
+import { GymPage, errMsg, todayISO, fmtDate, waUrl, TextArea, downloadBlob } from "./gymShared.jsx";
 import { Surface, EmptyState } from "./gymUi.jsx";
 import { useGymVariant } from "./gymVariant.js";
 
@@ -159,6 +159,15 @@ export default function StudentProgress() {
     window.open(waUrl(`91${phone}`, shareText()), "_blank", "noopener");
   };
 
+  const downloadReport = async () => {
+    setBusy("report");
+    try {
+      const r = await gymService.acProgressReport(vid, id);
+      downloadBlob(r.data, `progress-report-${String(data.member.name || "student").replace(/\W+/g, "_")}.pdf`);
+      showSuccess("Report downloaded");
+    } catch { showError("Could not create the report. Please try again."); } finally { setBusy(""); }
+  };
+
   if (!data || !config || !progress) return <GymPage title="Progress"><Loader /></GymPage>;
 
   const setVal = (key, v) => setRf((p) => ({ ...p, values: { ...p.values, [key]: v } }));
@@ -264,7 +273,12 @@ export default function StudentProgress() {
         <Surface className="p-4">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h3 className="font-semibold text-navy-900">Progress</h3>
-            {progress.length > 0 && <Button variant="outline" onClick={sendWhatsApp}><MessageCircle size={15} /> Send to parent</Button>}
+            {progress.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={sendWhatsApp}><MessageCircle size={15} /> Send to parent</Button>
+                <Button onClick={downloadReport} loading={busy === "report"}><Download size={15} /> Download PDF</Button>
+              </div>
+            )}
           </div>
           {progress.length === 0 ? (
             <EmptyState title="No results yet" description="Saved results appear here with a trend line." />

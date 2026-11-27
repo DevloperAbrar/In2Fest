@@ -5,6 +5,7 @@ const { requireRole } = require("../../middleware/role.middleware");
 const { AppError } = require("../../middleware/error.middleware");
 const svc = require("./academy.service");
 const extra = require("./academy.extra.service");
+const report = require("./academy.report");
 
 const router = express.Router({ mergeParams: true });
 
@@ -43,6 +44,9 @@ router.post("/tests", ownerOnly, h((req) => svc.createTest(vid(req), variant(req
 router.patch("/tests/:id", ownerOnly, h((req) => svc.updateTest(vid(req), variant(req), req.params.id, req.body)));
 router.delete("/tests/:id", ownerOnly, h((req) => svc.deleteTest(vid(req), req.params.id)));
 router.get("/members/:id/progress", h((req) => svc.progress(vid(req), variant(req), req.params.id)));
+router.get("/members/:id/progress-report", async (req, res, next) => {
+  try { await report.progressReportPdf(req.gymVenue, variant(req), req.params.id, res); } catch (e) { next(e); }
+});
 router.post("/members/:id/results", h((req) => svc.recordResults(vid(req), variant(req), req.params.id, req.user, req.body), 201));
 router.delete("/results/:id", h((req) => svc.deleteResult(vid(req), req.params.id)));
 

@@ -116,6 +116,7 @@ export const gymService = {
   acProfile: (v, id) => api.get(`${b(v)}/academy/members/${id}/profile`),
   acSaveProfile: (v, id, body) => api.put(`${b(v)}/academy/members/${id}/profile`, body),
   acProgress: (v, id) => api.get(`${b(v)}/academy/members/${id}/progress`),
+  acProgressReport: (v, id) => api.get(`${b(v)}/academy/members/${id}/progress-report`, { responseType: "blob" }),
   acRecord: (v, id, body) => api.post(`${b(v)}/academy/members/${id}/results`, body),
   acDeleteResult: (v, resultId) => api.delete(`${b(v)}/academy/results/${resultId}`),
   acCreateTest: (v, body) => api.post(`${b(v)}/academy/tests`, body),
