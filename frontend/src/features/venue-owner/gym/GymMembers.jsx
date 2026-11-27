@@ -383,7 +383,6 @@ export default function GymMembers() {
   const [open, setOpen] = useState(!!state?.lead);
   const [importing, setImporting] = useState(false);
   const [reasonFor, setReasonFor] = useState(null);
-  const [remindFor, setRemindFor] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => { setDq(q.trim()); setPage(1); }, 350);
@@ -529,7 +528,7 @@ export default function GymMembers() {
               </p>
             )}
             <div className="space-y-2.5">
-              {items.map((m) => <MobileMemberCard key={m.id} m={m} vid={vid} onReason={setReasonFor} onFallback={setRemindFor} />)}
+              {items.map((m) => <MobileMemberCard key={m.id} m={m} onReason={setReasonFor} />)}
             </div>
           </div>
 
@@ -555,7 +554,6 @@ export default function GymMembers() {
                         Pay by {fmtDate(m.pay_by)}
                       </span>
                     )}
-                    {canRemind(m) && <RemindButton m={m} vid={vid} onFallback={setRemindFor} />}
                   </div>
                 </div>
                 <ReasonLine member={m} onOpen={setReasonFor} className="mt-2 pl-[52px]" />
@@ -582,10 +580,6 @@ export default function GymMembers() {
         </ModalErrorBoundary>
       )}
       <ReasonModal vid={vid} member={reasonFor} onClose={() => setReasonFor(null)} onSaved={refetch} />
-      {remindFor && (
-        <MessageModal key={remindFor.id} onClose={() => setRemindFor(null)} vid={vid} memberId={remindFor.id}
-          title="Renewal reminder" params={{ type: "renewal" }} />
-      )}
     </GymPage>
   );
 }
