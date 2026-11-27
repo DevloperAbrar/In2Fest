@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, ChevronDown, Download, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronDown, Download, GitCompare, Pencil, Trash2, X } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { gymService } from "../../../services/gymService";
 import Button from "../../../components/common/Button";
@@ -14,6 +14,9 @@ const CM_PER_IN = 2.54;
 const r1 = (n) => Math.round(n * 10) / 10;
 const TONE = { good: "text-emerald-700 bg-emerald-50", warn: "text-amber-700 bg-amber-50", bad: "text-red-700 bg-red-50", neutral: "text-navy-600 bg-navy-50" };
 const GROUP_LABEL = { derived: "Calculated" };
+const LEVEL_TONE = { mild: "good", moderate: "warn", serious: "bad" };
+const LEVEL_LABEL = { mild: "Mild", moderate: "Moderate", serious: "Serious" };
+const MAX_COMPARE = 8;
 
 function fmtTime(sec) {
   const s = r1(sec);
@@ -90,6 +93,9 @@ export default function BodyMeasurementDetail() {
   const [rf, setRf] = useState({ date: todayISO(), note: "", values: {} });
   const [open, setOpen] = useState({ size: true });
   const [busy, setBusy] = useState("");
+  const [issueForm, setIssueForm] = useState({ text: "", level: "mild" });
+  const [sel, setSel] = useState(() => new Set()); // record ids ticked for comparison
+  const [cmp, setCmp] = useState(null); // { data, ids } while the compare panel is open
 
   const sex = view?.member?.sex || null;
   const labelOf = (m) => (sex === "female" && m.label_f ? m.label_f : m.label);
@@ -169,7 +175,12 @@ export default function BodyMeasurementDetail() {
 
   const removeRecord = async (rec) => {
     if (!window.confirm(`Delete all readings of ${fmtDate(rec.date)}?`)) return;
-    try { await gymService.bodyDelete(vid, rec.id); await load(); } catch (e) { showError(errMsg(e)); }
+    try {
+      await gymService.bodyDelete(vid, rec.id);
+      setCmp(null);
+      setSel((p) => { const n = new Set(p); n.delete(rec.id); return n; });
+      await load();
+    } catch (e) { showError(errMsg(e)); }
   };
 
   const downloadReport = async () => {
@@ -180,6 +191,53 @@ export default function BodyMeasurementDetail() {
       showSuccess("Report downloaded");
     } catch { showError("Could not create the report. Please try again."); } finally { setBusy(""); }
   };
+
+    /* ---------- health issues ---------- */
+    const addIssue = async () => {
+      const text = issueForm.text.trim();
+      if (!text) { showError("Write the health issue first"); return; }
+      setBusy("issue");
+      try {
+        await gymService.bodyIssueAdd(vid, id, { text, level: issueForm.level });
+        setIssueForm({ text: "", level: issueForm.level });
+        await load();
+        showSuccess("Health note added. It will appear in the PDF report.");
+      } catch (e) { showError(errMsg(e)); } finally { setBusy(""); }
+    };
+    const toggleIssue = async (i) => {
+      try { await gymService.bodyIssueUpdate(vid, i.id, { resolved: !i.resolved }); await load(); } catch (e) { showError(errMsg(e)); }
+    };
+    const removeIssue = async (i) => {
+      if (!window.confirm("Delete this health note?")) return;
+      try { await gymService.bodyIssueDelete(vid, i.id); await load(); } catch (e) { showError(errMsg(e)); }
+    };
+  
+    /* ---------- compare records ---------- */
+    const toggleSel = (rid) => setSel((p) => {
+      const n = new Set(p);
+      if (n.has(rid)) n.delete(rid);
+      else if (n.size >= MAX_COMPARE) { showError(`You can compare up to ${MAX_COMPARE} records at a time`); return p; }
+      else n.add(rid);
+      return n;
+    });
+    const runCompare = async (ids) => {
+      setBusy("cmp");
+      try {
+        const r = await gymService.bodyCompare(vid, id, ids);
+        const data = r.data.data;
+        setCmp({ data, ids: data.columns.map((c) => c.id) });
+        setTimeout(() => document.getElementById("body-compare")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      } catch (e) { showError(errMsg(e)); } finally { setBusy(""); }
+    };
+    const downloadCompare = async () => {
+      if (!cmp) return;
+      setBusy("cmppdf");
+      try {
+        const r = await gymService.bodyCompareReport(vid, id, cmp.ids, unit);
+        downloadBlob(r.data, `body-compare-${String(view.member.name || "member").replace(/\W+/g, "_")}.pdf`);
+        showSuccess("Comparison report downloaded");
+      } catch { showError("Could not create the comparison report. Please try again."); } finally { setBusy(""); }
+    };
 
   const groups = config?.groups || [];
   const seriesByGroup = useMemo(() => {
@@ -278,6 +336,51 @@ export default function BodyMeasurementDetail() {
           </Surface>
         )}
 
+                {/* health issues / medical notes (shown in the PDF) */}
+                <Surface className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <h3 className="font-semibold text-navy-900">Health issues / medical notes</h3>
+            <span className="text-xs text-navy-400">Shown in the PDF report</span>
+          </div>
+          <p className="text-xs text-navy-400 mb-3">Add anything the trainer should know, e.g. knee pain, high BP, asthma, back injury, diabetes.</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={issueForm.text} maxLength={200} placeholder="e.g. Knee pain (right), avoid heavy squats"
+              onChange={(e) => setIssueForm((p) => ({ ...p, text: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addIssue(); } }}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <select
+              value={issueForm.level} onChange={(e) => setIssueForm((p) => ({ ...p, level: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500" aria-label="How serious"
+            >
+              <option value="mild">Mild</option>
+              <option value="moderate">Moderate</option>
+              <option value="serious">Serious</option>
+            </select>
+            <Button onClick={addIssue} loading={busy === "issue"}>Add</Button>
+          </div>
+          {(view.issues || []).length === 0 ? (
+            <p className="mt-3 text-sm text-navy-400">No health issues added.</p>
+          ) : (
+            <div className="mt-3 divide-y divide-navy-100">
+              {view.issues.map((i) => (
+                <div key={i.id} className="py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`text-sm font-medium break-words ${i.resolved ? "text-navy-400 line-through" : "text-navy-900"}`}>{i.text}</p>
+                    <p className="text-xs text-navy-400">Added {fmtDate(i.noted_on)}{i.recorded_by ? ` · ${i.recorded_by}` : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${i.resolved ? TONE.neutral : TONE[LEVEL_TONE[i.level]]}`}>{i.resolved ? "Resolved" : LEVEL_LABEL[i.level]}</span>
+                    <button type="button" onClick={() => toggleIssue(i)} className="text-xs font-semibold text-primary-600">{i.resolved ? "Reopen" : "Mark resolved"}</button>
+                    <button type="button" onClick={() => removeIssue(i)} className="text-xs font-semibold text-red-600 inline-flex items-center gap-1"><Trash2 size={12} /> Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Surface>
+
         {/* new measurement */}
         <Surface className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -359,16 +462,91 @@ export default function BodyMeasurementDetail() {
           )}
         </Surface>
 
+        {/* compare panel */}
+        {cmp && (() => {
+          const cd = cmp.data;
+          const gl = (gk) => GROUP_LABEL[gk] || groups.find((g) => g.key === gk)?.label || gk;
+          const chg = (r) => {
+            if (r.state === "single") return <span className="text-navy-400">Only 1 reading</span>;
+            if (r.state === "same") return <span className="text-navy-400">No change</span>;
+            const col = r.state === "better" ? "text-emerald-600" : r.state === "worse" ? "text-red-600" : "text-navy-500";
+            return <span className={`font-semibold ${col}`}>{r.delta > 0 ? "+" : "-"}{fmtVal(r, Math.abs(r.delta), unit)}{r.pct !== null ? ` (${r.pct}%)` : ""}</span>;
+          };
+          return (
+            <Surface className="p-4" id="body-compare">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <h3 className="font-semibold text-navy-900">Compare records</h3>
+                <div className="flex items-center gap-2">
+                  <Button onClick={downloadCompare} loading={busy === "cmppdf"}><Download size={15} /> Download comparison PDF</Button>
+                  <button type="button" onClick={() => setCmp(null)} className="tap-scale inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700"><X size={14} /> Close</button>
+                </div>
+              </div>
+              <p className="text-xs text-navy-400 mb-3">
+                {cd.columns.length} records, oldest on the left. Change = last column compared with the first reading.
+                {" "}<span className="font-semibold text-emerald-600">{cd.summary.better} improved</span> ·{" "}
+                <span className="font-semibold text-red-600">{cd.summary.worse} declined</span> · {cd.summary.same} unchanged
+              </p>
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full text-sm min-w-[560px]">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-navy-400 border-b border-navy-100">
+                      <th className="py-2 pr-3 font-semibold sticky left-0 bg-white">Measure</th>
+                      {cd.columns.map((c) => <th key={c.id} className="py-2 px-2 font-semibold text-center whitespace-nowrap">{fmtDate(c.date)}</th>)}
+                      <th className="py-2 pl-3 font-semibold whitespace-nowrap">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...groups.map((g) => g.key), "derived"].map((gk) => {
+                      const list = cd.rows.filter((r) => r.group === gk);
+                      if (!list.length) return null;
+                      return (
+                        <React.Fragment key={gk}>
+                          <tr><td colSpan={cd.columns.length + 2} className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-navy-400">{gl(gk)}</td></tr>
+                          {list.map((r) => (
+                            <tr key={r.key} className="border-b border-navy-50">
+                              <td className="py-2 pr-3 font-medium text-navy-900 whitespace-nowrap sticky left-0 bg-white">{sex === "female" && r.label_f ? r.label_f : r.label}</td>
+                              {r.values.map((v, i) => (
+                                <td key={i} className={`py-2 px-2 text-center whitespace-nowrap ${i === r.values.length - 1 ? "font-bold text-navy-900" : "text-navy-600"}`}>{v === null ? <span className="text-navy-300">-</span> : fmtVal(r, v, unit)}</td>
+                              ))}
+                              <td className="py-2 pl-3 whitespace-nowrap">{chg(r)}</td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Surface>
+          );
+        })()}
+
         {/* history */}
         {view.records.length > 0 && (
           <Surface className="p-4">
-            <h3 className="font-semibold text-navy-900 mb-2">Records</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <h3 className="font-semibold text-navy-900">Records</h3>
+              {view.records.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={() => runCompare([...sel])} loading={busy === "cmp"} disabled={sel.size < 2}><GitCompare size={15} /> Compare selected ({sel.size})</Button>
+                  <button type="button" onClick={() => runCompare([])} disabled={busy === "cmp"} className="tap-scale px-3 py-2 rounded-xl border border-navy-200 text-sm font-medium text-navy-700">
+                    {view.records.length > MAX_COMPARE ? `Compare latest ${MAX_COMPARE}` : "Compare all"}
+                  </button>
+                </div>
+              )}
+            </div>
+            {view.records.length > 1 && <p className="text-xs text-navy-400 mb-2">Tick 2 to {MAX_COMPARE} records to compare how the member progressed. Older records are never overwritten, every date is kept.</p>}
             <div className="divide-y divide-navy-100">
               {view.records.map((r) => (
                 <div key={r.id} className="py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-navy-900">{fmtDate(r.date)}</p>
-                    <p className="text-xs text-navy-400 truncate">{Object.keys(r.metrics).length} readings{r.metrics.weight ? ` · ${r.metrics.weight} kg` : ""}{r.note ? ` · ${r.note}` : ""}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {view.records.length > 1 && (
+                      <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggleSel(r.id)} className="h-4 w-4 shrink-0 accent-primary-600" aria-label={`Select ${fmtDate(r.date)} to compare`} />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-navy-900">{fmtDate(r.date)}</p>
+                      <p className="text-xs text-navy-400 truncate">{Object.keys(r.metrics).length} readings{r.metrics.weight ? ` · ${r.metrics.weight} kg` : ""}{r.note ? ` · ${r.note}` : ""}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <button type="button" onClick={() => editRecord(r)} className="text-xs font-semibold text-primary-600 inline-flex items-center gap-1"><Pencil size={12} /> Edit</button>

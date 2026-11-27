@@ -224,6 +224,33 @@ function drawWeightChart(doc, y, pts, unitNote) {
   return y + H;
 }
 
+/* ------------------------------ health issues box (shared) ------------------------------ */
+
+const LEVEL_TXT = { mild: "Mild", moderate: "Moderate", serious: "Serious" };
+const levelColor = (l) => (l === "serious" ? C.red : l === "moderate" ? AMBER : C.green);
+
+// Box listing the member's health issues / medical notes. Active ones first, resolved ones greyed out.
+function issueLayout(doc, issues, width) {
+  const innerW = width - 28 - 90;
+  const items = issues.map((i) => ({ i, h: Math.max(paraH(doc, clean(i.text), innerW, "Helvetica", 9, 2), 11) + 7 }));
+  return { items, innerW, width, boxH: 34 + items.reduce((a, b) => a + b.h, 0) };
+}
+
+function drawIssuesAt(doc, y, lay) {
+  const { items, width, boxH, innerW } = lay;
+  doc.save().roundedRect(M, y, width, boxH, 9).lineWidth(0.8).fillAndStroke("#fff7ed", "#fed7aa").restore();
+  put(doc, "HEALTH ISSUES / MEDICAL NOTES", M + 14, y + 12, { font: "Helvetica-Bold", size: 8, color: AMBER, spacing: 0.9 });
+  let ny = y + 28;
+  items.forEach(({ i, h }) => {
+    const col = i.resolved ? C.muted : levelColor(i.level);
+    doc.circle(M + 18, ny + 5, 3).fill(col);
+    para(doc, clean(i.text), M + 28, ny, innerW, { size: 9, color: i.resolved ? C.muted : C.ink, lineGap: 2 });
+    put(doc, `${i.resolved ? "Resolved" : LEVEL_TXT[i.level] || "Mild"}  |  ${U.fmtDate(i.noted_on)}`, M + width - 14 - 86, ny + 1, { font: "Helvetica-Bold", size: 7.5, color: col, width: 86, align: "right" });
+    ny += h;
+  });
+  return y + boxH;
+}
+
 /* ------------------------------ report ------------------------------ */
 
 function drawReport(doc, d) {
@@ -281,6 +308,13 @@ function drawReport(doc, d) {
       putFit(doc, `${clean(it.value)}${it.note ? `  -  ${clean(it.note)}` : ""}`, cx + Math.min(lw, half * 0.5), cy, half - Math.min(lw, half * 0.5) - 8, { size: 8.5, minSize: 6, color: toneColor(it.tone) === C.muted ? C.text : toneColor(it.tone) });
     });
     y += boxH + 16;
+  }
+
+  /* health issues entered by the vendor */
+  if (d.issues.length) {
+    const lay = issueLayout(doc, d.issues, CW);
+    ensure(lay.boxH + 6);
+    y = drawIssuesAt(doc, y, lay) + 16;
   }
 
   /* tables */
@@ -350,6 +384,187 @@ function toBuffer(doc, draw) {
   });
 }
 
+/* ------------------------------ compare report (landscape) ------------------------------ */
+// Side-by-side PDF of 2..8 saved records of ONE member, oldest on the left, with the change from
+// the first to the last selected record. Same data as the on-screen compare (body.service.compareView).
+
+const LW = 841.89;
+const LH = 595.28;
+const LCW = LW - M * 2;
+const LLIMIT = LH - 50;
+const C_HEAD = 24;
+const C_ROW = 26;
+
+function drawCompare(doc, d) {
+  const { id, cmp, unit } = d;
+  const n = cmp.columns.length;
+  const labelW = 150;
+  const changeW = 128;
+  const colW = (LCW - labelW - changeW) / n;
+  const xCol = (i) => M + labelW + i * colW;
+  const xChange = M + labelW + n * colW;
+  let y = 0;
+
+  const contHeader = () => {
+    drawTopStrip(doc);
+    put(doc, `Body Progress Comparison  |  ${clean(cmp.member.name, "Member")}`, M, 22, { font: "Helvetica-Bold", size: 9, color: C.navy });
+    put(doc, clean(id.name), M, 22, { size: 8.5, color: C.muted, width: LCW, align: "right" });
+    hline(doc, M, M + LCW, 38, C.line, 0.6);
+    return 52;
+  };
+  const newPage = () => { doc.addPage({ size: "A4", layout: "landscape", margin: 0 }); y = contHeader(); };
+  const ensure = (h) => { if (y + h > LLIMIT) { newPage(); return true; } return false; };
+
+  const tableHead = () => {
+    doc.rect(M, y, LCW, C_HEAD).fill(C.navy);
+    const hs = { font: "Helvetica-Bold", size: 7.5, color: C.white, spacing: 0.5 };
+    put(doc, "MEASURE", M + 10, y + 8, hs);
+    cmp.columns.forEach((c, i) => putFit(doc, U.fmtDate(c.date), xCol(i) + 2, y + 8, colW - 4, { font: "Helvetica-Bold", size: 7.5, minSize: 5.5, color: C.white, align: "center" }));
+    put(doc, "CHANGE (FIRST TO LAST)", xChange + 8, y + 8, { ...hs, size: 6.5 });
+    y += C_HEAD;
+  };
+
+  /* wave header */
+  const HEAD = 96;
+  drawWave(doc, HEAD);
+  let titleX = M;
+  if (id.logo) {
+    try {
+      doc.save().roundedRect(M, 16, 48, 48, 10).fill("#ffffff").restore();
+      doc.image(id.logo, M + 5, 21, { fit: [38, 38], align: "center", valign: "center" });
+      titleX = M + 62;
+    } catch { titleX = M; }
+  }
+  putFit(doc, clean(id.name, "Gym"), titleX, 20, 380, { font: "Helvetica-Bold", size: 22, minSize: 13, color: C.white });
+  put(doc, "BODY PROGRESS COMPARISON", titleX, 50, { font: "Helvetica", size: 9.5, color: "#c7d8f7", spacing: 1.4 });
+  put(doc, "REPORT DATE", LW - M - 150, 20, { font: "Helvetica", size: 7, color: "#c7d8f7", spacing: 1, width: 150, align: "right" });
+  put(doc, U.fmtDate(d.today), LW - M - 150, 32, { font: "Helvetica-Bold", size: 12, color: C.white, width: 150, align: "right" });
+  y = HEAD + 10;
+
+  /* member strip + summary */
+  const stripH = 54;
+  doc.save().roundedRect(M, y, LCW, stripH, 9).lineWidth(0.8).fillAndStroke(C.soft, C.line).restore();
+  const m = cmp.member;
+  putFit(doc, clean(m.name, "Member"), M + 14, y + 10, 230, { font: "Helvetica-Bold", size: 15, minSize: 10, color: C.ink });
+  putFit(doc, [m.member_code, m.sex === "male" ? "Male" : m.sex === "female" ? "Female" : "", m.age !== null && m.age !== undefined ? `${m.age} yrs` : ""].filter(Boolean).map((t) => clean(t)).join("   |   "), M + 14, y + 32, 230, { size: 8.5, color: C.muted });
+  const first = cmp.columns[0].date;
+  const last = cmp.columns[n - 1].date;
+  const stats = [
+    { label: "Records", value: String(n), color: C.navy },
+    { label: "Period", value: `${U.fmtDate(first)} - ${U.fmtDate(last)}`, color: C.navy, wide: true },
+    { label: "Improved", value: String(cmp.summary.better), color: C.green },
+    { label: "Declined", value: String(cmp.summary.worse), color: C.red },
+    { label: "No change", value: String(cmp.summary.same), color: C.muted }
+  ];
+  let sx = M + 226;
+  stats.forEach((st) => {
+    const w = st.wide ? 176 : 80;
+    doc.rect(sx, y + 10, 2.5, stripH - 20).fill(st.color);
+    putFit(doc, st.value, sx + 10, y + 11, w - 14, { font: "Helvetica-Bold", size: st.wide ? 11 : 17, minSize: 8, color: st.color });
+    put(doc, st.label.toUpperCase(), sx + 10, y + 34, { font: "Helvetica-Bold", size: 6.5, color: C.muted, spacing: 0.7 });
+    sx += w + 8;
+  });
+  y += stripH + 12;
+
+  /* health issues (active only, to keep the comparison page focused) */
+  const active = (cmp.issues || []).filter((i) => !i.resolved);
+  if (active.length) {
+    const lay = issueLayout(doc, active, LCW);
+    ensure(lay.boxH + 6);
+    y = drawIssuesAt(doc, y, lay) + 12;
+  }
+
+  /* table */
+  const female = m.sex === "female";
+  GROUP_ORDER.forEach(([gk, title]) => {
+    const rows = cmp.rows.filter((r) => r.group === gk);
+    if (!rows.length) return;
+    const drawTitle = (suffix) => {
+      doc.rect(M, y, 3, 14).fill(C.navy);
+      put(doc, `${title}${suffix}`, M + 11, y + 2, { font: "Helvetica-Bold", size: 10, color: C.navy });
+      y += 20;
+    };
+    ensure(20 + C_HEAD + C_ROW);
+    drawTitle("");
+    tableHead();
+    rows.forEach((r, i) => {
+      if (y + C_ROW > LLIMIT) { newPage(); drawTitle(" (continued)"); tableHead(); }
+      if (i % 2 === 1) doc.rect(M, y, LCW, C_ROW).fill(C.soft);
+      putFit(doc, clean(female && r.label_f ? r.label_f : r.label, "Reading"), M + 10, y + 8, labelW - 16, { font: "Helvetica-Bold", size: 8.5, minSize: 6.5, color: C.ink });
+      r.values.forEach((v, ci) => {
+        if (v === null) { put(doc, "-", xCol(ci), y + 8, { size: 9, color: C.grid, width: colW, align: "center" }); return; }
+        const isEnd = ci === n - 1;
+        putFit(doc, fmtV(r, v, unit), xCol(ci) + 2, y + 8, colW - 4, { font: isEnd ? "Helvetica-Bold" : "Helvetica", size: 8.5, minSize: 6, color: isEnd ? C.ink : C.text, align: "center" });
+      });
+      const cx = xChange + 8;
+      const col = stateColor(r.state);
+      if (r.state === "single") put(doc, "Only 1 reading", cx, y + 8, { size: 8, color: C.muted });
+      else if (r.state === "same") put(doc, "No change", cx, y + 8, { size: 8, color: C.muted });
+      else {
+        drawArrow(doc, r.delta > 0, cx, y + 6, col);
+        const abs = Math.abs(r.delta);
+        putFit(doc, `${r.delta > 0 ? "+" : "-"}${fmtV(r, abs, unit)}`, cx + 13, y + 4, changeW - 24, { font: "Helvetica-Bold", size: 8.5, minSize: 6, color: col });
+        const tag = r.state === "better" ? "Improved" : r.state === "worse" ? "Declined" : "Changed";
+        putFit(doc, `${tag}${r.pct !== null ? `  ${r.pct >= 100 ? Math.round(r.pct) : r.pct.toFixed(1)}%` : ""}`, cx + 13, y + 15, changeW - 24, { size: 7, minSize: 5.5, color: col });
+      }
+      hline(doc, M, M + LCW, y + C_ROW, C.line, 0.5);
+      y += C_ROW;
+    });
+    y += 14;
+  });
+
+  /* trainer notes of the compared days */
+  const notes = cmp.columns.filter((c) => c.note).map((c) => ({ date: c.date, text: clean(c.note) })).filter((x) => x.text);
+  if (notes.length) {
+    const innerW = LCW - 28;
+    const hs = notes.map((x) => paraH(doc, `${U.fmtDate(x.date)}  -  ${x.text}`, innerW, "Helvetica", 9, 2) + 6);
+    const boxH = 34 + hs.reduce((a, b) => a + b, 0);
+    ensure(boxH + 6);
+    doc.save().roundedRect(M, y, LCW, boxH, 9).lineWidth(0.8).fillAndStroke(C.soft, C.line).restore();
+    put(doc, "TRAINER NOTES", M + 14, y + 12, { font: "Helvetica-Bold", size: 8, color: C.navy, spacing: 0.9 });
+    let ny = y + 28;
+    notes.forEach((x, i) => { para(doc, `${U.fmtDate(x.date)}  -  ${x.text}`, M + 14, ny, innerW, { size: 9, color: C.text, lineGap: 2 }); ny += hs[i]; });
+    y += boxH + 14;
+  }
+
+  /* how to read */
+  ensure(62);
+  put(doc, "HOW TO READ THIS COMPARISON", M, y, { font: "Helvetica-Bold", size: 7.5, color: C.muted, spacing: 0.9 });
+  y += 12;
+  para(doc, "Each column is one saved record, oldest on the left. Change compares the last column with the first one that has a reading. A dash means that reading was not taken on that day. Green is a change in the healthy direction, red the opposite; size measurements are shown without colour because gaining muscle or losing fat can both be a goal. This report is not medical advice.", M, y, LCW - 200, { size: 8, color: C.muted, lineGap: 2 });
+  const gx = LW - M - 170;
+  const ly = y + 30;
+  hline(doc, gx, gx + 170, ly, C.grid, 0.8);
+  if (id.owner) putFit(doc, clean(id.owner), gx, ly + 4, 170, { font: "Helvetica-Bold", size: 9, minSize: 7, color: C.ink, align: "center" });
+  put(doc, "Trainer / Authorised signatory", gx, ly + (id.owner ? 16 : 5), { size: 8, color: C.muted, width: 170, align: "center" });
+
+  /* footer on every page */
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(range.start + i);
+    doc.page.margins.bottom = 0;
+    const fy = LH - 34;
+    hline(doc, M, LW - M, fy, C.line, 0.5);
+    putFit(doc, [clean(id.name), clean(id.phone), clean(id.email)].filter(Boolean).join("   |   "), M, fy + 9, LCW - 90, { size: 7.5, minSize: 5, color: C.muted });
+    put(doc, `Page ${i + 1} of ${range.count}`, LW - M - 70, fy + 9, { font: "Helvetica-Bold", size: 7.5, color: C.muted, width: 70, align: "right" });
+  }
+}
+
+async function compareReportPdf(venue, memberId, idsRaw, unit, res) {
+  const [cmp, id] = await Promise.all([svc.compareView(venue.id, memberId, idsRaw), gymIdentity(venue)]);
+  const doc = new PDFDocument({
+    size: "A4", layout: "landscape", margin: 0, bufferPages: true,
+    info: { Title: `Body Progress Comparison - ${clean(cmp.member.name, "Member")}`, Author: clean(id.name, "Gym"), Subject: "Body measurement comparison" }
+  });
+  const buf = await toBuffer(doc, () => drawCompare(doc, { id, cmp, unit, today: U.todayIST() }));
+  const safe = clean(cmp.member.name).replace(/[^\w-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "member";
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="body-compare-${safe}.pdf"`);
+  res.setHeader("Content-Length", buf.length);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.end(buf);
+}
+
 /* ------------------------------ entry point ------------------------------ */
 
 async function bodyReportPdf(venue, memberId, unit, res) {
@@ -378,6 +593,7 @@ async function bodyReportPdf(venue, memberId, unit, res) {
   const heightTxt = hSeries ? fmtV({ kind: "length" }, hSeries.latest.value, unit) : "-";
   const data = {
     id, view, photo, unit, tiles, today: U.todayIST(),
+    issues: view.issues || [],
     name: member.name,
     genderLabel: member.sex === "male" ? "Male" : member.sex === "female" ? "Female" : "",
     details: [
@@ -405,4 +621,4 @@ async function bodyReportPdf(venue, memberId, unit, res) {
   res.end(buf);
 }
 
-module.exports = { bodyReportPdf };
+module.exports = { bodyReportPdf, compareReportPdf };

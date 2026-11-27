@@ -7,12 +7,15 @@ const { AppError } = require("../../middleware/error.middleware");
 const U = require("./gym.utils");
 const core = require("./gym.core");
 const B = require("../../config/bodyMetrics");
-const { GymBodyRecord } = require("./body.models");
+const { GymBodyRecord, GymBodyIssue } = require("./body.models");
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_READ = 1000;
 const MAX_PER_MEMBER = 2000;
 const MAX_SUMMARY_IDS = 50;
+const MAX_ISSUES = 30;
+const MAX_COMPARE = 8;
+const LEVELS = ["mild", "moderate", "serious"];
 
 const text = (v, max) => String(v === undefined || v === null ? "" : v).trim().slice(0, max);
 const needId = (id, label) => {
@@ -137,6 +140,7 @@ async function memberView(venueId, memberId) {
     .sort((a, b) => (order.has(a.key) ? order.get(a.key) : 999) - (order.has(b.key) ? order.get(b.key) : 999));
 
   const snap = B.insightsFor(merged, { sex, height: B.num(merged.height) || profH });
+  const issues = await listIssues(venueId, member.id);
   return {
     member: {
       id: member.id, name: member.name, member_code: member.member_code, phone: member.phone,
@@ -145,6 +149,7 @@ async function memberView(venueId, memberId) {
     },
     baseline,
     records: real.slice().reverse(),
+    issues,
     series,
     snapshot: { values: merged, derived: snap.derived, insights: snap.insights, as_of: real.length ? real[real.length - 1].date : null },
     truncated: rows.length >= MAX_READ
@@ -214,9 +219,107 @@ async function deleteRecord(venueId, id) {
   return { deleted: true };
 }
 
+/* ------------------------------ health issues ------------------------------ */
+// Medical conditions / injuries the vendor wants on the member's report (member level, not per day).
+
+const issueOut = (r) => ({ id: r.id, text: r.text, level: r.level, noted_on: r.noted_on, resolved: !!r.resolved, recorded_by: r.recorded_by || "" });
+
+async function listIssues(venueId, memberId) {
+  const rows = await GymBodyIssue.findAll({ where: { venue_id: venueId, member_id: memberId }, order: [["resolved", "ASC"], ["noted_on", "DESC"], ["createdAt", "DESC"]], limit: MAX_ISSUES });
+  return rows.map(issueOut);
+}
+
+async function addIssue(venueId, memberId, user, body) {
+  const member = await core.findMember(venueId, needId(memberId, "Member"));
+  const b = body || {};
+  const txt = text(b.text, 200);
+  if (!txt) throw new AppError("Write the health issue", 400);
+  const level = LEVELS.includes(b.level) ? b.level : "mild";
+  const today = U.todayIST();
+  const noted = b.noted_on === undefined || b.noted_on === null || b.noted_on === "" ? today : String(b.noted_on);
+  if (!U.isYmd(noted)) throw new AppError("Enter a valid date", 400);
+  if (U.diffDays(noted, today) < 0) throw new AppError("Date cannot be in the future", 400);
+  const total = await GymBodyIssue.count({ where: { venue_id: venueId, member_id: member.id } });
+  if (total >= MAX_ISSUES) throw new AppError("This member already has the maximum number of health notes", 400);
+  const row = await GymBodyIssue.create({ venue_id: venueId, member_id: member.id, text: txt, level, noted_on: noted, recorded_by: text(user && user.name, 80) || null });
+  return issueOut(row);
+}
+
+async function updateIssue(venueId, id, body) {
+  const row = UUID_RE.test(String(id)) ? await GymBodyIssue.findOne({ where: { id, venue_id: venueId } }) : null;
+  if (!row) throw new AppError("Health note not found", 404);
+  const b = body || {};
+  const patch = {};
+  if (b.text !== undefined) { const t = text(b.text, 200); if (!t) throw new AppError("Write the health issue", 400); patch.text = t; }
+  if (b.level !== undefined) { if (!LEVELS.includes(b.level)) throw new AppError("Choose mild, moderate or serious", 400); patch.level = b.level; }
+  if (b.resolved !== undefined) patch.resolved = !!b.resolved;
+  await row.update(patch);
+  return issueOut(row);
+}
+
+async function deleteIssue(venueId, id) {
+  const row = UUID_RE.test(String(id)) ? await GymBodyIssue.findOne({ where: { id, venue_id: venueId } }) : null;
+  if (!row) throw new AppError("Health note not found", 404);
+  await row.destroy();
+  return { deleted: true };
+}
+
+/* ------------------------------ compare records ------------------------------ */
+// Side-by-side view of 2..8 saved records of ONE member (oldest on the left). Nothing is stored:
+// it is built from the saved records, so every old record stays available to compare.
+
+async function compareView(venueId, memberId, idsRaw) {
+  const view = await memberView(venueId, memberId);
+  const asked = [...new Set(String(idsRaw || "").split(",").map((x) => x.trim()).filter((x) => UUID_RE.test(x)))];
+  let picked = view.records.filter((r) => (asked.length ? asked.includes(r.id) : true)); // newest first
+  if (!asked.length) picked = picked.slice(0, MAX_COMPARE); // "compare all" = the latest 8
+  if (picked.length < 2) throw new AppError("Select at least 2 saved records to compare", 400);
+  if (picked.length > MAX_COMPARE) throw new AppError(`You can compare up to ${MAX_COMPARE} records at a time`, 400);
+  picked = picked.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)); // oldest -> newest
+
+  // carry the latest known values forward (oldest -> newest) so BMI / ratios are right on every date
+  const all = (view.baseline ? [view.baseline] : []).concat(view.records.slice().reverse());
+  const sex = view.member.sex;
+  let h = null;
+  const merged = {};
+  const derivedAt = new Map();
+  all.forEach((e) => {
+    if (B.num(e.metrics.height) !== null) h = Number(e.metrics.height);
+    Object.entries(e.metrics).forEach(([k, v]) => { if (B.get(k) && B.num(v) !== null) merged[k] = Number(v); });
+    if (e.id) derivedAt.set(e.id, B.derive({ ...merged }, { sex, height: h || B.num(merged.height) }));
+  });
+
+  const cols = picked.map((r) => ({ id: r.id, date: r.date, note: r.note || "" }));
+  const rows = [];
+  const add = (def, values) => {
+    const have = values.map((v, i) => ({ v, i })).filter((x) => x.v !== null);
+    if (!have.length) return;
+    const first = have[0];
+    const latest = have[have.length - 1];
+    let state = "single", delta = 0, pct = null;
+    if (have.length > 1) {
+      delta = round(latest.v - first.v, 2);
+      pct = first.v ? round(Math.abs((delta / first.v) * 100), 1) : null;
+      if (delta === 0) state = "same";
+      else if (def.better === "none") state = "neutral";
+      else state = (def.better === "lower" ? delta < 0 : delta > 0) ? "better" : "worse";
+    }
+    rows.push({ key: def.key, label: def.label, label_f: def.label_f || null, unit: def.unit, kind: def.kind, group: def.group, better: def.better, decimals: def.decimals, values, first: first.v, latest: latest.v, delta, pct, state });
+  };
+
+  B.METRICS.forEach((def) => add(def, picked.map((r) => (B.num(r.metrics[def.key]) !== null && B.get(def.key) ? Number(r.metrics[def.key]) : null))));
+  add(DERIVED_DEFS.bmi, picked.map((r) => { const d = derivedAt.get(r.id); return d && d.bmi !== undefined && (r.metrics.weight !== undefined || r.metrics.height !== undefined) ? d.bmi : null; }));
+  add(DERIVED_DEFS.whr, picked.map((r) => { const d = derivedAt.get(r.id); return d && d.whr !== undefined && (r.metrics.waist !== undefined || r.metrics.hips !== undefined) ? d.whr : null; }));
+  add({ key: "body_fat_est", label: "Body fat (estimated)", unit: "%", kind: "pct", group: "derived", better: "lower", decimals: 1 },
+    picked.map((r) => { const d = derivedAt.get(r.id); return d && d.body_fat !== undefined && d.body_fat_source === "estimated" && r.metrics.body_fat === undefined && (r.metrics.waist !== undefined || r.metrics.neck !== undefined || r.metrics.hips !== undefined) ? d.body_fat : null; }));
+
+  const summary = { better: rows.filter((r) => r.state === "better").length, worse: rows.filter((r) => r.state === "worse").length, same: rows.filter((r) => r.state === "same").length };
+  return { member: view.member, columns: cols, rows, issues: view.issues, summary, max: MAX_COMPARE };
+}
+
 // Called when a member is deleted permanently, so no body data is left behind.
 async function cleanupMember(venueId, memberId) {
   await GymBodyRecord.destroy({ where: { venue_id: venueId, member_id: memberId } });
+  await GymBodyIssue.destroy({ where: { venue_id: venueId, member_id: memberId } });
 }
-
-module.exports = { config, summary, memberView, saveRecord, deleteRecord, cleanupMember };
+module.exports = { config, summary, memberView, saveRecord, deleteRecord, cleanupMember, addIssue, updateIssue, deleteIssue, compareView };

@@ -24,8 +24,26 @@ const GymBodyRecord = sequelize.define("GymBodyRecord", {
   ]
 });
 
+// Health issues / medical conditions of a member (e.g. "Knee pain", "High BP", "Asthma").
+// These belong to the MEMBER, not to one measurement day, so they live in their own table: the
+// vendor adds points once and they appear in every report until marked resolved or deleted.
+const GymBodyIssue = sequelize.define("GymBodyIssue", {
+  id: { type: UUID, defaultValue: UUIDV4, primaryKey: true },
+  venue_id: { type: UUID, allowNull: false },
+  member_id: { type: UUID, allowNull: false },
+  text: { type: STRING(200), allowNull: false },
+  level: { type: STRING(10), allowNull: false, defaultValue: "mild" }, // mild | moderate | serious
+  noted_on: { type: DATEONLY, allowNull: false },
+  resolved: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  recorded_by: STRING(80)
+}, {
+  tableName: "gym_body_issues",
+  indexes: [{ fields: ["venue_id", "member_id"] }]
+});
+
 async function ensure() {
   await GymBodyRecord.sync();
+  await GymBodyIssue.sync();
 }
 
-module.exports = { GymBodyRecord, ensure };
+module.exports = { GymBodyRecord, GymBodyIssue, ensure };

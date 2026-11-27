@@ -142,5 +142,10 @@ export const gymService = {
   bodyMember: (v, id) => api.get(`${b(v)}/body/members/${id}`),
   bodySave: (v, id, body) => api.post(`${b(v)}/body/members/${id}/records`, body),
   bodyDelete: (v, recordId) => api.delete(`${b(v)}/body/records/${recordId}`),
-  bodyReport: (v, id, unit) => api.get(`${b(v)}/body/members/${id}/report`, { params: { unit }, responseType: "blob" })
+  bodyReport: (v, id, unit) => api.get(`${b(v)}/body/members/${id}/report`, { params: { unit }, responseType: "blob" }),
+  bodyIssueAdd: (v, id, body) => api.post(`${b(v)}/body/members/${id}/issues`, body),
+  bodyIssueUpdate: (v, issueId, body) => api.patch(`${b(v)}/body/issues/${issueId}`, body),
+  bodyIssueDelete: (v, issueId) => api.delete(`${b(v)}/body/issues/${issueId}`),
+  bodyCompare: (v, id, ids) => api.get(`${b(v)}/body/members/${id}/compare`, { params: { ids: ids.join(",") } }),
+  bodyCompareReport: (v, id, ids, unit) => api.get(`${b(v)}/body/members/${id}/compare-report`, { params: { ids: ids.join(","), unit }, responseType: "blob" })
 };

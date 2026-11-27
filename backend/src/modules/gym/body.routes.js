@@ -34,6 +34,18 @@ router.get("/summary", h((req) => svc.summary(vid(req), req.query.ids)));
 router.get("/members/:id", h((req) => svc.memberView(vid(req), req.params.id)));
 router.post("/members/:id/records", h((req) => svc.saveRecord(vid(req), req.params.id, req.user, req.body), 201));
 router.delete("/records/:id", h((req) => svc.deleteRecord(vid(req), req.params.id)));
+
+// health issues / medical notes
+router.post("/members/:id/issues", h((req) => svc.addIssue(vid(req), req.params.id, req.user, req.body), 201));
+router.patch("/issues/:id", h((req) => svc.updateIssue(vid(req), req.params.id, req.body)));
+router.delete("/issues/:id", h((req) => svc.deleteIssue(vid(req), req.params.id)));
+
+// compare 2..8 saved records
+router.get("/members/:id/compare", h((req) => svc.compareView(vid(req), req.params.id, req.query.ids)));
+router.get("/members/:id/compare-report", async (req, res, next) => {
+  try { await report.compareReportPdf(req.gymVenue, req.params.id, req.query.ids, req.query.unit === "in" ? "in" : "cm", res); } catch (e) { next(e); }
+});
+
 router.get("/members/:id/report", async (req, res, next) => {
   try { await report.bodyReportPdf(req.gymVenue, req.params.id, req.query.unit === "in" ? "in" : "cm", res); } catch (e) { next(e); }
 });
