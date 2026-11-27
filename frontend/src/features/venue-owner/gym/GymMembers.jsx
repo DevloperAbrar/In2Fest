@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Plus, Search, Download, Upload, UserPlus, UserRound, HeartPulse, Ticket, Wallet, Camera,
-  Phone, CalendarDays, Clock, ChevronRight, X
+  Phone, CalendarDays, Clock, ChevronRight, X, MessageCircle
 } from "lucide-react";
 import { useVenue } from "../../../context/VenueContext.jsx";
 import { useFetch } from "../../../hooks/useFetch";
@@ -14,7 +14,7 @@ import Modal from "../../../components/common/Modal";
 import Loader from "../../../components/common/Loader";
 import EmptyState from "../../../components/common/EmptyState";
 import { showSuccess, showError } from "../../../components/common/Toast";
-import { GymPage, StatusPill, Field, TextArea, GOALS, MODES, inr, fmtDate, errMsg, todayISO, downloadBlob } from "./gymShared.jsx";
+import { GymPage, StatusPill, Field, TextArea, MessageModal, GOALS, MODES, inr, fmtDate, errMsg, todayISO, downloadBlob, waUrl } from "./gymShared.jsx";
 import PhotoPicker from "./PhotoPicker.jsx";
 import { shiftRange } from "./GymShifts.jsx";
 import ImportMembersModal from "./ImportMembersModal.jsx";
@@ -250,8 +250,56 @@ function EnrollModal({ isOpen, onClose, vid, lead, onDone }) {
   );
 }
 
+// One-tap renewal reminder: builds the vendor's own renewal text (same one as Member > Message > Renewal reminder)
+// and opens that member's WhatsApp chat with it ready. The vendor only presses send in WhatsApp.
+const canRemind = (m) => !!m && !!m.end_date && m.display_status !== "frozen";
+
+function RemindButton({ m, vid, onFallback, className = "" }) {
+  const [busy, setBusy] = useState(false);
+
+  const remind = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    // Open the tab right away (inside the click) so phone and browser pop-up blockers allow it.
+    const win = window.open("", "_blank");
+    setBusy(true);
+    try {
+      const r = await gymService.message(vid, m.id, { type: "renewal" });
+      const { text, phone } = r.data.data;
+      if (!phone || !text) throw new Error("empty");
+      const url = waUrl(phone, text);
+      if (win) {
+        try { win.opener = null; } catch { /* ignore */ }
+        win.location.href = url;
+      } else {
+        onFallback(m); // pop-up blocked: show the normal message window instead
+      }
+      gymService.msgSent(vid, { items: [{ type: "member", id: m.id }], label: "Renewal reminder" }).catch(() => { });
+    } catch (err) {
+      if (win) win.close();
+      showError(errMsg(err, "Could not prepare the reminder"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={remind}
+      disabled={busy}
+      title="Send renewal reminder on WhatsApp"
+      aria-label={`Send renewal reminder to ${m.name} on WhatsApp`}
+      className={`tap-scale inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1 text-[12px] font-semibold whitespace-nowrap disabled:opacity-60 ${className}`}
+    >
+      <MessageCircle size={13} /> {busy ? "Opening..." : "Remind"}
+    </button>
+  );
+}
+
 // Mobile member card (desktop keeps the original divided list further below).
-function MobileMemberCard({ m, onReason }) {
+function MobileMemberCard({ m, vid, onReason, onFallback }) {
   const status = m.display_status || "new";
   const hasDue = +m.balance_due > 0;
   const showReason = status === "expired" || status === "expiring";
@@ -308,6 +356,12 @@ function MobileMemberCard({ m, onReason }) {
           <ChevronRight size={16} className="text-navy-300 shrink-0 mt-3" aria-hidden="true" />
         </div>
       </Link>
+      {canRemind(m) && (
+        <div className="border-t border-navy-100/60 px-4 py-2.5 flex items-center justify-between gap-2">
+          <span className="text-[11.5px] text-navy-400">Renewal reminder</span>
+          <RemindButton m={m} vid={vid} onFallback={onFallback} />
+        </div>
+      )}
       {showReason && (
         <div className="border-t border-navy-100/60 px-4 py-2.5">
           <ReasonLine member={m} onOpen={onReason} />
@@ -329,6 +383,7 @@ export default function GymMembers() {
   const [open, setOpen] = useState(!!state?.lead);
   const [importing, setImporting] = useState(false);
   const [reasonFor, setReasonFor] = useState(null);
+  const [remindFor, setRemindFor] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => { setDq(q.trim()); setPage(1); }, 350);
@@ -474,7 +529,7 @@ export default function GymMembers() {
               </p>
             )}
             <div className="space-y-2.5">
-              {items.map((m) => <MobileMemberCard key={m.id} m={m} onReason={setReasonFor} />)}
+              {items.map((m) => <MobileMemberCard key={m.id} m={m} vid={vid} onReason={setReasonFor} onFallback={setRemindFor} />)}
             </div>
           </div>
 
@@ -500,6 +555,7 @@ export default function GymMembers() {
                         Pay by {fmtDate(m.pay_by)}
                       </span>
                     )}
+                    {canRemind(m) && <RemindButton m={m} vid={vid} onFallback={setRemindFor} />}
                   </div>
                 </div>
                 <ReasonLine member={m} onOpen={setReasonFor} className="mt-2 pl-[52px]" />
@@ -526,6 +582,10 @@ export default function GymMembers() {
         </ModalErrorBoundary>
       )}
       <ReasonModal vid={vid} member={reasonFor} onClose={() => setReasonFor(null)} onSaved={refetch} />
+      {remindFor && (
+        <MessageModal key={remindFor.id} onClose={() => setRemindFor(null)} vid={vid} memberId={remindFor.id}
+          title="Renewal reminder" params={{ type: "renewal" }} />
+      )}
     </GymPage>
   );
 }
