@@ -16,6 +16,7 @@ const { resolveSubdomain } = require("./subdomain/subdomain.middleware");
 const { metricsMiddleware } = require("./utils/metrics");
 const routes = require("./routes/index");
 const sitemapRoutes = require("./modules/seo/sitemap.routes");
+const { router: vendorSeoRouter, apiRouter: vendorSeoApiRouter } = require("./modules/seo/vendorSite.seo");
 
 const app = express();
 
@@ -51,6 +52,8 @@ app.use(
 );
 
 app.use("/", sitemapRoutes);
+app.use("/api", vendorSeoApiRouter); // /api/sitemap-websites.xml (all live vendor websites)
+app.use("/", vendorSeoRouter); // vendor-site robots.txt, sitemap.xml and SEO-injected index.html (before resolveSubdomain, it does its own lookup)
 app.use("/api", sitemapRoutes); // makes https://in2fest.com/api/sitemap.xml work, since /api already reaches the backend
 const cashfreeWebhookRoutes = require("./modules/payments/cashfree.webhook");
 app.use("/api/webhooks", cashfreeWebhookRoutes); // must be before express.json() for raw-body HMAC
