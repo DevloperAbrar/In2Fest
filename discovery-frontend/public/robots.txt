@@ -12,6 +12,7 @@ Disallow: /api/
 # The sitemap files live under /api/, so they must stay crawlable
 Allow: /api/sitemap.xml
 Allow: /api/sitemap-images.xml
+Allow: /api/sitemap-websites.xml
 
 # Parameter URLs that only create duplicates
 Disallow: /*?*sort=
@@ -20,3 +21,4 @@ Disallow: /*?*page=
 # Sitemaps
 Sitemap: https://in2fest.com/api/sitemap.xml
 Sitemap: https://in2fest.com/api/sitemap-images.xml
+Sitemap: https://in2fest.com/api/sitemap-websites.xml
